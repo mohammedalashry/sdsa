@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id Int @id @default(autoincrement())
+
+  // AbstractUser core
+  password     String?
+  last_login   DateTime?
+  is_superuser Boolean   @default(false)
+  first_name   String
+  last_name    String
+  email        String    @unique
+  is_staff     Boolean   @default(false)
+  is_active    Boolean   @default(true)
+  date_joined  DateTime  @default(now())
+
+  // Custom fields
+  email_type           EmailType
+  phonenumber          String?
+  otp                  String?
+  otp_expiry           DateTime?
+  company_name         String?
+  role                 Role      @default(client)
+  purpose              String
+  terms_and_conditions Boolean   @default(false)
+  image                String    @default("")
+  twitter_link         String    @default("")
+  dob                  DateTime?
+  address              String    @default("")
+  is_verified          Boolean   @default(true)
+  is_deleted           Boolean   @default(false)
+  change_password      Boolean   @default(false)
+  last_request_at      DateTime?
+  country_code         String?
+
+  // Relations
+  following        TeamFollow[]
+  contacts_handled Contact[]      @relation("contact_handled_by")
+  refreshTokens    RefreshToken[]
+
+  @@index([is_staff, last_request_at])
+  @@map("users")
+}
+
+model RefreshToken {
+  id              String    @id @default(cuid())
+  user_id         Int
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token_hash      String    @unique // sha256(raw refresh token)
+  role            Role
+  expires_at      DateTime
+  revoked         Boolean   @default(false)
+  revoked_at      DateTime?
+  rotated_from_id String?
+  ip              String?
+  user_agent      String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@index([user_id, token_hash])
+  @@map("refresh_tokens")
+}
+
+model Contact {
+  id             Int    @id @default(autoincrement())
+  first_name     String
+  last_name      String
+  email          String
+  contact_number String
+  message        String
+
+  // optional: who handled it (admin)
+  handled_by_id Int?
+  handled_by    User? @relation("contact_handled_by", fields: [handled_by_id], references: [id], onDelete: SetNull)
+
+  @@map("contacts")
+}
+
+model TeamFollow {
+  id Int @id @default(autoincrement())
+
+  user_id Int
+  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  team_id Int
+  team    Json?
+
+  @@unique([user_id, team_id])
+  @@map("team_follows")
+}
+
+// UserStatistics (daily snapshot)
+model UserStatistics {
+  id                Int      @id @default(autoincrement())
+  date              DateTime @unique
+  active_count      Int      @default(0)
+  pending_count     Int      @default(0)
+  deactivated_count Int      @default(0)
+  deleted_count     Int      @default(0)
+  total_count       Int      @default(0)
+
+  @@map("user_statistics")
+}
+
+// =======================
+// API Football domain
+// =======================
+
+// League
+model ApiFootballLeague {
+  id     Int    @id @default(autoincrement())
+  name   String
+  type   String
+  logo   String
+  api_id Int    @unique
+  data   Json
+
+  seasons ApiFootballSeason[]
+
+  @@map("api_football_leagues")
+}
+
+// Season (FK -> League)
+model ApiFootballSeason {
+  id         Int               @id @default(autoincrement())
+  league_id  Int
+  league     ApiFootballLeague @relation(fields: [league_id], references: [id], onDelete: Cascade)
+  start_date DateTime
+  end_date   DateTime
+  year       Int
+
+  // M2M with teams & players
+  teams   ApiFootballTeam[]
+  players ApiFootballPlayer[]
+
+  fixtures ApiFootballFixture[]
+
+  @@map("api_football_seasons")
+}
+
+// Team (M2M with Seasons; M2M with Players)
+model ApiFootballTeam {
+  id     Int    @id @default(autoincrement())
+  name   String
+  api_id Int    @unique
+  data   Json
+
+  seasons ApiFootballSeason[] // M2M
+  players ApiFootballPlayer[] // M2M
+
+  home_fixtures ApiFootballFixture[] @relation("home_team")
+  away_fixtures ApiFootballFixture[] @relation("away_team")
+  coaches       ApiFootballCoach[]
+
+  @@map("api_football_teams")
+}
+
+// Player (M2M with Seasons & Teams)
+model ApiFootballPlayer {
+  id     Int    @id @default(autoincrement())
+  api_id Int    @unique
+  name   String
+  data   Json
+
+  seasons ApiFootballSeason[] // M2M
+  teams   ApiFootballTeam[] // M2M
+
+  @@map("api_football_players")
+}
+
+// Coach (FK -> Team)
+model ApiFootballCoach {
+  id      Int             @id @default(autoincrement())
+  team_id Int
+  team    ApiFootballTeam @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  api_id  Int
+  name    String
+  data    Json
+
+  @@unique([team_id, api_id])
+  @@map("api_football_coaches")
+}
+
+// Fixture (FK -> Season, and double FK -> Team as home/away)
+model ApiFootballFixture {
+  id           Int  @id @default(autoincrement())
+  season_id    Int
+  home_team_id Int
+  away_team_id Int
+  api_id       Int  @unique
+  data         Json
+
+  season    ApiFootballSeason @relation(fields: [season_id], references: [id], onDelete: Cascade)
+  home_team ApiFootballTeam   @relation("home_team", fields: [home_team_id], references: [id], onDelete: Cascade)
+  away_team ApiFootballTeam   @relation("away_team", fields: [away_team_id], references: [id], onDelete: Cascade)
+
+  @@map("api_football_fixtures")
+}
+
+// Fixture highlight (plain fixture_id, no FK in Django)
+model ApiFixtureHighlight {
+  id          Int    @id @default(autoincrement())
+  fixture_id  Int
+  host        String @default("youtube")
+  fixture_url String
+
+  @@index([fixture_id])
+  @@map("api_fixture_highlights")
+}
+
+enum Role {
+  agent
+  client
+  admin
+  superAdmin
+}
+
+enum EmailType {
+  personal
+  work
+}
