@@ -1,40 +1,41 @@
 import { TeamData, Team, TeamVenue, TeamInfo } from "@/legacy-types/teams.types";
 import { CoachData } from "@/legacy-types/players.types";
 import { TransferData } from "@/legacy-types/transfers.types";
-//import { League } from "../../../legacy-types/leagues.types";
 import {
-  KorastatsTeamResponse,
   KorastatsTeamInfoResponse,
   KorastatsTournamentTeamStatsResponse,
+  KorastatsEntityClubResponse,
+  KorastatsTournamentTeamListResponse,
 } from "@/integrations/korastats/types/team.types";
 
 export class TeamMapper {
-  static toTeamData(korastatsTeam: KorastatsTeamResponse): TeamData {
+  static toTeamData(korastatsTeam: any): TeamData {
+    // This method is used for fallback when MongoDB data is not available
+    // It should handle the actual Korastats response structure
     return {
       team: {
-        id: korastatsTeam.intTeamID,
-        name: korastatsTeam.strTeamNameEn || korastatsTeam.strTeamName,
-        code: korastatsTeam.strTeamShortCode || "-",
-        country:
-          korastatsTeam.strCountryNameEn || korastatsTeam.strCountryName || "Unknown",
-        founded: korastatsTeam.intFoundedYear || 0,
-        national: korastatsTeam.blnNationalTeam === 1,
-        logo: korastatsTeam.strTeamLogo || "",
+        id: korastatsTeam.id || 0,
+        name: korastatsTeam.name || "Unknown Team",
+        code: korastatsTeam.short_name || "-",
+        country: korastatsTeam.country?.name || "Unknown",
+        founded: korastatsTeam.founded || null,
+        national: korastatsTeam.is_national_team || false,
+        logo: korastatsTeam.logo || "",
       },
       venue: {
-        id: korastatsTeam.intStadiumID || 0,
-        name: korastatsTeam.strStadiumName || "-",
-        address: korastatsTeam.strStadiumAddress || "-",
-        city: korastatsTeam.strStadiumCity || "-",
-        capacity: korastatsTeam.intStadiumCapacity || 0,
-        surface: korastatsTeam.strStadiumSurface || "-",
-        image: korastatsTeam.strStadiumImage || "-",
+        id: korastatsTeam.stadium?.id || null,
+        name: korastatsTeam.stadium?.name || null,
+        address: null,
+        city: korastatsTeam.stadium?.city || null,
+        capacity: korastatsTeam.stadium?.capacity || null,
+        surface: korastatsTeam.stadium?.surface || null,
+        image: null,
       },
     };
   }
 
   static toTeamInfo(
-    basicInfo: KorastatsTeamInfoResponse,
+    basicInfo: any,
     squad: any = {},
     transfers: any[] = [],
     trophies: any[] = [],
@@ -46,60 +47,84 @@ export class TeamMapper {
       coach: this.transformCoaches(basicInfo.coaches || []),
       transfers: this.transformTransfers(transfers),
       totalPlayers: basicInfo.players?.length || 0,
-      foreignPlayers:
-        basicInfo.players?.filter(
-          (p: any) => p.strNationality !== basicInfo.strCountryNameEn,
-        ).length || 0,
+      foreignPlayers: 0, // Would need to calculate from player data
       averagePlayerAge: this.calculateAverageAge(basicInfo.players || []),
-      clubMarketValue: this.formatMarketValue(basicInfo.totalMarketValue),
-      currentLeagues: this.transformLeagues(basicInfo.leagues || []),
+      clubMarketValue: null, // Not available in current Korastats response
+      currentLeagues: [], // Would need separate API call
       trophies: this.transformTrophies(trophies),
     };
   }
 
-  static toTeamStats(korastatsStats: KorastatsTournamentTeamStatsResponse): any {
-    // This would need to be implemented based on the exact structure
-    // of the Django TeamStatsData and the Korastats response format
-    const stats = korastatsStats.data || [];
+  static toTeamStats(korastatsStats: any): any {
+    // This method is used for fallback when MongoDB data is not available
+    // It should handle the actual Korastats response structure
+    const stats = korastatsStats.data || {};
 
-    // Transform Korastats stats to Django format
-    // This is a simplified version - you'd need to map all the specific fields
+    // Transform Korastats stats to legacy format
     return {
-      league: "-", // Would need to be provided from context
-      team: "-", // Would need to be provided from context
-      form: "-",
-      fixtures: {
-        played: { home: 0, away: 0, total: 0 },
-        wins: { home: 0, away: 0, total: 0 },
-        draws: { home: 0, away: 0, total: 0 },
-        loses: { home: 0, away: 0, total: 0 },
+      team: {
+        id: stats.id || 0,
+        name: stats.name || "Unknown Team",
       },
-      // ... map other fields based on Korastats data
+      season: 0, // Would need to be provided from context
+      stats: {
+        matches_played: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goals_for: 0,
+        goals_against: 0,
+        goal_difference: 0,
+        points: 0,
+        position: 0,
+      },
+      form: {
+        recent_results: [],
+        form_string: "-----",
+        points_from_last_5: 0,
+      },
+      goals: {
+        total_for: 0,
+        total_against: 0,
+        home_for: 0,
+        home_against: 0,
+        away_for: 0,
+        away_against: 0,
+      },
+      cards: {
+        total_yellow: 0,
+        total_red: 0,
+        home_yellow: 0,
+        home_red: 0,
+        away_yellow: 0,
+        away_red: 0,
+      },
+      recent_matches: [],
     };
   }
 
   private static transformCoaches(coaches: any[]): CoachData[] {
     return coaches.map((coach) => ({
-      id: coach.intPlayerID,
-      name: coach.strPlayerNameEn || "Unknown",
-      firstname: "-", // Extract from name if available
-      lastname: "-", // Extract from name if available
-      age: coach.intAge || "-",
+      id: coach.id || 0,
+      name: coach.name || "Unknown",
+      firstname: coach.name?.split(" ")[0] || "-",
+      lastname: coach.name?.split(" ")[1] || "-",
+      age: coach.age || null,
       birth: {
-        date: "-",
-        place: "-",
-        country: coach.strNationality || "-",
+        date: coach.dob || null,
+        place: null,
+        country: coach.nationality || "-",
       },
-      nationality: coach.strNationality || "-",
-      height: "-",
-      weight: "-",
-      photo: coach.strPlayerImage || "",
+      nationality: coach.nationality || "-",
+      height: null,
+      weight: null,
+      photo: coach.photo || "",
       team: {
         id: 0,
         name: "",
         code: "-",
         country: "",
-        founded: 0,
+        founded: null,
         national: false,
         logo: "",
       }, // Would need team context
@@ -108,21 +133,25 @@ export class TeamMapper {
   }
 
   private static transformTransfers(transfers: any[]): TransferData[] {
-    // Transform transfers to Django TransferData format
+    // Transform transfers to legacy TransferData format
     return transfers.map((transfer) => ({
       player: {
-        id: 0,
-        name: "",
-        firstname: "-",
-        lastname: "-",
-        age: 0,
-        birth: { date: "-", place: "-", country: "-" },
-        nationality: "-",
-        height: "-",
-        weight: "-",
+        id: transfer.player?.id || 0,
+        name: transfer.player?.name || "",
+        firstname: transfer.player?.name?.split(" ")[0] || "-",
+        lastname: transfer.player?.name?.split(" ")[1] || "-",
+        age: transfer.player?.age || 0,
+        birth: {
+          date: transfer.player?.dob || null,
+          place: null,
+          country: transfer.player?.nationality || "-",
+        },
+        nationality: transfer.player?.nationality || "-",
+        height: null,
+        weight: null,
         injured: false,
-        photo: "",
-      }, // Would need player context
+        photo: transfer.player?.photo || "",
+      },
       update: new Date().toISOString(),
       transfers: [],
     }));
@@ -130,7 +159,7 @@ export class TeamMapper {
 
   private static calculateAverageAge(players: any[]): number {
     if (!players.length) return 0;
-    const totalAge = players.reduce((sum, player) => sum + (player.intAge || 0), 0);
+    const totalAge = players.reduce((sum, player) => sum + (player.age || 0), 0);
     return Math.round((totalAge / players.length) * 10) / 10;
   }
 
@@ -143,20 +172,20 @@ export class TeamMapper {
 
   private static transformLeagues(leagues: any[]): any[] {
     return leagues.map((league) => ({
-      id: league.intTournamentID,
-      name: league.strTournamentName,
-      country: league.strCountryNameEn || "",
-      logo: league.strTournamentLogo || "",
-      flag: "-",
-      season: "-",
+      id: league.id || 0,
+      name: league.name || "Unknown League",
+      country: league.country?.name || "",
+      logo: league.logo || "",
+      flag: null,
+      season: league.season || 0,
     }));
   }
 
   private static transformTrophies(trophies: any[]): any[] {
     return trophies.map((trophy) => ({
-      league: trophy.strTournamentName || "Unknown",
-      country: trophy.strCountryName || "Unknown",
-      season: trophy.strSeason || "Unknown",
+      league: trophy.league || trophy.tournament || "Unknown",
+      country: trophy.country || "Unknown",
+      season: trophy.season || "Unknown",
     }));
   }
 }

@@ -70,6 +70,13 @@ export class RefereeService {
   }
 
   /**
+   * GET /api/referee/career-stats/ - Get referee career statistics from database
+   */
+  async getRefereeCareerStats(refereeId: number): Promise<any> {
+    return await this.refereeRepository.getRefereeCareerStats(refereeId);
+  }
+
+  /**
    * GET /api/referee/career-stats/ - Get referee career statistics
    */
   async getCareerStats(options: { referee: number; season: number }): Promise<any> {

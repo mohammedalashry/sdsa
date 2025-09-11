@@ -622,7 +622,7 @@ export interface KorastatsPlayerLocation {
     strFullNameEn: string;
     strNickNameEn: string;
     intShirtNumber: number;
-    status: string;
+    status: "substitute" | "lineup";
   };
   location: {
     x: string | number;

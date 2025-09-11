@@ -2,19 +2,15 @@ import { Router } from "express";
 import { LeaguesController } from "./leagues.controller";
 import { LeaguesService } from "./leagues.service";
 import { LeaguesRepository } from "./leagues.repository";
-import { LeagueKorastatsService } from "../../integrations/korastats/services/league.service";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
-import { KorastatsClient } from "../../integrations/korastats/client";
 import { validateRequest } from "../../core/middleware/validation.middleware";
 import { leaguesValidationSchemas } from "./leagues.validator";
 
 const router = Router();
 
 // Dependency injection
-const korastatsClient = new KorastatsClient();
-const leagueKorastatsService = new LeagueKorastatsService(korastatsClient);
 const cacheService = new CacheService();
-const leaguesRepository = new LeaguesRepository(leagueKorastatsService, cacheService);
+const leaguesRepository = new LeaguesRepository(cacheService);
 const leaguesService = new LeaguesService(leaguesRepository);
 const leaguesController = new LeaguesController(leaguesService);
 

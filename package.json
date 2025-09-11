@@ -18,6 +18,13 @@
     "test:integration": "jest --testPathPattern=integration",
     "test:performance": "jest --testPathPattern=performance",
     "test:ci": "jest --coverage --ci --watchAll=false",
+    "sync:leagues": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts leagues",
+    "sync:matches": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts matches",
+    "sync:teams": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts teams",
+    "sync:players": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts players",
+    "sync:all": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts all",
+    "sync:status": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts status",
+    "test:matches": "ts-node --require tsconfig-paths/register src/scripts/test-matches-limit.ts",
     "collect-data": "ts-node src/scripts/collect-korastats-data.ts",
     "update-data": "ts-node src/scripts/update-korastats-data.ts",
     "sync-specific": "ts-node src/scripts/sync-specific-data.ts"

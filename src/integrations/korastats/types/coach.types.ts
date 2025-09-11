@@ -195,11 +195,11 @@ export interface KorastatsEntityCoach {
     name: string;
   };
   dob: string;
-  age: string;
+  age: string; //"no. Y"
   retired: boolean;
   gender: string;
   image: string;
-  last_updated: string | null;
+  last_updated: string;
 }
 
 // ===== RESPONSE TYPE WRAPPERS =====

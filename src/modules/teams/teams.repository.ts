@@ -1,17 +1,11 @@
 import { TeamKorastatsService } from "@/integrations/korastats/services/team.service";
-import { TeamMapper } from "@/mappers/team.mapper";
 import { CacheService } from "@/integrations/korastats/services/cache.service";
 import { TeamDataResponse, TeamInfo } from "@/legacy-types/teams.types";
 import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
 import { ApiError } from "@/core/middleware/error.middleware";
-import { IntegrationFactory } from "@/integrations/korastats/integration.factory";
 import { Models } from "@/db/mogodb/models";
-import { DataCollectorService } from "@/mappers/data-collector.service";
 
 export class TeamsRepository {
-  private readonly integrationService = IntegrationFactory.getIntegrationService();
-  private readonly dataCollectorService = new DataCollectorService();
-
   constructor(
     private readonly korastatsTeamService: TeamKorastatsService,
     private readonly cacheService: CacheService,
@@ -42,11 +36,11 @@ export class TeamsRepository {
           team: {
             id: team.korastats_id,
             name: team.name,
-            code: team.short_name || "",
+            code: team.code || team.short_name || "",
             country: team.country.name,
-            founded: team.club?.founded_year || null,
-            national: team.club?.is_national_team || false,
-            logo: team.club?.logo_url || "",
+            founded: team.founded || team.club?.founded_year || null,
+            national: team.national || team.club?.is_national_team || false,
+            logo: team.logo || team.club?.logo_url || "",
           },
           venue: team.stadium
             ? {
@@ -76,18 +70,9 @@ export class TeamsRepository {
         return response;
       }
 
-      // If no data in MongoDB, fallback to Korastats API
-      console.log("No teams found in MongoDB, fetching from Korastats API");
-      const korastatsTeams = await this.korastatsTeamService.getTeamsList(league, season);
-
-      // Transform to legacy format
-      const teams = korastatsTeams.map((team) => TeamMapper.toTeamData(team));
-
-      const response: TeamDataResponse = teams;
-
-      // Cache the result
-      this.cacheService.set(cacheKey, response);
-      return response;
+      // If no data in MongoDB, return empty array
+      console.log("No teams found in MongoDB for league", league, "season", season);
+      return [];
     } catch (error) {
       console.error("Failed to fetch teams list:", error);
       throw new ApiError(500, "Failed to fetch teams from data source");
@@ -116,11 +101,11 @@ export class TeamsRepository {
           team: {
             id: mongoTeam.korastats_id,
             name: mongoTeam.name,
-            code: mongoTeam.short_name || "",
+            code: mongoTeam.code || mongoTeam.short_name || "",
             country: mongoTeam.country.name,
-            founded: mongoTeam.club?.founded_year || null,
-            national: mongoTeam.club?.is_national_team || false,
-            logo: mongoTeam.club?.logo_url || "",
+            founded: mongoTeam.founded || mongoTeam.club?.founded_year || null,
+            national: mongoTeam.national || mongoTeam.club?.is_national_team || false,
+            logo: mongoTeam.logo || mongoTeam.club?.logo_url || "",
           },
           venue: mongoTeam.stadium
             ? {
@@ -146,8 +131,9 @@ export class TeamsRepository {
                 {
                   id: mongoTeam.current_coach.id,
                   name: mongoTeam.current_coach.name,
-                  firstname: null,
-                  lastname: null,
+                  firstname: mongoTeam.current_coach.name?.split(" ")[0] || null,
+                  lastname:
+                    mongoTeam.current_coach.name?.split(" ").slice(1).join(" ") || null,
                   age: null,
                   birth: {
                     date: null,
@@ -161,55 +147,43 @@ export class TeamsRepository {
                   team: {
                     id: mongoTeam.korastats_id,
                     name: mongoTeam.name,
-                    code: mongoTeam.short_name || "",
+                    code: mongoTeam.code || mongoTeam.short_name || "",
                     country: mongoTeam.country.name,
-                    founded: mongoTeam.club?.founded_year || null,
-                    national: mongoTeam.club?.is_national_team || false,
-                    logo: mongoTeam.club?.logo_url || "",
+                    founded: mongoTeam.founded || mongoTeam.club?.founded_year || null,
+                    national:
+                      mongoTeam.national || mongoTeam.club?.is_national_team || false,
+                    logo: mongoTeam.logo || mongoTeam.club?.logo_url || "",
                   },
                   career: [],
                 },
               ]
             : [],
-          transfers: [], // Would need separate collection
+          transfers: [], // Ignoring transfers as requested
           totalPlayers: mongoTeam.current_squad?.length || 0,
-          foreignPlayers: 0, // Would need to calculate
-          averagePlayerAge: 0, // Would need to calculate
-          clubMarketValue: null,
-          currentLeagues: [], // Would need separate collection
-          trophies: [], // Would need separate collection
+          foreignPlayers: mongoTeam.foreign_players_count || 0,
+          averagePlayerAge: mongoTeam.average_player_age || 0,
+          clubMarketValue: mongoTeam.club_market_value || null,
+          currentLeagues:
+            mongoTeam.current_leagues?.map((league) => ({
+              id: league.league_id,
+              name: league.league_name,
+              type: "League", // Default type
+              logo: league.logo || "",
+            })) || [],
+          trophies:
+            mongoTeam.trophies?.map((trophy) => ({
+              league: trophy.league,
+              country: trophy.country,
+              season: trophy.season,
+            })) || [],
         };
 
         this.cacheService.set(cacheKey, teamInfo);
         return teamInfo;
       }
 
-      // If not in MongoDB, fallback to Korastats API
-      console.log("Team not found in MongoDB, fetching from Korastats API");
-      const [basicInfo, squad, transfers, trophies] = await Promise.allSettled([
-        this.korastatsTeamService.getTeamInfo(teamId),
-        this.korastatsTeamService.getTeamSquad(0, teamId),
-        this.korastatsTeamService.getTeamTransfers(teamId),
-        this.korastatsTeamService.getTeamTrophies(teamId),
-      ]);
-
-      if (basicInfo.status === "rejected") {
-        throw new ApiError(404, "Team not found");
-      }
-
-      const squadData = squad.status === "fulfilled" ? squad.value : {};
-      const transfersData = transfers.status === "fulfilled" ? transfers.value : [];
-      const trophiesData = trophies.status === "fulfilled" ? trophies.value : [];
-
-      const teamInfo = TeamMapper.toTeamInfo(
-        basicInfo.value,
-        squadData,
-        transfersData,
-        trophiesData,
-      );
-
-      this.cacheService.set(cacheKey, teamInfo);
-      return teamInfo;
+      // If not in MongoDB, throw error
+      throw new ApiError(404, "Team not found");
     } catch (error) {
       console.error("Failed to fetch team info:", error);
       throw new ApiError(500, "Failed to fetch team info");
@@ -233,17 +207,119 @@ export class TeamsRepository {
     }
 
     try {
-      const korastatsStats = await this.korastatsTeamService.getTeamStats(
-        league,
+      // Try to get team stats from MongoDB first
+      const mongoTeamStats = await Models.TeamStats.findOne({
+        team_id: teamId,
+        tournament_id: league,
+        season: season,
+      });
+
+      if (mongoTeamStats) {
+        console.log(`📦 Found team stats for team ${teamId} in MongoDB`);
+
+        // Get team info
+        const team = await Models.Team.findOne({ korastats_id: teamId });
+        const tournament = await Models.Tournament.findOne({ korastats_id: league });
+
+        const stats = {
+          team: {
+            id: teamId,
+            name: team?.name || mongoTeamStats.team_name || "Unknown Team",
+          },
+          season: parseInt(season),
+          stats: mongoTeamStats.stats || {
+            matches_played: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goals_for: 0,
+            goals_against: 0,
+            goal_difference: 0,
+            points: 0,
+            position: 0,
+          },
+          form: mongoTeamStats.form || {
+            recent_results: [],
+            form_string: "-----",
+            points_from_last_5: 0,
+          },
+          goals: mongoTeamStats.goals || {
+            total_for: 0,
+            total_against: 0,
+            home_for: 0,
+            home_against: 0,
+            away_for: 0,
+            away_against: 0,
+          },
+          cards: mongoTeamStats.cards || {
+            total_yellow: 0,
+            total_red: 0,
+            home_yellow: 0,
+            home_red: 0,
+            away_yellow: 0,
+            away_red: 0,
+          },
+          recent_matches: mongoTeamStats.recent_matches || [],
+        };
+
+        // Cache the result
+        this.cacheService.set(cacheKey, stats);
+        return stats;
+      }
+
+      // If not in MongoDB, return default stats
+      console.log(
+        "Team stats not found in MongoDB for team",
         teamId,
+        "league",
+        league,
+        "season",
         season,
       );
-      const stats = TeamMapper.toTeamStats(korastatsStats);
+      const defaultStats = {
+        team: {
+          id: teamId,
+          name: "Unknown Team",
+        },
+        season: parseInt(season),
+        stats: {
+          matches_played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goals_for: 0,
+          goals_against: 0,
+          goal_difference: 0,
+          points: 0,
+          position: 0,
+        },
+        form: {
+          recent_results: [],
+          form_string: "-----",
+          points_from_last_5: 0,
+        },
+        goals: {
+          total_for: 0,
+          total_against: 0,
+          home_for: 0,
+          home_against: 0,
+          away_for: 0,
+          away_against: 0,
+        },
+        cards: {
+          total_yellow: 0,
+          total_red: 0,
+          home_yellow: 0,
+          home_red: 0,
+          away_yellow: 0,
+          away_red: 0,
+        },
+        recent_matches: [],
+      };
 
       // Cache the result
-      this.cacheService.set(cacheKey, stats);
-
-      return stats;
+      this.cacheService.set(cacheKey, defaultStats);
+      return defaultStats;
     } catch (error) {
       console.error("Failed to fetch team stats:", error);
       throw new ApiError(500, "Failed to fetch team statistics");

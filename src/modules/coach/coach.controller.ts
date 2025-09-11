@@ -29,7 +29,7 @@ export class CoachController {
   getAvailableLeagues = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const leagues = await this.coachService.getAvailableLeagues(coach as number);
+    const leagues = await this.coachService.getAvailableLeagues(Number(coach));
 
     res.json(leagues);
   });
@@ -41,7 +41,7 @@ export class CoachController {
   getCoachCareer = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const career = await this.coachService.getCoachCareer(coach as number);
+    const career = await this.coachService.getCoachCareer(Number(coach));
 
     res.json(career);
   });
@@ -53,7 +53,7 @@ export class CoachController {
   getCoachCareerStats = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const stats = await this.coachService.getCoachCareerStats(coach as number);
+    const stats = await this.coachService.getCoachCareerStats(Number(coach));
 
     res.json(stats);
   });
@@ -63,11 +63,12 @@ export class CoachController {
    * Get coach fixtures
    */
   getCoachFixtures = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { coach } = req.query;
+    const { coach, league } = req.query;
 
-    const fixtures: FixtureDataResponse = await this.coachService.getCoachFixtures(
-      coach as number,
-    );
+    const fixtures: FixtureDataResponse = await this.coachService.getCoachFixtures({
+      coach: Number(coach),
+      league: Number(league),
+    });
 
     res.json(fixtures);
   });
@@ -79,7 +80,7 @@ export class CoachController {
   getCoachInfo = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const coachInfo: CoachData = await this.coachService.getCoachInfo(coach as number);
+    const coachInfo: CoachData = await this.coachService.getCoachInfo(Number(coach));
 
     res.json(coachInfo);
   });
@@ -92,7 +93,7 @@ export class CoachController {
     const { coach } = req.query;
 
     const match: FixtureDataResponse = await this.coachService.getCoachLastMatch(
-      coach as number,
+      Number(coach),
     );
 
     res.json(match);
@@ -106,8 +107,8 @@ export class CoachController {
     const { coach, league } = req.query;
 
     const stats = await this.coachService.getCoachMatchStats({
-      coach: coach as number,
-      league: league as number,
+      coach: Number(coach),
+      league: Number(league),
     });
 
     res.json(stats);
@@ -120,7 +121,7 @@ export class CoachController {
   getCoachPerformance = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const performance = await this.coachService.getCoachPerformance(coach as number);
+    const performance = await this.coachService.getCoachPerformance(Number(coach));
 
     res.json(performance);
   });
@@ -132,7 +133,7 @@ export class CoachController {
   getCoachTeamForm = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { fixture } = req.query;
 
-    const teamForm = await this.coachService.getCoachTeamForm(fixture as number);
+    const teamForm = await this.coachService.getCoachTeamForm(Number(fixture));
 
     res.json(teamForm);
   });
@@ -144,7 +145,7 @@ export class CoachController {
   getCoachTrophies = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const trophies = await this.coachService.getCoachTrophies(coach as number);
+    const trophies = await this.coachService.getCoachTrophies(Number(coach));
 
     res.json(trophies);
   });

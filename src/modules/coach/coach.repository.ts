@@ -1,8 +1,7 @@
 // src/modules/coach/coach.repository.ts
 import { Models } from "../../db/mogodb/models";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
-import { DataCollectorService } from "../../mappers/data-collector.service";
-import ApiError from "../../core/app-error";
+import { ApiError } from "../../core/middleware/error.middleware";
 import { CoachData } from "../../legacy-types/players.types";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
@@ -53,10 +52,10 @@ export class CoachRepository {
       }
 
       // Get coach from MongoDB
-      const coach = await Models.Coach.findOne({ korastats_id: coachId.toString() });
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
 
       if (!coach) {
-        throw new ApiError("Coach not found", 404);
+        throw new ApiError(404, "Coach not found");
       }
 
       const coachData = [this.mapCoachToCoachData(coach)];
@@ -118,10 +117,10 @@ export class CoachRepository {
       }
 
       // Get coach from MongoDB
-      const coach = await Models.Coach.findOne({ korastats_id: coachId.toString() });
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
 
       if (!coach) {
-        throw new ApiError("Coach not found", 404);
+        throw new ApiError(404, "Coach not found");
       }
 
       const coachData = this.mapCoachToCoachData(coach);
@@ -130,7 +129,7 @@ export class CoachRepository {
       return coachData;
     } catch (error) {
       console.error("Failed to fetch coach info:", error);
-      throw new ApiError("Failed to fetch coach info", 500);
+      throw new ApiError(500, "Failed to fetch coach info");
     }
   }
 
@@ -309,6 +308,305 @@ export class CoachRepository {
       tablePosition: match.table_position || null,
       averageTeamRating: match.average_team_rating || null,
     }));
+  }
+
+  /**
+   * GET /api/coach/available-leagues/ - Get available leagues for coach
+   */
+  async getAvailableLeagues(coachId: number): Promise<number[]> {
+    try {
+      const cacheKey = `coach_available_leagues_${coachId}`;
+
+      const cached = this.cacheService.get<number[]>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get coach's current team and find leagues where that team plays
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
+
+      if (!coach || !coach.current_team?.id) {
+        return [];
+      }
+
+      // Get leagues where coach's current team has matches
+      const matches = await Models.Match.find({
+        $or: [
+          { "teams.home.id": coach.current_team.id },
+          { "teams.away.id": coach.current_team.id },
+        ],
+      }).distinct("tournament_id");
+
+      const leagues = matches
+        .map((league) => parseInt(league.toString()))
+        .sort((a, b) => b - a);
+
+      this.cacheService.set(cacheKey, leagues, 60 * 60 * 1000); // Cache for 1 hour
+      return leagues;
+    } catch (error) {
+      console.error("Failed to fetch coach available leagues:", error);
+      return [];
+    }
+  }
+
+  /**
+   * GET /api/coach/career_stats/ - Get coach career statistics
+   */
+  async getCoachCareerStats(coachId: number): Promise<any> {
+    try {
+      const cacheKey = `coach_career_stats_${coachId}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get coach from MongoDB
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
+
+      if (!coach) {
+        throw new ApiError(404, "Coach not found");
+      }
+
+      const stats = {
+        total_matches: coach.coaching_stats?.total_matches || 0,
+        total_wins: coach.coaching_stats?.total_wins || 0,
+        total_draws: coach.coaching_stats?.total_draws || 0,
+        total_losses: coach.coaching_stats?.total_losses || 0,
+        win_percentage: coach.coaching_stats?.win_percentage || 0,
+        current_team_matches: coach.coaching_stats?.current_team_matches || 0,
+        current_team_wins: coach.coaching_stats?.current_team_wins || 0,
+        current_team_draws: coach.coaching_stats?.current_team_draws || 0,
+        current_team_losses: coach.coaching_stats?.current_team_losses || 0,
+      };
+
+      this.cacheService.set(cacheKey, stats, 30 * 60 * 1000); // Cache for 30 minutes
+      return stats;
+    } catch (error) {
+      console.error("Failed to fetch coach career stats:", error);
+      return {};
+    }
+  }
+
+  /**
+   * GET /api/coach/last-match/ - Get coach last match
+   */
+  async getCoachLastMatch(coachId: number): Promise<FixtureDataResponse> {
+    try {
+      const cacheKey = `coach_last_match_${coachId}`;
+
+      const cached = this.cacheService.get<FixtureDataResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get coach's current team and find last match for that team
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
+
+      if (!coach || !coach.current_team?.id) {
+        return [];
+      }
+
+      // Get last match where coach's current team participated
+      const lastMatch = await Models.Match.findOne({
+        $or: [
+          { "teams.home.id": coach.current_team.id },
+          { "teams.away.id": coach.current_team.id },
+        ],
+        status: { $in: ["finished", "completed"] },
+      }).sort({ date: -1 });
+
+      if (!lastMatch) {
+        return [];
+      }
+
+      const fixtures = this.mapMatchesToFixtureData([lastMatch]);
+
+      this.cacheService.set(cacheKey, fixtures, 15 * 60 * 1000); // Cache for 15 minutes
+      return fixtures;
+    } catch (error) {
+      console.error("Failed to fetch coach last match:", error);
+      return [];
+    }
+  }
+
+  /**
+   * GET /api/coach/match-stats/ - Get coach match statistics
+   */
+  async getCoachMatchStats(options: { coach: number; league: number }): Promise<any> {
+    try {
+      const cacheKey = `coach_match_stats_${options.coach}_${options.league}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get coach's current team and find matches for that team in the league
+      const coach = await Models.Coach.findOne({ korastats_id: options.coach });
+
+      if (!coach || !coach.current_team?.id) {
+        return {
+          total_matches: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goals_for: 0,
+          goals_against: 0,
+        };
+      }
+
+      // Get matches where coach's current team participated in the league
+      const matches = await Models.Match.find({
+        tournament_id: options.league,
+        $or: [
+          { "teams.home.id": coach.current_team.id },
+          { "teams.away.id": coach.current_team.id },
+        ],
+      });
+
+      const stats = {
+        total_matches: matches.length,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        goals_for: 0,
+        goals_against: 0,
+      };
+
+      // Calculate stats from matches
+      matches.forEach((match) => {
+        const isHome = match.teams?.home?.id === coach.current_team?.id;
+        const homeScore = match.teams?.home?.score || 0;
+        const awayScore = match.teams?.away?.score || 0;
+
+        if (isHome) {
+          stats.goals_for += homeScore;
+          stats.goals_against += awayScore;
+          if (homeScore > awayScore) stats.wins++;
+          else if (homeScore === awayScore) stats.draws++;
+          else stats.losses++;
+        } else {
+          stats.goals_for += awayScore;
+          stats.goals_against += homeScore;
+          if (awayScore > homeScore) stats.wins++;
+          else if (awayScore === homeScore) stats.draws++;
+          else stats.losses++;
+        }
+      });
+
+      this.cacheService.set(cacheKey, stats, 30 * 60 * 1000); // Cache for 30 minutes
+      return stats;
+    } catch (error) {
+      console.error("Failed to fetch coach match stats:", error);
+      return {};
+    }
+  }
+
+  /**
+   * GET /api/coach/performance/ - Get coach performance
+   */
+  async getCoachPerformance(coachId: number): Promise<any> {
+    try {
+      const cacheKey = `coach_performance_${coachId}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get coach from MongoDB
+      const coach = await Models.Coach.findOne({ korastats_id: coachId });
+
+      if (!coach) {
+        throw new ApiError(404, "Coach not found");
+      }
+
+      const performance = {
+        current_team: coach.current_team,
+        career_history: coach.career_history,
+        coaching_stats: coach.coaching_stats,
+        trophies: coach.trophies,
+      };
+
+      this.cacheService.set(cacheKey, performance, 30 * 60 * 1000); // Cache for 30 minutes
+      return performance;
+    } catch (error) {
+      console.error("Failed to fetch coach performance:", error);
+      return {};
+    }
+  }
+
+  /**
+   * GET /api/coach/team-form/ - Get coach team form
+   */
+  async getCoachTeamForm(fixtureId: number): Promise<any> {
+    try {
+      const cacheKey = `coach_team_form_${fixtureId}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get the fixture to find the coach
+      const fixture = await Models.Match.findOne({ korastats_id: fixtureId });
+
+      if (!fixture) {
+        throw new ApiError(404, "Fixture not found");
+      }
+
+      // Get the team from the fixture
+      const teamId = fixture.teams?.home?.id || fixture.teams?.away?.id;
+
+      if (!teamId) {
+        return { form: "-----", recent_matches: [] };
+      }
+
+      const recentMatches = await Models.Match.find({
+        $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
+        status: { $in: ["finished", "completed"] },
+        korastats_id: { $ne: fixtureId },
+      })
+        .sort({ date: -1 })
+        .limit(5);
+
+      // Calculate form string
+      const form = recentMatches
+        .map((match) => {
+          const isHome = match.teams?.home?.id === teamId;
+          const homeScore = match.teams?.home?.score || 0;
+          const awayScore = match.teams?.away?.score || 0;
+
+          if (isHome) {
+            if (homeScore > awayScore) return "W";
+            else if (homeScore === awayScore) return "D";
+            else return "L";
+          } else {
+            if (awayScore > homeScore) return "W";
+            else if (awayScore === homeScore) return "D";
+            else return "L";
+          }
+        })
+        .join("");
+
+      const teamForm = {
+        form: form.padEnd(5, "-"),
+        recent_matches: recentMatches.map((match) => ({
+          id: match.korastats_id,
+          date: match.date,
+          home_team: match.teams?.home?.name,
+          away_team: match.teams?.away?.name,
+          score: `${match.teams?.home?.score || 0}-${match.teams?.away?.score || 0}`,
+        })),
+      };
+
+      this.cacheService.set(cacheKey, teamForm, 15 * 60 * 1000); // Cache for 15 minutes
+      return teamForm;
+    } catch (error) {
+      console.error("Failed to fetch coach team form:", error);
+      return { form: "-----", recent_matches: [] };
+    }
   }
 }
 

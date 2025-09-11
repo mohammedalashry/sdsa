@@ -367,26 +367,100 @@ export interface KorastatsPlayerTournamentStats {
 // ===== SEASON PLAYER TOP STATS =====
 // Response from SeasonPlayerTopStats endpoint
 export interface KorastatsSeasonPlayerTopStats {
-  _type: "PLAYER";
-  id: number;
-  name: string;
-  nickname: string;
-  team: {
-    _type: "TEAM";
-    id: number;
-    name: string;
-  };
-  stat_value: number;
-  rank: number;
+  _type: "STAT";
+  intTournamentID: number;
+  strTournament: string;
+  intSeasonID: number;
+  strSeasonName: string;
+  intStatTypeID: number;
+  strStatType: string;
+  arrData: Array<{
+    _type: "POINT";
+    intPlayerID: number;
+    strPlayerNameEn: string;
+    strNickNameEn: string;
+    intStatTypeID: number;
+    strStatType: string;
+    decStatValue: number;
+  }>;
 }
 
 // ===== LIST STAT TYPES =====
+
+export enum StatType {
+  SuccessPasses = "Success Passes",
+  TotalPasses = "Total Passes",
+  SuccessCrosses = "Success Crosses",
+  TotalCrosses = "Total Crosses",
+  SuccessLongPass = "Success Long Pass",
+  TotalLongPass = "Total Long Pass",
+  TotalBallLost = "Total Ball Lost",
+  TotalBallWon = "Total Ball Won",
+  TotalAttempts = "Total Attempts",
+  SuccessAttempts = "Success Attempts",
+  YellowCard = "Yellow Card",
+  SecondYellowCard = "Second Yellow Card",
+  RedCard = "Red Card",
+  FoulsCommited = "Fouls Commited",
+  MinutesPlayed = "Minutes Played",
+  GoalsScored = "Goals Scored",
+  Assists = "Assists",
+  OwnGoals = "Own Goals",
+  Corners = "Corners",
+  Offsides = "Offsides",
+  OwnGoalsInFavour = "Own Goals in Favour",
+  MatchesPlayedAsLineup = "Matches Played as Lineup",
+  GoalsConceded = "Goals Conceded",
+  MatchesPlayedAsSub = "Matches Played as Sub",
+  Possession = "Possession",
+  Possession015 = "Possession 0-15",
+  Possession1530 = "Possession 15-30",
+  Possession3045 = "Possession 30-45",
+  Possession4560 = "Possession 45-60",
+  Possession6075 = "Possession 60-75",
+  Possession7590 = "Possession 75-90",
+  Possession90105 = "Possession 90-105",
+  Possession105120 = "Possession 105-120",
+  ExpectedThreatMean = "Expected Threat Mean",
+  ExpectedThreatMeanPassSuccess = "Expected Threat Mean (Pass Success)",
+  ExpectedThreatMeanPassFail = "Expected Threat Mean (Pass Fail)",
+  ExpectedThreatRSD = "Expected Threat RSD",
+  ExpectedThreatRSDPassSuccess = "Expected Threat RSD (Pass Success)",
+  ExpectedThreatRSDPassFail = "Expected Threat RSD (Pass Fail)",
+  ExpectedThreatPositiveSuccess = "Expected Threat Positive Success",
+  ExpectedThreatPositiveFail = "Expected Threat Positive Fail",
+  ExpectedThreatPositiveTotal = "Expected Threat Positive Total",
+  ExpectedThreatNegativeSuccess = "Expected Threat Negative Success",
+  ExpectedThreatNegativeFail = "Expected Threat Negative Fail",
+  ExpectedThreatNegativeTotal = "Expected Threat Negative Total",
+  KIndexPoint = "KIndex Point",
+  KIndexRating = "KIndex Rating",
+  RedCardTotal = "Red Card Total (2nd Yellow Card + Red Card)",
+  PassPerDefensiveAction = "Pass Per Defensive Action",
+  ChancesCreatedOpenPlay = "Chances Created Open Play",
+  ChancesCreatedSetPieces = "Chances Created Set-Pieces",
+  PenetrationFinalThird = "Penetration Final Third",
+  PenetrationLeftFlank = "Penetration Left Flank",
+  PenetrationLeftChannel = "Penetration Left Channel",
+  PenetrationCenter = "Penetration Center",
+  PenetrationRightChannel = "Penetration Right Channel",
+  PenetrationRightFlank = "Penetration Right Flank",
+  TakeOnSuccess = "TakeOn Success",
+  TakeOnFail = "TakeOn Fail",
+  ErrorLeadToGoal = "Error Lead to Goal",
+  ErrorLeadToOpportunity = "Error Lead to Opportunity",
+}
 // Response from ListStatTypes endpoint
 export interface KorastatsStatType {
-  _type: "STAT";
-  id: number;
-  stat: string;
-  value: number;
+  _type: "STAT_TYPE";
+  intID: number;
+  strStatName: StatType;
+  strAccumulativeType: string;
+  boolTeam: boolean;
+  boolGK: boolean;
+  boolPlayer: boolean;
+  boolReferee: boolean;
+  boolCoach: boolean;
 }
 
 // ===== RESPONSE TYPE WRAPPERS =====
@@ -395,8 +469,7 @@ export type KorastatsEntityPlayerResponse = KorastatsBaseResponse<KorastatsEntit
 export type KorastatsTournamentPlayerStatsResponse = KorastatsBaseResponse<
   KorastatsTournamentPlayerStats[]
 >;
-export type KorastatsSeasonPlayerTopStatsResponse = KorastatsBaseResponse<
-  KorastatsSeasonPlayerTopStats[]
->;
+export type KorastatsSeasonPlayerTopStatsResponse =
+  KorastatsBaseResponse<KorastatsSeasonPlayerTopStats>;
 export type KorastatsListStatTypesResponse = KorastatsBaseResponse<KorastatsStatType[]>;
 

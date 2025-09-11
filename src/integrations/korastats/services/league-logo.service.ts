@@ -41,6 +41,7 @@ export class LeagueLogoService {
    * Get league logo information by league ID
    */
   static getLeagueLogo(leagueId: number): LeagueLogoInfo | null {
+    console.log("Getting league logo for league ID:", leagueId);
     return this.LEAGUE_LOGOS.get(leagueId) || null;
   }
 

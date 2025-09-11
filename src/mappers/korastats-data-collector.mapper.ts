@@ -297,7 +297,7 @@ export class KorastatsDataCollectorMapper {
     tournamentTeamData?: any, // Will be typed properly when we have the exact structure
     tournamentPlayerListData?: any, // Will be typed properly when we have the exact structure
   ): Partial<ITeam> {
-    const team = entityClubData.teams?.[0]; // Get first team from club
+    const team = entityClubData; // Get first team from club
 
     return {
       korastats_id: team?.id || entityClubData.id,
@@ -316,10 +316,10 @@ export class KorastatsDataCollectorMapper {
         founded_year: undefined, // Not available in Korastats
         is_national_team: entityClubData.national_federation || false,
       },
-      stadium: team?.stadium
+      stadium: team?.teams[0]?.stadium
         ? {
-            id: team.stadium.id,
-            name: team.stadium.name,
+            id: team.teams[0].stadium.id,
+            name: team.teams[0].stadium.name,
             capacity: undefined, // Not available in Korastats
             surface: undefined, // Not available in Korastats
             city: undefined, // Not available in Korastats
@@ -332,10 +332,10 @@ export class KorastatsDataCollectorMapper {
         position: player.position.primay.name,
         joined_date: undefined, // Not available in Korastats
       })),
-      current_coach: team?.coach
+      current_coach: team?.teams[0]?.coach
         ? {
-            id: team.coach.id,
-            name: team.coach.name,
+            id: team.teams[0].coach.id,
+            name: team.teams[0].coach.name,
             nationality: undefined, // Not available in Korastats
             appointed_date: undefined, // Not available in Korastats
           }

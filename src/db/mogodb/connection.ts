@@ -1,4 +1,4 @@
-// src/integrations/korastats/database/connection.ts
+// src/db/mogodb/connection.ts
 import mongoose from "mongoose";
 
 export class KorastatsMongoService {
@@ -45,5 +45,11 @@ export class KorastatsMongoService {
       console.log("👋 KoraStats MongoDB disconnected");
     }
   }
+}
+
+// Export a simple connection function for scripts
+export async function connectToDatabase(): Promise<void> {
+  const mongoService = new KorastatsMongoService();
+  await mongoService.connect();
 }
 

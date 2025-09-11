@@ -2,7 +2,7 @@
 // Service to orchestrate Korastats to MongoDB mapping operations
 
 import { KorastatsToMongoMapper } from "./korastats-to-mongo.mapper";
-import { KorastatsService } from "../integrations/korastats/services";
+import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
 import { Models } from "../db/mogodb/models";
 import {
   ITournament,
@@ -38,7 +38,7 @@ export class MapperService {
 
       // Get tournament data from Korastats
       const korastatsTournament =
-        await this.korastatsService.getTournamentInfo(tournamentId);
+        await this.korastatsService.getTournamentStructure(tournamentId);
 
       if (!korastatsTournament.data) {
         console.warn(`⚠️ No tournament data found for ID ${tournamentId}`);
@@ -96,13 +96,7 @@ export class MapperService {
 
       // Get match data from Korastats
       const [matchListResponse, matchSummaryResponse] = await Promise.all([
-        this.korastatsService.getTournamentMatchList(
-          tournamentId,
-          season,
-          undefined,
-          undefined,
-          undefined,
-        ),
+        this.korastatsService.getTournamentMatchList(tournamentId),
         this.korastatsService.getMatchSummary(matchId),
       ]);
 

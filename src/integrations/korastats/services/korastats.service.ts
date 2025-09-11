@@ -45,6 +45,7 @@ import {
 
   // Country types
   KorastatsEntityCountriesResponse,
+  KorastatsStatType,
 } from "../types";
 
 export class KorastatsService {
@@ -59,29 +60,15 @@ export class KorastatsService {
   /**
    * Get tournament match list
    * @param tournamentId - Tournament ID
-   * @param season - Season (optional)
-   * @param round - Round (optional)
-   * @param teamId - Team ID (optional)
-   * @param dateFrom - Date from (optional)
-   * @param dateTo - Date to (optional)
+  
+  
    */
   async getTournamentMatchList(
     tournamentId: number,
-    season?: string,
-    round?: number,
-    teamId?: number,
-    dateFrom?: string,
-    dateTo?: string,
   ): Promise<KorastatsMatchListResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
     };
-
-    if (season) params.season = season;
-    if (round) params.round = round;
-    if (teamId) params.team_id = teamId;
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
 
     return this.client.makeRequest<KorastatsMatchListResponse>(
       "TournamentMatchList",
@@ -108,7 +95,15 @@ export class KorastatsService {
       match_id: matchId,
     });
   }
-
+  async getImageUrl(
+    objectType: "coach" | "player" | "referee" | "club",
+    objectId: number,
+  ): Promise<string> {
+    return this.client.makeRequest<string>("ImageLoad", {
+      object_type: objectType,
+      object_id: objectId,
+    });
+  }
   /**
    * Get match summary with detailed statistics
    * @param matchId - Match ID
@@ -122,15 +117,15 @@ export class KorastatsService {
   /**
    * Get match formation data
    * @param matchId - Match ID
-   * @param teamId - Team ID
+   * @param side - Side (home or away)
    */
   async getMatchFormation(
     matchId: number,
-    teamId: number,
+    side: "home" | "away",
   ): Promise<KorastatsMatchFormationResponse> {
     return this.client.makeRequest<KorastatsMatchFormationResponse>("MatchFormation", {
       match_id: matchId,
-      team_id: teamId,
+      side: side,
     });
   }
 
@@ -270,16 +265,16 @@ export class KorastatsService {
   /**
    * Get tournament group standings
    * @param tournamentId - Tournament ID
-   * @param season - Season (optional)
+   * @param stageId - Stage ID
    */
   async getTournamentGroupStandings(
     tournamentId: number,
-    season?: string,
+    stageId: string,
   ): Promise<KorastatsStandingsResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
+      stage_id: stageId,
     };
-    if (season) params.season = season;
 
     return this.client.makeRequest<KorastatsStandingsResponse>(
       "TournamentGroupStandings",
@@ -337,18 +332,16 @@ export class KorastatsService {
    * @param limit - Limit (optional, default 10)
    */
   async getSeasonPlayerTopStats(
-    tournamentId: number,
-    season: string,
-    statType: string,
-    limit: number = 10,
+    seasonId: number,
+    statTypeId: number,
+    sort?: "asc" | "desc",
   ): Promise<KorastatsSeasonPlayerTopStatsResponse> {
     return this.client.makeRequest<KorastatsSeasonPlayerTopStatsResponse>(
       "SeasonPlayerTopStats",
       {
-        tournament_id: tournamentId,
-        season,
-        stat_type: statType,
-        limit,
+        season_id: seasonId,
+        stat_type_id: statTypeId,
+        sort: sort || "asc",
       },
     );
   }
@@ -356,7 +349,9 @@ export class KorastatsService {
   /**
    * Get list of available stat types
    */
-  async getListStatTypes(): Promise<KorastatsListStatTypesResponse> {
+  async getListStatTypes(
+    StatType: KorastatsStatType,
+  ): Promise<KorastatsListStatTypesResponse> {
     return this.client.makeRequest<KorastatsListStatTypesResponse>("ListStatTypes", {});
   }
 
@@ -375,16 +370,13 @@ export class KorastatsService {
   /**
    * Get tournament team list
    * @param tournamentId - Tournament ID
-   * @param season - Season (optional)
    */
   async getTournamentTeamList(
     tournamentId: number,
-    season?: string,
   ): Promise<KorastatsTournamentTeamListResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
     };
-    if (season) params.season = season;
 
     return this.client.makeRequest<KorastatsTournamentTeamListResponse>(
       "TournamentTeamList",
@@ -395,16 +387,16 @@ export class KorastatsService {
   /**
    * Get tournament team statistics
    * @param tournamentId - Tournament ID
-   * @param teamId - Team ID (optional)
+   * @param teamId - Team ID
    */
   async getTournamentTeamStats(
     tournamentId: number,
-    teamId?: number,
+    teamId: number,
   ): Promise<KorastatsTournamentTeamStatsResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
+      team_id: teamId,
     };
-    if (teamId) params.team_id = teamId;
 
     return this.client.makeRequest<KorastatsTournamentTeamStatsResponse>(
       "TournamentTeamStats",
@@ -445,16 +437,13 @@ export class KorastatsService {
   /**
    * Get tournament coach list
    * @param tournamentId - Tournament ID
-   * @param season - Season (optional)
    */
   async getTournamentCoachList(
     tournamentId: number,
-    season?: string,
   ): Promise<KorastatsTournamentCoachListResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
     };
-    if (season) params.season = season;
 
     return this.client.makeRequest<KorastatsTournamentCoachListResponse>(
       "TournamentCoachList",
@@ -477,16 +466,13 @@ export class KorastatsService {
   /**
    * Get tournament referee list
    * @param tournamentId - Tournament ID
-   * @param season - Season (optional)
    */
   async getTournamentRefereeList(
     tournamentId: number,
-    season?: string,
   ): Promise<KorastatsTournamentRefereeListResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
     };
-    if (season) params.season = season;
 
     return this.client.makeRequest<KorastatsTournamentRefereeListResponse>(
       "TournamentRefereeList",

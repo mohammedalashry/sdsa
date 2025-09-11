@@ -475,8 +475,8 @@ export class FixtureDetailMapper {
         extratime: { home: 0, away: 0 },
         penalty: { home: 0, away: 0 },
       },
-      tablePosition: { home: 0, away: 0 },
-      averageTeamRating: { home: 7.0, away: 7.0 },
+      tablePosition: { home: 0, away: 0 }, // get from team table model
+      averageTeamRating: { home: 7.0, away: 7.0 }, // calculate average team rating
     }));
   }
 

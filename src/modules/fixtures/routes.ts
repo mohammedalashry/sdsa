@@ -3,10 +3,7 @@ import { Router } from "express";
 import { FixturesController } from "./fixtures.controller";
 import { FixturesService } from "./fixtures.service";
 import { FixturesRepository } from "./fixtures.repository";
-import { FixtureKorastatsService } from "../../integrations/korastats/services/fixture.service";
-import { LeagueKorastatsService } from "../../integrations/korastats/services/league.service";
-import { CacheService } from "../../integrations/korastats/services/cache.service";
-import { KorastatsClient } from "../../integrations/korastats/client";
+
 import { validateRequest } from "../../core/middleware/validation.middleware";
 import { fixturesValidationSchemas } from "./fixtures.validator";
 

@@ -1,8 +1,7 @@
 // src/modules/referee/referee.repository.ts
 import { Models } from "../../db/mogodb/models";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
-import { DataCollectorService } from "../../mappers/data-collector.service";
-import ApiError from "../../core/app-error";
+import { ApiError } from "../../core/middleware/error.middleware";
 import { RefereeData } from "./referee.service";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
@@ -38,31 +37,18 @@ export class RefereeRepository {
           id: referee.korastats_id,
           name: referee.name,
           nationality: referee.nationality.name,
-          photo: null, // Would need to add photo field to schema
+          photo: referee.photo || null,
         }));
 
         this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
         return refereeData;
       }
 
-      // If no data in MongoDB, fallback to mock data
-      const refereeData: RefereeData[] = [
-        {
-          id: 1,
-          name: "Ahmed Al-Kassar",
-          nationality: "Saudi Arabia",
-          photo: null,
-        },
-        {
-          id: 2,
-          name: "Mohammed Al-Hoaish",
-          nationality: "Saudi Arabia",
-          photo: null,
-        },
-      ];
-
-      this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
-      return refereeData;
+      // If no data in MongoDB, return empty array
+      console.log(
+        `📦 No referees found in MongoDB for league ${options.league}, season ${options.season}`,
+      );
+      return [];
     } catch (error) {
       console.error("Failed to fetch referees:", error);
       return [];
@@ -108,18 +94,27 @@ export class RefereeRepository {
         return cached;
       }
 
-      // Mock referee data since Referee collection doesn't exist yet
-      const refereeData: RefereeData[] = [
-        {
-          id: refereeId,
-          name: `Referee ${refereeId}`,
-          nationality: "Saudi Arabia",
-          photo: null,
-        },
-      ];
+      // Get referee from MongoDB
+      const referee = await Models.Referee.findOne({
+        korastats_id: refereeId,
+      });
 
-      this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
-      return refereeData;
+      if (referee) {
+        const refereeData: RefereeData[] = [
+          {
+            id: referee.korastats_id,
+            name: referee.name,
+            nationality: referee.nationality.name,
+            photo: referee.photo || null,
+          },
+        ];
+
+        this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
+        return refereeData;
+      }
+
+      console.log(`📦 No referee found in MongoDB for referee ${refereeId}`);
+      return [];
     } catch (error) {
       console.error("Failed to fetch referee career:", error);
       return [];
@@ -171,19 +166,27 @@ export class RefereeRepository {
         return cached;
       }
 
-      // Mock referee data since Referee collection doesn't exist yet
+      // Get referee from MongoDB
+      const referee = await Models.Referee.findOne({
+        korastats_id: refereeId,
+      });
+
+      if (!referee) {
+        throw new ApiError(404, "Referee not found");
+      }
+
       const refereeData: RefereeData = {
-        id: refereeId,
-        name: `Referee ${refereeId}`,
-        nationality: "Saudi Arabia",
-        photo: null,
+        id: referee.korastats_id,
+        name: referee.name,
+        nationality: referee.nationality.name,
+        photo: null, // Would need to add photo field to schema
       };
 
       this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
       return refereeData;
     } catch (error) {
       console.error("Failed to fetch referee info:", error);
-      throw new ApiError("Failed to fetch referee info", 500);
+      throw new ApiError(500, "Failed to fetch referee info");
     }
   }
 
@@ -210,17 +213,86 @@ export class RefereeRepository {
         "officials.referee.id": options.referee,
       });
 
+      // Calculate statistics from match events
+      let yellowCards = 0;
+      let redCards = 0;
+      let penalties = 0;
+
+      matches.forEach((match) => {
+        if (match.events && Array.isArray(match.events)) {
+          match.events.forEach((event) => {
+            // Count yellow cards
+            if (event.type === "Card" && event.detail === "Yellow Card") {
+              yellowCards++;
+            }
+            // Count red cards
+            else if (event.type === "Card" && event.detail === "Red Card") {
+              redCards++;
+            }
+            // Count penalties
+            else if (event.type === "Goal" && event.detail === "Penalty") {
+              penalties++;
+            }
+          });
+        }
+      });
+
       const statistics = {
         total_matches: matches.length,
-        yellow_cards: 0, // Would need to calculate from match events
-        red_cards: 0, // Would need to calculate from match events
-        penalties: 0, // Would need to calculate from match events
+        yellow_cards: yellowCards,
+        red_cards: redCards,
+        penalties: penalties,
+        average_cards_per_match:
+          matches.length > 0 ? (yellowCards + redCards) / matches.length : 0,
+        average_penalties_per_match: matches.length > 0 ? penalties / matches.length : 0,
       };
 
       this.cacheService.set(cacheKey, statistics, 60 * 60 * 1000); // Cache for 1 hour
       return statistics;
     } catch (error) {
       console.error("Failed to fetch referee statistics:", error);
+      return {};
+    }
+  }
+
+  /**
+   * GET /api/referee/career-stats/ - Get referee career statistics from database
+   */
+  async getRefereeCareerStats(refereeId: number): Promise<any> {
+    try {
+      const cacheKey = `referee_career_stats_${refereeId}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get referee from MongoDB
+      const referee = await Models.Referee.findOne({
+        korastats_id: refereeId,
+      });
+
+      if (!referee) {
+        throw new ApiError(404, "Referee not found");
+      }
+
+      const careerStats = {
+        total_matches: referee.career_stats?.total_matches || 0,
+        total_yellow_cards: referee.career_stats?.total_yellow_cards || 0,
+        total_red_cards: referee.career_stats?.total_red_cards || 0,
+        total_penalties: referee.career_stats?.total_penalties || 0,
+        average_cards_per_match: referee.career_stats?.average_cards_per_match || 0,
+        current_season_matches: referee.career_stats?.current_season_matches || 0,
+        current_season_yellow_cards:
+          referee.career_stats?.current_season_yellow_cards || 0,
+        current_season_red_cards: referee.career_stats?.current_season_red_cards || 0,
+        current_season_penalties: referee.career_stats?.current_season_penalties || 0,
+      };
+
+      this.cacheService.set(cacheKey, careerStats, 30 * 60 * 1000); // Cache for 30 minutes
+      return careerStats;
+    } catch (error) {
+      console.error("Failed to fetch referee career stats:", error);
       return {};
     }
   }

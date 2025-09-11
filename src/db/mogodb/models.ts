@@ -10,21 +10,15 @@ import {
   CoachSchema,
   RefereeSchema,
   CountrySchema,
-  PlayerStatsSchema,
-  TeamStatsSchema,
-  MatchEventSchema,
   SyncLogSchema,
   ITournament,
-  IMatch,
   IPlayer,
   ITeam,
   ICoach,
   IReferee,
   ICountry,
-  IPlayerStats,
-  ITeamStats,
-  IMatchEvent,
   ISyncLog,
+  IMatch,
 } from "./schemas";
 
 // Create models
@@ -35,9 +29,6 @@ export const Team = mongoose.model<ITeam>("Team", TeamSchema);
 export const Coach = mongoose.model<ICoach>("Coach", CoachSchema);
 export const Referee = mongoose.model<IReferee>("Referee", RefereeSchema);
 export const Country = mongoose.model<ICountry>("Country", CountrySchema);
-export const PlayerStats = mongoose.model<IPlayerStats>("PlayerStats", PlayerStatsSchema);
-export const TeamStats = mongoose.model<ITeamStats>("TeamStats", TeamStatsSchema);
-export const MatchEvent = mongoose.model<IMatchEvent>("MatchEvent", MatchEventSchema);
 export const SyncLog = mongoose.model<ISyncLog>("SyncLog", SyncLogSchema);
 
 // Export all models as a single object for easy importing
@@ -49,24 +40,9 @@ export const Models = {
   Coach,
   Referee,
   Country,
-  PlayerStats,
-  TeamStats,
-  MatchEvent,
   SyncLog,
 };
 
 // Export types
-export type {
-  ITournament,
-  IMatch,
-  IPlayer,
-  ITeam,
-  ICoach,
-  IReferee,
-  ICountry,
-  IPlayerStats,
-  ITeamStats,
-  IMatchEvent,
-  ISyncLog,
-};
+export type { ITournament, IMatch, IPlayer, ITeam, ICoach, IReferee, ICountry, ISyncLog };
 

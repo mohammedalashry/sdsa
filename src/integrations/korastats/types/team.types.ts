@@ -1,31 +1,13 @@
 // src/integrations/korastats/types/team.types.ts
 // KoraStats Team API response types
 
-import { KorastatsBaseResponse } from "./index";
+import { KorastatsBaseResponse, KorastatsPlayerMatchInfo } from "./index";
 
 // ===== TEAM INFO =====
 // Response from TeamInfo endpoint
 export interface KorastatsTeamInfo {
-  _type: "TEAM";
-  id: number;
-  name: string;
-  short_name?: string;
-  nickname?: string;
-  country: {
-    id: number;
-    name: string;
-  };
-  city?: string;
-  founded?: number;
-  logo?: string;
-  is_national_team: boolean;
-  stadium?: {
-    id: number;
-    name: string;
-    capacity?: number;
-    surface?: string;
-    city?: string;
-  };
+  _type: "Team INFO";
+  matches: KorastatsPlayerMatchInfo[];
 }
 
 // ===== TOURNAMENT TEAM LIST =====
@@ -43,23 +25,11 @@ export interface KorastatsTournamentTeamList {
 export interface KorastatsTeamListItem {
   _type: "TEAM";
   id: number;
-  name: string;
-  short_name?: string;
-  nickname?: string;
-  country: {
-    id: number;
-    name: string;
-  };
-  city?: string;
-  founded?: number;
-  logo?: string;
-  is_national_team: boolean;
+  team: string;
   stadium?: {
+    _type: "STADIUM";
     id: number;
     name: string;
-    capacity?: number;
-    surface?: string;
-    city?: string;
   };
 }
 
@@ -173,21 +143,24 @@ export interface KorastatsPlayerInTeam {
   name: string;
   nickname?: string;
   dob: string;
-  age: number;
+  number: number;
   nationality: {
+    _type: "NATIONALITY";
     id: number;
     name: string;
   };
-  height?: number;
-  weight?: number;
-  preferred_foot?: string;
   position: {
-    id: number;
-    name: string;
-    category: string;
+    primary: {
+      _type: "POSITION";
+      id: number;
+      name: string;
+    };
+    secondary: {
+      _type: "POSITION";
+      id: number;
+      name: string;
+    };
   };
-  shirtnumber?: number;
-  photo?: string;
 }
 
 // ===== ENTITY CLUB =====
@@ -196,29 +169,30 @@ export interface KorastatsEntityClub {
   _type: "CLUB";
   id: number;
   name: string;
-  short_name?: string;
-  nickname?: string;
   country: {
     id: number;
     name: string;
   };
-  city?: string;
-  founded?: number;
   logo?: string;
-  is_national_team: boolean;
-  stadium?: {
+  national_federation: boolean;
+  teams: {
+    _type: "TEAM";
     id: number;
     name: string;
-    capacity?: number;
-    surface?: string;
-    city?: string;
-  };
-  current_season?: {
-    id: number;
-    name: string;
-    start_date: string;
-    end_date: string;
-  };
+    stadium?: {
+      id: number;
+      name: string;
+    };
+    coach: {
+      id: number;
+      name: string;
+    };
+    gender: string;
+    image: string;
+    is_national_team: boolean;
+    last_updated: string;
+  }[];
+  last_updated: string;
 }
 
 // ===== RESPONSE TYPES =====
@@ -230,3 +204,4 @@ export type KorastatsTournamentTeamStatsResponse =
 export type KorastatsTournamentTeamPlayerListResponse =
   KorastatsBaseResponse<KorastatsTournamentTeamPlayerList>;
 export type KorastatsEntityClubResponse = KorastatsBaseResponse<KorastatsEntityClub>;
+

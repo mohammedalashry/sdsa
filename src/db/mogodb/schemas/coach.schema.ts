@@ -10,47 +10,38 @@ export interface ICoach extends Document {
   // Korastats identifiers
   korastats_id: number;
 
-  // Personal info
+  // Personal info  firstname: string;
   name: string;
-  firstname?: string;
-  lastname?: string;
-  age?: number;
-  nationality: {
-    id: number;
-    name: string;
+  firstname: string;
+  lastname: string;
+  age: number;
+  birth: {
+    date: Date;
+    place: string;
+    country: string;
   };
-  height?: number;
-  weight?: number;
-
-  // Career info
-  current_team?: {
-    id: number;
-    name: string;
-    logo?: string;
-    appointed_date?: Date;
-  };
-
+  nationality: string;
+  height: number;
+  weight: number;
+  photo: string;
+  prefferedFormation: string;
   // Career history (embedded for quick access)
   career_history: Array<{
     team_id: number;
     team_name: string;
-    position: string;
     start_date: Date;
     end_date?: Date;
     is_current: boolean;
   }>;
 
   // Coaching stats summary (denormalized)
-  coaching_stats: {
+  stats: {
     total_matches: number;
     total_wins: number;
     total_draws: number;
     total_losses: number;
-    win_percentage: number;
-    current_team_matches: number;
-    current_team_wins: number;
-    current_team_draws: number;
-    current_team_losses: number;
+    points: number;
+    points_per_game: number;
   };
 
   // Trophies and achievements
@@ -60,7 +51,7 @@ export interface ICoach extends Document {
     season: string;
     team_id: number;
     team_name: string;
-    competition: string;
+    league: string;
   }>;
 
   // Status
@@ -80,12 +71,10 @@ const CoachSchema = new Schema<ICoach>(
       type: Number,
       required: true,
       unique: true,
-      index: true,
     },
     name: {
       type: String,
       required: true,
-      index: true,
     },
     firstname: {
       type: String,
@@ -106,32 +95,23 @@ const CoachSchema = new Schema<ICoach>(
     weight: {
       type: Number,
     },
-    current_team: {
-      id: { type: Number },
-      name: { type: String },
-      logo: { type: String },
-      appointed_date: { type: Date },
-    },
+
     career_history: [
       {
         team_id: { type: Number, required: true },
         team_name: { type: String, required: true },
-        position: { type: String, required: true },
         start_date: { type: Date, required: true },
         end_date: { type: Date },
         is_current: { type: Boolean, default: false },
       },
     ],
-    coaching_stats: {
+    stats: {
       total_matches: { type: Number, default: 0 },
       total_wins: { type: Number, default: 0 },
       total_draws: { type: Number, default: 0 },
       total_losses: { type: Number, default: 0 },
-      win_percentage: { type: Number, default: 0 },
-      current_team_matches: { type: Number, default: 0 },
-      current_team_wins: { type: Number, default: 0 },
-      current_team_draws: { type: Number, default: 0 },
-      current_team_losses: { type: Number, default: 0 },
+      points: { type: Number, default: 0 },
+      points_per_game: { type: Number, default: 0 },
     },
     trophies: [
       {
@@ -140,7 +120,7 @@ const CoachSchema = new Schema<ICoach>(
         season: { type: String, required: true },
         team_id: { type: Number, required: true },
         team_name: { type: String, required: true },
-        competition: { type: String, required: true },
+        league: { type: String, required: true },
       },
     ],
     status: {
@@ -148,7 +128,6 @@ const CoachSchema = new Schema<ICoach>(
       required: true,
       enum: ["active", "inactive", "retired"],
       default: "active",
-      index: true,
     },
     last_synced: {
       type: Date,
@@ -177,10 +156,8 @@ const CoachSchema = new Schema<ICoach>(
 CoachSchema.index({ korastats_id: 1 });
 CoachSchema.index({ name: 1 });
 CoachSchema.index({ "nationality.id": 1 });
-CoachSchema.index({ "current_team.id": 1 });
-CoachSchema.index({ status: 1 });
 CoachSchema.index({ "career_history.team_id": 1 });
-CoachSchema.index({ "trophies.competition": 1 });
+CoachSchema.index({ "trophies.league": 1 });
 
 export default CoachSchema;
 

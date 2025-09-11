@@ -1,8 +1,7 @@
 // src/modules/standings/standings.repository.ts
 import { Models } from "../../db/mogodb/models";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
-import { DataCollectorService } from "../../mappers/data-collector.service";
-import ApiError from "../../core/app-error";
+import { ApiError } from "../../core/middleware/error.middleware";
 import { StandingsResponse } from "../../legacy-types/standings.types";
 
 export class StandingsRepository {
@@ -33,34 +32,13 @@ export class StandingsRepository {
         .limit(20);
 
       if (teamStats.length === 0) {
-        // Try to collect data from Korastats if not found
         console.log(
-          `📦 No standings data found in MongoDB, attempting to collect from Korastats`,
+          `📦 No standings data found in MongoDB for league ${leagueId}, season ${season || "current"}`,
         );
-        try {
-          // await DataCollectorService.collectTournamentCompleteData(leagueId);
-          // Retry query after collection
-          const retryStats = await Models.TeamStats.find({
-            tournament_id: leagueId,
-            season: season?.toString() || new Date().getFullYear().toString(),
-          })
-            .sort({ "stats.points": -1, "stats.goal_difference": -1 })
-            .limit(20);
-
-          if (retryStats.length > 0) {
-            const standings = this.mapTeamStatsToStandings(retryStats, leagueId, season);
-            this.cacheService.set(cacheKey, standings, 30 * 60 * 1000); // Cache for 30 minutes
-            return standings;
-          }
-        } catch (collectError) {
-          console.error("Failed to collect standings data:", collectError);
-        }
-
-        // Return empty standings if no data found
         return this.getEmptyStandings(leagueId, season);
       }
 
-      const standings = this.mapTeamStatsToStandings(teamStats, leagueId, season);
+      const standings = await this.mapTeamStatsToStandings(teamStats, leagueId, season);
       this.cacheService.set(cacheKey, standings, 30 * 60 * 1000); // Cache for 30 minutes
       return standings;
     } catch (error) {
@@ -74,65 +52,77 @@ export class StandingsRepository {
   /**
    * Map MongoDB team stats to StandingsResponse format
    */
-  private mapTeamStatsToStandings(
+  private async mapTeamStatsToStandings(
     teamStats: any[],
     leagueId: number,
     season?: number,
-  ): StandingsResponse {
-    const standingsEntries = teamStats.map((stat, index) => ({
-      rank: index + 1,
-      team: {
-        id: stat.team_id || 0,
-        name: stat.team_name || "Unknown Team",
-        logo: "",
-      },
-      points: stat.stats?.points || 0,
-      goalsDiff: stat.stats?.goal_difference || 0,
-      group: "Main",
-      form: stat.form?.form_string || "-----",
-      status: this.getStatus(index + 1),
-      description: this.getDescription(index + 1),
-      all: {
-        played: stat.stats?.matches_played || 0,
-        win: stat.stats?.wins || 0,
-        draw: stat.stats?.draws || 0,
-        lose: stat.stats?.losses || 0,
-        goals: {
-          for_: stat.stats?.goals_for || 0,
-          against: stat.stats?.goals_against || 0,
+  ): Promise<StandingsResponse> {
+    // Get tournament and team data for enrichment
+    const [tournament, teams] = await Promise.all([
+      Models.Tournament.findOne({ korastats_id: leagueId }),
+      Models.Team.find({
+        korastats_id: { $in: teamStats.map((s) => s.team_id) },
+      }),
+    ]);
+
+    const standingsEntries = teamStats.map((stat, index) => {
+      const team = teams.find((t) => t.korastats_id === stat.team_id);
+
+      return {
+        rank: index + 1,
+        team: {
+          id: stat.team_id || 0,
+          name: team?.name || stat.team_name || "Unknown Team",
+          logo: team?.logo || team?.club?.logo_url || "",
         },
-      },
-      home: {
-        played: Math.floor((stat.stats?.matches_played || 0) / 2),
-        win: Math.floor((stat.stats?.wins || 0) / 2),
-        draw: Math.floor((stat.stats?.draws || 0) / 2),
-        lose: Math.floor((stat.stats?.losses || 0) / 2),
-        goals: {
-          for_: stat.goals?.home_for || 0,
-          against: stat.goals?.home_against || 0,
+        points: stat.stats?.points || 0,
+        goalsDiff: stat.stats?.goal_difference || 0,
+        group: "Main",
+        form: stat.form?.form_string || "-----",
+        status: this.getStatus(index + 1),
+        description: this.getDescription(index + 1),
+        all: {
+          played: stat.stats?.matches_played || 0,
+          win: stat.stats?.wins || 0,
+          draw: stat.stats?.draws || 0,
+          lose: stat.stats?.losses || 0,
+          goals: {
+            for_: stat.stats?.goals_for || 0,
+            against: stat.stats?.goals_against || 0,
+          },
         },
-      },
-      away: {
-        played: Math.ceil((stat.stats?.matches_played || 0) / 2),
-        win: Math.ceil((stat.stats?.wins || 0) / 2),
-        draw: Math.ceil((stat.stats?.draws || 0) / 2),
-        lose: Math.ceil((stat.stats?.losses || 0) / 2),
-        goals: {
-          for_: stat.goals?.away_for || 0,
-          against: stat.goals?.away_against || 0,
+        home: {
+          played: Math.floor((stat.stats?.matches_played || 0) / 2),
+          win: Math.floor((stat.stats?.wins || 0) / 2),
+          draw: Math.floor((stat.stats?.draws || 0) / 2),
+          lose: Math.floor((stat.stats?.losses || 0) / 2),
+          goals: {
+            for_: stat.goals?.home_for || 0,
+            against: stat.goals?.home_against || 0,
+          },
         },
-      },
-      update: new Date().toISOString(),
-    }));
+        away: {
+          played: Math.ceil((stat.stats?.matches_played || 0) / 2),
+          win: Math.ceil((stat.stats?.wins || 0) / 2),
+          draw: Math.ceil((stat.stats?.draws || 0) / 2),
+          lose: Math.ceil((stat.stats?.losses || 0) / 2),
+          goals: {
+            for_: stat.goals?.away_for || 0,
+            against: stat.goals?.away_against || 0,
+          },
+        },
+        update: new Date().toISOString(),
+      };
+    });
 
     return {
       league: {
         id: leagueId,
-        name: "League Name", // Would need to fetch from tournament
-        country: "Saudi Arabia",
-        logo: "",
+        name: tournament?.name || "Unknown League",
+        country: tournament?.country?.name || "Saudi Arabia",
+        logo: tournament?.logo || "",
         flag: "",
-        season: season || new Date().getFullYear(),
+        season: season || this.extractYearFromSeason(tournament?.season || ""),
         standings: [standingsEntries], // Grouped in arrays
       },
     };
@@ -175,6 +165,14 @@ export class StandingsRepository {
     if (rank <= 10) return "Conference League";
     if (rank >= 15) return "Relegation";
     return "Mid Table";
+  }
+
+  /**
+   * Extract year from season string
+   */
+  private extractYearFromSeason(season: string): number {
+    const match = season?.match(/(\d{4})/);
+    return match ? parseInt(match[1], 10) : new Date().getFullYear();
   }
 }
 

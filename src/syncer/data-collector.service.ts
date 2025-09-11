@@ -2,7 +2,7 @@
 // Service that orchestrates multiple Korastats API calls based on Excel sheet strategy
 // Each method collects all needed data from multiple endpoints before mapping
 
-import { KorastatsDataCollectorMapper } from "./korastats-data-collector.mapper";
+import { KorastatsDataCollectorMapper } from "../mappers/korastats-data-collector.mapper";
 import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
 import { Models } from "../db/mogodb/models";
 import {
@@ -43,10 +43,8 @@ export class DataCollectorService {
       console.log(`🔄 Collecting fixture data for tournament ${tournamentId}`);
 
       // 1. Get basic match list from TournamentMatchList
-      const matchListResponse = await this.korastatsService.getTournamentMatchList(
-        tournamentId,
-        season,
-      );
+      const matchListResponse =
+        await this.korastatsService.getTournamentMatchList(tournamentId);
 
       if (!matchListResponse.data || matchListResponse.data.length === 0) {
         console.warn(`⚠️ No matches found for tournament ${tournamentId}`);
@@ -202,7 +200,7 @@ export class DataCollectorService {
         events,
         playerStats,
       } = KorastatsDataCollectorMapper.mapDetailedFixtureData(
-        matchListItem as KorastatsMatchListItem,
+        matchListItem as unknown as KorastatsMatchListItem,
         matchSummaryResponse?.data,
         matchSquadResponse?.data,
         matchTimelineResponse?.data,
@@ -521,7 +519,7 @@ export class DataCollectorService {
         completed_at: new Date(),
         duration_ms: Date.now() - syncLog.started_at.getTime(),
         errors: [
-          ...(syncLog.errors || []),
+          ...[],
           {
             endpoint: `TournamentComplete-${tournamentId}`,
             error_message: error.message,

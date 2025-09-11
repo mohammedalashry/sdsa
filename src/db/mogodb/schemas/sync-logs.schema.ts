@@ -29,10 +29,11 @@ export interface ISyncLog extends Document {
   records_failed: number;
 
   // Error tracking
-  errors?: Array<{
+  errors_logs?: Array<{
     endpoint: string;
     error_message: string;
     timestamp: Date;
+    error_code?: string;
   }>;
 
   // Metadata
@@ -99,7 +100,7 @@ const SyncLogSchema = new Schema<ISyncLog>(
       type: Number,
       default: 0,
     },
-    errors: [
+    errors_logs: [
       {
         endpoint: { type: String, required: true },
         error_message: { type: String, required: true },

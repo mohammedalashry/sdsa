@@ -18,6 +18,7 @@ import {
   KorastatsTournament,
   KorastatsSeasonListResponse,
   KorastatsStandingsResponse,
+  KorastatsTournamentStructure,
 } from "../integrations/korastats/types";
 
 import {
@@ -40,7 +41,7 @@ export class KorastatsToMongoMapper {
    * Map Korastats tournament data to MongoDB tournament schema
    */
   static mapTournament(
-    korastatsTournament: KorastatsTournament,
+    korastatsTournament: KorastatsTournamentStructure,
     season?: string,
   ): Partial<ITournament> {
     const tournament = korastatsTournament;
@@ -66,7 +67,7 @@ export class KorastatsToMongoMapper {
       },
       gender: "male", // Not available in KorastatsTournament
       structure: {
-        stages: [], // Not available in KorastatsTournament, would need separate call
+        stages: tournament.stages || [],
       },
       start_date: new Date(tournament.startDate || Date.now()),
       end_date: new Date(tournament.endDate || Date.now()),

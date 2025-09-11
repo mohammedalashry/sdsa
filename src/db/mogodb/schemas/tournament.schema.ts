@@ -2,15 +2,11 @@
 // Tournament MongoDB schema for SDSA
 
 import { Schema, Document, Types } from "mongoose";
-
-// Interface for TypeScript
-export interface ITournament extends Document {
-  _id: Types.ObjectId;
-
-  // Korastats identifiers
+export interface TournamentInterface {
   korastats_id: number;
   name: string;
   season: string;
+  logo: string;
 
   // Tournament metadata
   country: {
@@ -31,28 +27,97 @@ export interface ITournament extends Document {
   gender: string;
 
   // Tournament structure (embedded for fast access)
-  structure: {
-    stages: Array<{
-      id: number;
-      name: string;
-      order: number;
-      type: string;
-      groups: Array<{
+
+  rounds: string[]; // Array of round names like ["Round 1", "Round 2", etc.]
+  rounds_count: number;
+
+  // Tournament winners
+
+  top_scorers: [
+    {
+      player: {
         id: number;
         name: string;
-        teams: Array<{
-          id: number;
-          name: string;
-          // Basic stats for quick access
-          played: number;
-          points: number;
-          goals_for: number;
-          goals_against: number;
-        }>;
-      }>;
-    }>;
-  };
+      };
+    },
+  ];
+  top_assisters: [
+    {
+      player: {
+        id: number;
+        name: string;
+      };
+    },
+  ];
+  // Metadata
+  start_date: Date;
+  end_date: Date;
+  status: "active" | "completed" | "upcoming";
 
+  // Sync tracking
+  last_synced: Date;
+  sync_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+// Interface for TypeScript
+export interface ITournament extends Document {
+  _id: Types.ObjectId;
+
+  // Korastats identifiers
+  korastats_id: number;
+  name: string;
+  season: string;
+  logo: string;
+
+  // Tournament metadata
+  country: {
+    id: number;
+    name: string;
+  };
+  organizer: {
+    id: number;
+    name: string;
+    abbrev: string;
+  };
+  age_group: {
+    id: number;
+    name: string;
+    min_age?: number;
+    max_age?: number;
+  };
+  gender: string;
+
+  // Tournament structure (embedded for fast access)
+
+  rounds: string[]; // Array of round names like ["Round 1", "Round 2", etc.]
+  rounds_count: number;
+
+  // Tournament winners
+  winner: {
+    id: number | null;
+    name: string | null;
+  };
+  runner_up: {
+    id: number | null;
+    name: string | null;
+  };
+  top_scorers: [
+    {
+      player: {
+        id: number;
+        name: string;
+      };
+    },
+  ];
+  top_assisters: [
+    {
+      player: {
+        id: number;
+        name: string;
+      };
+    },
+  ];
   // Metadata
   start_date: Date;
   end_date: Date;
@@ -72,17 +137,17 @@ const TournamentSchema = new Schema<ITournament>(
       type: Number,
       required: true,
       unique: true,
-      index: true,
     },
     name: {
       type: String,
       required: true,
-      index: true,
     },
     season: {
       type: String,
       required: true,
-      index: true,
+    },
+    logo: {
+      type: String,
     },
     country: {
       id: { type: Number, required: true },
@@ -104,48 +169,28 @@ const TournamentSchema = new Schema<ITournament>(
       required: true,
       enum: ["male", "female", "mixed"],
     },
-    structure: {
-      stages: [
-        {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-          order: { type: Number, required: true },
-          type: { type: String, required: true },
-          groups: [
-            {
-              id: { type: Number, required: true },
-              name: { type: String, required: true },
-              teams: [
-                {
-                  id: { type: Number, required: true },
-                  name: { type: String, required: true },
-                  played: { type: Number, default: 0 },
-                  points: { type: Number, default: 0 },
-                  goals_for: { type: Number, default: 0 },
-                  goals_against: { type: Number, default: 0 },
-                },
-              ],
-            },
-          ],
-        },
-      ],
+    rounds: {
+      type: [String],
+      required: true,
     },
+    rounds_count: {
+      type: Number,
+      required: true,
+    },
+
     start_date: {
       type: Date,
       required: true,
-      index: true,
     },
     end_date: {
       type: Date,
       required: true,
-      index: true,
     },
     status: {
       type: String,
       required: true,
       enum: ["active", "completed", "upcoming"],
       default: "upcoming",
-      index: true,
     },
     last_synced: {
       type: Date,
