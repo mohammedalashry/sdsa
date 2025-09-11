@@ -1,170 +1,46 @@
-name: Deploy to Server
+name: Deploy to Production
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 15
 
     steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      # Optional: Run tests before deploy
+      # - name: Run tests
+      #   run: npm test
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USER }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           port: ${{ secrets.PRODUCTION_PORT }}
-          timeout: 300s
-          command_timeout: 120s
           script: |
-            set -e  # Exit on any error
-
-            echo "🚀 Starting deployment..."
-
-            # Check if directory exists
-            if [ ! -d "${{ secrets.PRODUCTION_APP_PATH }}" ]; then
-              echo "❌ App directory does not exist: ${{ secrets.PRODUCTION_APP_PATH }}"
-              exit 1
-            fi
-
-            # Go to project directory
             cd ${{ secrets.PRODUCTION_APP_PATH }}
-            echo "📁 Current directory: $(pwd)"
-
-            # Check git status
-            echo "🔍 Checking git status..."
-            git status
-
-            # Stash any local changes before pulling
-            if ! git diff-index --quiet HEAD --; then
-              echo "⚠️  Local changes detected, stashing..."
-              git stash
-            fi
-
-            # Pull latest code
-            echo "⬇️  Pulling latest code..."
-            git pull origin main || {
-              echo "❌ Git pull failed"
-              exit 1
-            }
-
-            # Check Node.js version
-            echo "🔍 Node.js version: $(node --version)"
-            echo "🔍 npm version: $(npm --version)"
-
-            # Create .env file if it doesn't exist
-            if [ ! -f ".env" ]; then
-              echo "📝 Creating .env file..."
-              cat > .env << EOF
-            NODE_ENV=production
-            PORT=${{ secrets.PRODUCTION_PORT || '3000' }}
-            MONGODB_URI=${{ secrets.KORASTATS_MONGODB_URI }}
-            # Add other environment variables as needed
-            EOF
-            fi
-
-            # Clean install dependencies
-            echo "📦 Installing dependencies..."
-            rm -rf node_modules package-lock.json
-            npm install --production=false || {
-              echo "❌ npm install failed"
-              exit 1
-            }
-
-            # Build the app
-            echo "🔨 Building application..."
-            npm run build || {
-              echo "❌ Build failed"
-              exit 1
-            }
-
-            # Check if dist directory was created
-            if [ ! -d "dist" ]; then
-              echo "❌ Build output directory 'dist' not found"
-              exit 1
-            fi
-
-            # Install PM2 if not available
-            if ! command -v pm2 &> /dev/null; then
-              echo "📦 Installing PM2 globally..."
-              npm install -g pm2
-            fi
-
-            # Create PM2 ecosystem file if it doesn't exist
-            if [ ! -f "ecosystem.config.js" ]; then
-              echo "📝 Creating PM2 ecosystem file..."
-              cat > ecosystem.config.js << 'EOF'
-            module.exports = {
-              apps: [{
-                name: 'sdsa-backend',
-                script: 'dist/server.js',
-                instances: 1,
-                autorestart: true,
-                watch: false,
-                max_memory_restart: '1G',
-                env: {
-                  NODE_ENV: 'production',
-                  PORT: process.env.PORT || 3000
-                },
-                error_file: './logs/err.log',
-                out_file: './logs/out.log',
-                log_file: './logs/combined.log',
-                time: true
-              }]
-            }
-            EOF
-            fi
-
-            # Create logs directory
-            mkdir -p logs
-
-            # Stop existing PM2 process
-            echo "🛑 Stopping existing PM2 process..."
-            pm2 stop sdsa-backend 2>/dev/null || echo "No existing process to stop"
-
-            # Start/restart with PM2
-            echo "🚀 Starting application with PM2..."
-            pm2 start ecosystem.config.js || {
-              echo "❌ PM2 start failed"
-              pm2 logs sdsa-backend --lines 50
-              exit 1
-            }
-
-            # Save PM2 process list
-            pm2 save
-
-            # Show status
-            echo "📊 PM2 Status:"
-            pm2 status
-            pm2 info sdsa-backend
-
-            # Health check
-            echo "🏥 Performing health check..."
-            sleep 5
-
-            # Check if the application is responding
-            if command -v curl &> /dev/null; then
-              for i in {1..5}; do
-                if curl -f -s "http://localhost:${{ secrets.PRODUCTION_PORT || '3000' }}/health" > /dev/null; then
-                  echo "✅ Health check passed!"
-                  break
-                elif [ $i -eq 5 ]; then
-                  echo "❌ Health check failed after 5 attempts"
-                  pm2 logs sdsa-backend --lines 20
-                  exit 1
-                else
-                  echo "⏳ Health check attempt $i failed, retrying in 3 seconds..."
-                  sleep 3
-                fi
-              done
-            fi
-
-            echo "✅ Deployment completed successfully!"
-            echo "📊 Final PM2 status:"
-            pm2 status
+            git pull origin main
+            npm ci
+            npm run build
+            npx prisma migrate deploy
+            pm2 reload all --update-env
 
