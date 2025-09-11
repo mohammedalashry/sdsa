@@ -63,7 +63,7 @@ jobs:
               cat > .env << EOF
             NODE_ENV=production
             PORT=${{ secrets.PRODUCTION_PORT || '3000' }}
-            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            MONGODB_URI=${{ secrets.KORASTATS_MONGODB_URI }}
             # Add other environment variables as needed
             EOF
             fi
@@ -167,3 +167,4 @@ jobs:
             echo "✅ Deployment completed successfully!"
             echo "📊 Final PM2 status:"
             pm2 status
+
