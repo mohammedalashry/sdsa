@@ -1,0 +1,55 @@
+name: Minimal Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "18"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build application
+        run: |
+          pwd
+          ls -la
+          npm run build
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_PORT }}
+          script: |
+            cd ${{ secrets.PRODUCTION_APP_PATH }}
+            git pull origin main
+            npm install --production
+            npm run build
+            pm2 restart sdsa-backend || pm2 start dist/server.js --name sdsa-backend
+            pm2 status
+            echo "✅ Deployment completed"
+
+      - name: Health check
+        run: |
+          echo "🏥 Running health check..."
+          curl -f ${{ secrets.PRODUCTION_URL }}/health || echo "❌ Health check failed"
+          echo "✅ Health check completed"
+
