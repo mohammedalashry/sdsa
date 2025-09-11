@@ -1,4 +1,4 @@
-name: Deploy Backend
+name: Simple Deploy Backend
 
 on:
   push:
@@ -17,8 +17,6 @@ on:
 
 env:
   NODE_VERSION: "18"
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-test:
@@ -26,7 +24,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:13
+        image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
@@ -40,16 +38,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-        - name: Setup Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: ${{ env.NODE_VERSION }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-        - name: Install dependencies
-          run: npm install
-
-      - name: Run linter
-        run: npm run lint
+      - name: Install dependencies
+        run: npm install
 
       - name: Run type check
         run: npm run build
@@ -58,58 +53,9 @@ jobs:
         run: npm run test:ci
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          JWT_SECRET: test-secret
-          KORASTATS_API_KEY: ${{ secrets.KORASTATS_API_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-
-  build-docker:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-
-    outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.event.inputs.environment || 'production' }}
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
 
   deploy-production:
-    needs: build-docker
+    needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'))
     environment: production
@@ -144,7 +90,7 @@ jobs:
             echo "✅ Production deployment completed"
 
   deploy-staging:
-    needs: build-docker
+    needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
     environment: staging
@@ -179,7 +125,7 @@ jobs:
             echo "✅ Staging deployment completed"
 
   deploy-development:
-    needs: build-docker
+    needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'development'
     environment: development
@@ -247,7 +193,6 @@ jobs:
     needs:
       [
         build-and-test,
-        build-docker,
         deploy-production,
         deploy-staging,
         deploy-development,
@@ -261,13 +206,7 @@ jobs:
         run: |
           echo "📢 Deployment notification"
 
-          # Add your notification logic here
-          # Examples:
-          # - Slack notification
-          # - Discord notification
-          # - Email notification
-
-          if [ "${{ needs.build-and-test.result }}" == "success" ] && [ "${{ needs.build-docker.result }}" == "success" ]; then
+          if [ "${{ needs.build-and-test.result }}" == "success" ]; then
             echo "✅ Deployment successful"
           else
             echo "❌ Deployment failed"
