@@ -72,7 +72,7 @@
     "typescript": "^5.9.2"
   },
   "prisma": {
-    "schema": "./src/core/db/prisma/schema.prisma",
+    "schema": "./src/db/prismadb/prisma/schema.prisma",
     "envPath": ".env.local"
   }
 }
