@@ -1,0 +1,40 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_PORT }}
+          script: |
+            # Go to project directory
+            cd ${{ secrets.PRODUCTION_APP_PATH }}
+            
+            # Pull latest code
+            git pull origin main
+            
+            # Install dependencies
+            npm install --production
+            
+            # Build the app
+            npm run build
+            
+            # Restart with PM2
+            pm2 restart sdsa-backend || pm2 start dist/server.js --name sdsa-backend
+            
+            # Show status
+            pm2 status
+            
+            echo "✅ Deployment completed successfully!"
