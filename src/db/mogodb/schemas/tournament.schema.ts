@@ -216,7 +216,6 @@ const TournamentSchema = new Schema<ITournament>(
 );
 
 // Indexes for performance
-TournamentSchema.index({ korastats_id: 1 });
 TournamentSchema.index({ name: 1, season: 1 });
 TournamentSchema.index({ country: 1, gender: 1 });
 TournamentSchema.index({ start_date: 1, end_date: 1 });

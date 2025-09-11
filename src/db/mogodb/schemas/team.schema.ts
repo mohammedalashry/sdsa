@@ -39,6 +39,8 @@ export interface ITeam extends Document {
     capacity: number;
     surface: string;
     city?: string;
+    nly;
+    opl;
     image?: string;
     address?: string;
   };
@@ -307,7 +309,6 @@ const TeamSchema = new Schema<ITeam>(
 );
 
 // Indexes for performance
-TeamSchema.index({ korastats_id: 1 });
 TeamSchema.index({ name: 1 });
 TeamSchema.index({ country: 1 });
 TeamSchema.index({ "venue.id": 1 });

@@ -12,6 +12,7 @@ export interface IReferee extends Document {
 
   // Personal info
   name: string;
+  nickname?: string;
   firstname?: string;
   lastname?: string;
   country: string;
@@ -53,6 +54,9 @@ const RefereeSchema = new Schema<IReferee>(
     name: {
       type: String,
       required: true,
+    },
+    nickname: {
+      type: String,
     },
     firstname: {
       type: String,

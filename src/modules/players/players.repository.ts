@@ -103,86 +103,96 @@ export class PlayersRepository {
         .sort({ date: -1 })
         .limit(50);
 
-      const fixtures = matches.map((match) => ({
-        fixture: {
-          id: match.korastats_id,
-          referee: match.officials?.referee?.name || null,
-          timezone: "UTC",
-          date: match.date,
-          timestamp: Math.floor(new Date(match.date).getTime() / 1000),
-          periods: {
-            first: null,
-            second: null,
-          },
-          venue: {
-            id: match.venue?.id || null,
-            name: match.venue?.name || null,
-            city: match.venue?.city || null,
-          },
-          status: {
-            long: match.status?.long || "Finished",
-            short: match.status?.short || "FT",
-            elapsed: match.status?.elapsed || null,
-          },
-        },
-        league: {
-          id: match.league?.id || 0,
-          name: match.league?.name || "",
-          country: match.league?.country || "Saudi Arabia",
-          logo: "",
-          flag: null,
-          season: match.season || "",
-          round: match.round || "",
-        },
-        teams: {
-          home: {
-            id: match.teams?.home?.id || 0,
-            name: match.teams?.home?.name || "",
-            logo: "",
-            winner: match.teams?.home?.winner || false,
-          },
-          away: {
-            id: match.teams?.away?.id || 0,
-            name: match.teams?.away?.name || "",
-            logo: "",
-            winner: match.teams?.away?.winner || false,
-          },
-        },
-        goals: {
-          home: match.score?.home || null,
-          away: match.score?.away || null,
-        },
-        score: {
-          halftime: {
-            home: null,
-            away: null,
-          },
-          fulltime: {
-            home: match.score?.home || null,
-            away: match.score?.away || null,
-          },
-          extratime: {
-            home: null,
-            away: null,
-          },
-          penalty: {
-            home: null,
-            away: null,
-          },
-        },
-      }));
+      // Get tournament data for all unique tournament IDs
+      const tournamentIds = [...new Set(matches.map((match) => match.tournament_id))];
+      const tournaments = await Models.Tournament.find({
+        korastats_id: { $in: tournamentIds },
+      });
+      const tournamentMap = new Map(tournaments.map((t) => [t.korastats_id, t]));
 
-      const response: FixtureDataResponse = {
-        fixtures,
-        pagination: {
-          page: 1,
-          pageSize: fixtures.length,
-          total: fixtures.length,
-        },
-      };
+      // Get country data (Saudi Arabia - ID 160)
+      const { CountryRepository } = await import("../country/country.repository");
+      const countryRepo = new CountryRepository();
+      const countries = await countryRepo.getCountries({});
+      const saudiArabia = countries.find((country) => country.id === 160);
 
-      this.cacheService.set(cacheKey, response, 15 * 60 * 1000);
-      return response;
+      const fixtures = matches.map((match) => {
+        const tournament = tournamentMap.get(match.tournament_id);
+        return {
+          fixture: {
+            id: match.korastats_id,
+            referee: match.referee?.name || null,
+            timezone: "UTC",
+            date: match.date,
+            timestamp:
+              match.timestamp || Math.floor(new Date(match.date).getTime() / 1000),
+            periods: {
+              first: match.periods?.first || null,
+              second: match.periods?.second || null,
+            },
+            venue: {
+              id: match.venue?.id || null,
+              name: match.venue?.name || null,
+              city: null, // Not available in match schema
+            },
+            status: {
+              long: match.status?.long || "Finished",
+              short: match.status?.short || "FT",
+              elapsed: match.status?.elapsed || null,
+            },
+          },
+          league: {
+            id: tournament?.korastats_id || match.tournament_id || 0,
+            name: tournament?.name || "",
+            country: saudiArabia?.name || "Saudi Arabia",
+            logo: tournament?.logo || "",
+            flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
+            season: parseInt(match.season) || 0,
+            round: match.round?.toString() || "",
+          },
+          teams: {
+            home: {
+              id: match.teams?.home?.id || 0,
+              name: match.teams?.home?.name || "",
+              logo: "", // Will be populated from team schema
+              winner: match.teams?.home?.winner || false,
+            },
+            away: {
+              id: match.teams?.away?.id || 0,
+              name: match.teams?.away?.name || "",
+              logo: "", // Will be populated from team schema
+              winner: match.teams?.away?.winner || false,
+            },
+          },
+          goals: {
+            home: match.goals?.home || null,
+            away: match.goals?.away || null,
+          },
+          score: {
+            halftime: {
+              home: match.score?.halftime?.home || null,
+              away: match.score?.halftime?.away || null,
+            },
+            fulltime: {
+              home: match.score?.fulltime?.home || match.goals?.home || null,
+              away: match.score?.fulltime?.away || match.goals?.away || null,
+            },
+            extratime: {
+              home: match.score?.extratime?.home || null,
+              away: match.score?.extratime?.away || null,
+            },
+            penalty: {
+              home: match.score?.penalty?.home || null,
+              away: match.score?.penalty?.away || null,
+            },
+          },
+          tablePosition: null, // Will be calculated from standings
+          averageTeamRating: null, // Will be calculated from team ratings
+        };
+      });
+
+      this.cacheService.set(cacheKey, fixtures, 15 * 60 * 1000);
+      return fixtures;
     } catch (error) {
       console.error("Failed to fetch player fixtures:", error);
       throw new ApiError(500, "Failed to fetch player fixtures");
@@ -223,23 +233,21 @@ export class PlayersRepository {
       }
 
       const playerInfo: PlayerInfo = {
-        player: {
-          id: playerStats.player.id,
-          name: playerStats.player.name,
-          firstname: playerStats.player.name.split(" ")[0] || "",
-          lastname: playerStats.player.name.split(" ").slice(1).join(" ") || "",
-          age: null, // Would need to calculate from birth date
-          birth: {
-            date: null,
-            place: null,
-            country: null,
-          },
-          nationality: null, // Would need to get from player data
-          height: null,
-          weight: null,
-          injured: false,
-          photo: "", // Would need to get from ImageLoad
+        id: playerStats.player.id,
+        name: playerStats.player.name,
+        firstname: playerStats.player.name.split(" ")[0] || "",
+        lastname: playerStats.player.name.split(" ").slice(1).join(" ") || "",
+        age: null, // Would need to calculate from birth date
+        birth: {
+          date: null,
+          place: null,
+          country: null,
         },
+        nationality: null, // Would need to get from player data
+        height: null,
+        weight: null,
+        injured: false,
+        photo: "", // Would need to get from ImageLoad
         statistics: await this.mapMatchDataToPlayerCareer(matches, playerId),
       };
 
@@ -252,6 +260,66 @@ export class PlayersRepository {
       }
       throw new ApiError(500, "Failed to fetch player info");
     }
+  }
+
+  /**
+   * Get player heatmap
+   */
+  async getPlayerHeatmap(options: {
+    league: number;
+    player: number;
+    season: number;
+  }): Promise<any[]> {
+    // TODO: Implement player heatmap
+    return [];
+  }
+
+  /**
+   * Get player shotmap
+   */
+  async getPlayerShotmap(playerId: number): Promise<any[]> {
+    // TODO: Implement player shotmap
+    return [];
+  }
+
+  /**
+   * Get top assists
+   */
+  async getTopAssists(options: { league: number; season: number }): Promise<any[]> {
+    // TODO: Implement top assists
+    return [];
+  }
+
+  /**
+   * Get top scorers
+   */
+  async getTopScorers(options: { league: number; season: number }): Promise<any[]> {
+    // TODO: Implement top scorers
+    return [];
+  }
+
+  /**
+   * Get player traits
+   */
+  async getPlayerTraits(playerId: number): Promise<any[]> {
+    // TODO: Implement player traits
+    return [];
+  }
+
+  /**
+   * Get player transfer
+   */
+  async getPlayerTransfer(playerId: number): Promise<any> {
+    // TODO: Implement player transfer
+    return null;
+  }
+
+  /**
+   * Get player trophies
+   */
+  async getPlayerTrophies(playerId: number): Promise<any[]> {
+    // TODO: Implement player trophies
+    return [];
   }
 
   /**
@@ -383,3 +451,4 @@ export class PlayersRepository {
     return Array.from(careerMap.values());
   }
 }
+

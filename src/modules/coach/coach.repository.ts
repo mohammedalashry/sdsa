@@ -26,7 +26,7 @@ export class CoachRepository {
 
       // Get coaches from MongoDB
       const coaches = await Models.Coach.find({
-        current_team: { $exists: true },
+        "career_history.is_current": true,
       }).limit(50);
 
       const coachData = coaches.map((coach) => this.mapCoachToCoachData(coach));
@@ -231,8 +231,10 @@ export class CoachRepository {
       weight: null, // Not available for coaches
       photo: coach.image_url || "",
       team: {
-        id: coach.current_team?.id || 0,
-        name: coach.current_team?.name || "Unknown Team",
+        id: coach.career_history?.find((team) => team.is_current)?.team_id || 0,
+        name:
+          coach.career_history?.find((team) => team.is_current)?.team_name ||
+          "Unknown Team",
         code: null,
         country: "",
         founded: null,
@@ -325,15 +327,16 @@ export class CoachRepository {
       // Get coach's current team and find leagues where that team plays
       const coach = await Models.Coach.findOne({ korastats_id: coachId });
 
-      if (!coach || !coach.current_team?.id) {
+      const currentTeam = coach.career_history?.find((team) => team.is_current);
+      if (!coach || !currentTeam?.team_id) {
         return [];
       }
 
       // Get leagues where coach's current team has matches
       const matches = await Models.Match.find({
         $or: [
-          { "teams.home.id": coach.current_team.id },
-          { "teams.away.id": coach.current_team.id },
+          { "teams.home.id": currentTeam.team_id },
+          { "teams.away.id": currentTeam.team_id },
         ],
       }).distinct("tournament_id");
 
@@ -369,15 +372,18 @@ export class CoachRepository {
       }
 
       const stats = {
-        total_matches: coach.coaching_stats?.total_matches || 0,
-        total_wins: coach.coaching_stats?.total_wins || 0,
-        total_draws: coach.coaching_stats?.total_draws || 0,
-        total_losses: coach.coaching_stats?.total_losses || 0,
-        win_percentage: coach.coaching_stats?.win_percentage || 0,
-        current_team_matches: coach.coaching_stats?.current_team_matches || 0,
-        current_team_wins: coach.coaching_stats?.current_team_wins || 0,
-        current_team_draws: coach.coaching_stats?.current_team_draws || 0,
-        current_team_losses: coach.coaching_stats?.current_team_losses || 0,
+        total_matches: coach.stats?.total_matches || 0,
+        total_wins: coach.stats?.total_wins || 0,
+        total_draws: coach.stats?.total_draws || 0,
+        total_losses: coach.stats?.total_losses || 0,
+        win_percentage:
+          coach.stats?.total_matches > 0
+            ? (coach.stats.total_wins / coach.stats.total_matches) * 100
+            : 0,
+        current_team_matches: 0, // Will be calculated from matches
+        current_team_wins: 0, // Will be calculated from matches
+        current_team_draws: 0, // Will be calculated from matches
+        current_team_losses: 0, // Will be calculated from matches
       };
 
       this.cacheService.set(cacheKey, stats, 30 * 60 * 1000); // Cache for 30 minutes
@@ -403,15 +409,16 @@ export class CoachRepository {
       // Get coach's current team and find last match for that team
       const coach = await Models.Coach.findOne({ korastats_id: coachId });
 
-      if (!coach || !coach.current_team?.id) {
+      const currentTeam = coach.career_history?.find((team) => team.is_current);
+      if (!coach || !currentTeam?.team_id) {
         return [];
       }
 
       // Get last match where coach's current team participated
       const lastMatch = await Models.Match.findOne({
         $or: [
-          { "teams.home.id": coach.current_team.id },
-          { "teams.away.id": coach.current_team.id },
+          { "teams.home.id": currentTeam.team_id },
+          { "teams.away.id": currentTeam.team_id },
         ],
         status: { $in: ["finished", "completed"] },
       }).sort({ date: -1 });
@@ -445,7 +452,8 @@ export class CoachRepository {
       // Get coach's current team and find matches for that team in the league
       const coach = await Models.Coach.findOne({ korastats_id: options.coach });
 
-      if (!coach || !coach.current_team?.id) {
+      const currentTeam = coach.career_history?.find((team) => team.is_current);
+      if (!coach || !currentTeam?.team_id) {
         return {
           total_matches: 0,
           wins: 0,
@@ -460,8 +468,8 @@ export class CoachRepository {
       const matches = await Models.Match.find({
         tournament_id: options.league,
         $or: [
-          { "teams.home.id": coach.current_team.id },
-          { "teams.away.id": coach.current_team.id },
+          { "teams.home.id": currentTeam.team_id },
+          { "teams.away.id": currentTeam.team_id },
         ],
       });
 
@@ -476,9 +484,9 @@ export class CoachRepository {
 
       // Calculate stats from matches
       matches.forEach((match) => {
-        const isHome = match.teams?.home?.id === coach.current_team?.id;
-        const homeScore = match.teams?.home?.score || 0;
-        const awayScore = match.teams?.away?.score || 0;
+        const isHome = match.teams?.home?.id === currentTeam?.team_id;
+        const homeScore = match.goals?.home || 0;
+        const awayScore = match.goals?.away || 0;
 
         if (isHome) {
           stats.goals_for += homeScore;
@@ -522,10 +530,11 @@ export class CoachRepository {
         throw new ApiError(404, "Coach not found");
       }
 
+      const currentTeam = coach.career_history?.find((team) => team.is_current);
       const performance = {
-        current_team: coach.current_team,
+        current_team: currentTeam,
         career_history: coach.career_history,
-        coaching_stats: coach.coaching_stats,
+        coaching_stats: coach.stats,
         trophies: coach.trophies,
       };
 
@@ -575,8 +584,8 @@ export class CoachRepository {
       const form = recentMatches
         .map((match) => {
           const isHome = match.teams?.home?.id === teamId;
-          const homeScore = match.teams?.home?.score || 0;
-          const awayScore = match.teams?.away?.score || 0;
+          const homeScore = match.goals?.home || 0;
+          const awayScore = match.goals?.away || 0;
 
           if (isHome) {
             if (homeScore > awayScore) return "W";
@@ -597,7 +606,7 @@ export class CoachRepository {
           date: match.date,
           home_team: match.teams?.home?.name,
           away_team: match.teams?.away?.name,
-          score: `${match.teams?.home?.score || 0}-${match.teams?.away?.score || 0}`,
+          score: `${match.goals?.home || 0}-${match.goals?.away || 0}`,
         })),
       };
 

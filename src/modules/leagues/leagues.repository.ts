@@ -31,10 +31,7 @@ export class LeaguesRepository {
 
     try {
       // Get tournaments from MongoDB
-      const tournaments = await Models.Tournament.find({
-        "country.name": country,
-        status: "active",
-      });
+      const tournaments = await Models.Tournament.find();
 
       console.log(`Found ${tournaments.length} tournaments for ${country}`);
 
@@ -92,8 +89,8 @@ export class LeaguesRepository {
         korastats_id: league,
       });
 
-      if (tournament && tournament.structure?.stages) {
-        const rounds = this.extractRoundsFromStructure(tournament.structure);
+      if (tournament && tournament.rounds) {
+        const rounds = tournament.rounds;
         if (rounds.length > 0) {
           this.cacheService.set(cacheKey, rounds, 30 * 60 * 1000);
           return rounds;
@@ -148,7 +145,7 @@ export class LeaguesRepository {
       }
 
       // Get team stats for this tournament to find winners
-      const teamStats = await Models.TeamStats.find({
+      const teamStats = await Models.Team.find({
         tournament_id: league,
       }).sort({ points: -1, goal_difference: -1 });
 
@@ -159,8 +156,8 @@ export class LeaguesRepository {
 
       // Get team details for winner and runner-up
       const [winnerTeam, runnerUpTeam] = await Promise.all([
-        Models.Team.findOne({ korastats_id: teamStats[0].team_id }),
-        Models.Team.findOne({ korastats_id: teamStats[1].team_id }),
+        Models.Team.findOne({ korastats_id: teamStats[0].korastats_id }),
+        Models.Team.findOne({ korastats_id: teamStats[1].korastats_id }),
       ]);
 
       if (!winnerTeam || !runnerUpTeam) {
@@ -174,21 +171,20 @@ export class LeaguesRepository {
           winner: {
             id: winnerTeam.korastats_id,
             name: winnerTeam.name,
-            code: winnerTeam.code || winnerTeam.short_name || null,
-            country: winnerTeam.country.name,
-            founded: winnerTeam.founded || winnerTeam.club?.founded_year || null,
-            national: winnerTeam.national || winnerTeam.club?.is_national_team || false,
-            logo: winnerTeam.logo || winnerTeam.club?.logo_url || "",
+            code: winnerTeam.code || null,
+            country: winnerTeam.country,
+            founded: winnerTeam.founded || null,
+            national: winnerTeam.national || false,
+            logo: winnerTeam.logo || "",
           },
           runnerUp: {
             id: runnerUpTeam.korastats_id,
             name: runnerUpTeam.name,
-            code: runnerUpTeam.code || runnerUpTeam.short_name || null,
-            country: runnerUpTeam.country.name,
-            founded: runnerUpTeam.founded || runnerUpTeam.club?.founded_year || null,
-            national:
-              runnerUpTeam.national || runnerUpTeam.club?.is_national_team || false,
-            logo: runnerUpTeam.logo || runnerUpTeam.club?.logo_url || "",
+            code: runnerUpTeam.code || null,
+            country: runnerUpTeam.country,
+            founded: runnerUpTeam.founded || null,
+            national: runnerUpTeam.national || false,
+            logo: runnerUpTeam.logo || "",
           },
         },
       ];
@@ -231,7 +227,7 @@ export class LeaguesRepository {
       // Get last completed match from MongoDB
       const lastMatch = await Models.Match.findOne({
         tournament_id: league,
-        status: { $in: ["finished", "completed"] },
+        "status.short": { $in: ["FT", "AET", "PEN"] }, // Match finished statuses
       }).sort({ date: -1 });
 
       if (!lastMatch) {
@@ -254,18 +250,18 @@ export class LeaguesRepository {
       const fixture: LeagueLastFixture = {
         fixture: {
           id: lastMatch.korastats_id,
-          referee: lastMatch.officials?.referee?.name || null,
+          referee: lastMatch.referee?.name || null,
           timezone: "UTC",
-          date: lastMatch.date.toISOString(),
-          timestamp: Math.floor(lastMatch.date.getTime() / 1000),
+          date: lastMatch.date,
+          timestamp: lastMatch.timestamp,
           periods: { first: null, second: null },
           venue: {
             id: lastMatch.venue?.id || null,
             name: lastMatch.venue?.name || null,
-            city: lastMatch.venue?.city || null,
+            city: null,
           },
           status: {
-            long: lastMatch.status?.name || "Match Finished",
+            long: lastMatch.status?.long || "Match Finished",
             short: lastMatch.status?.short || "FT",
             elapsed: 90,
           },
@@ -283,14 +279,14 @@ export class LeaguesRepository {
           home: {
             id: homeTeam.korastats_id,
             name: homeTeam.name,
-            logo: homeTeam.logo || homeTeam.club?.logo_url || "",
-            winner: lastMatch.teams.home.score > lastMatch.teams.away.score,
+            logo: homeTeam.logo || "",
+            winner: lastMatch.goals.home > lastMatch.goals.away,
           },
           away: {
             id: awayTeam.korastats_id,
             name: awayTeam.name,
-            logo: awayTeam.logo || awayTeam.club?.logo_url || "",
-            winner: lastMatch.teams.away.score > lastMatch.teams.home.score,
+            logo: awayTeam.logo || "",
+            winner: lastMatch.goals.away > lastMatch.goals.home,
           },
         },
         averageTeamRating: { home: 0, away: 0 },
@@ -298,15 +294,15 @@ export class LeaguesRepository {
         score: {
           halftime: { home: 0, away: 0 },
           fulltime: {
-            home: lastMatch.teams.home.score,
-            away: lastMatch.teams.away.score,
+            home: lastMatch.goals.home,
+            away: lastMatch.goals.away,
           },
           extratime: { home: 0, away: 0 },
           penalty: { home: 0, away: 0 },
         },
         goals: {
-          home: lastMatch.teams.home.score,
-          away: lastMatch.teams.away.score,
+          home: lastMatch.goals.home,
+          away: lastMatch.goals.away,
         },
       };
 

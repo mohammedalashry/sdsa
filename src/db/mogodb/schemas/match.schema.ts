@@ -36,6 +36,7 @@ export interface MatchInterface {
   venue: {
     id: number | null;
     name: string | null;
+    city: string | null;
   };
   status: {
     long: string; // "Match Finished", "Not Started", etc.
@@ -353,6 +354,7 @@ export interface IMatch extends Document {
   venue: {
     id: number | null;
     name: string | null;
+    city: string | null;
   };
   status: {
     long: string; // "Match Finished", "Not Started", etc.
@@ -711,11 +713,23 @@ const MatchSchema = new Schema<IMatch>(
         id: { type: Number, required: true },
         name: { type: String, required: true },
         winner: { type: Boolean, default: null },
+        coach: {
+          id: { type: Number, default: 0 },
+          name: { type: String, default: "Unknown Coach" },
+          redCards: { type: Number, default: 0 },
+          yellowCards: { type: Number, default: 0 },
+        },
       },
       away: {
         id: { type: Number, required: true },
         name: { type: String, required: true },
         winner: { type: Boolean, default: null },
+        coach: {
+          id: { type: Number, default: 0 },
+          name: { type: String, default: "Unknown Coach" },
+          redCards: { type: Number, default: 0 },
+          yellowCards: { type: Number, default: 0 },
+        },
       },
     },
 
@@ -1055,13 +1069,12 @@ const MatchSchema = new Schema<IMatch>(
 );
 
 // Indexes for performance
-MatchSchema.index({ korastats_id: 1 });
 MatchSchema.index({ tournament_id: 1, season: 1, round: 1 });
-MatchSchema.index({ "fixture.date": 1, tournament_id: 1 });
-MatchSchema.index({ "teams.home.id": 1, "fixture.date": 1 });
-MatchSchema.index({ "teams.away.id": 1, "fixture.date": 1 });
+MatchSchema.index({ date: 1, tournament_id: 1 });
+MatchSchema.index({ "teams.home.id": 1, date: 1 });
+MatchSchema.index({ "teams.away.id": 1, date: 1 });
 MatchSchema.index({ "teams.home.id": 1, "teams.away.id": 1 });
-MatchSchema.index({ "fixture.status.short": 1, "fixture.date": 1 });
+MatchSchema.index({ "status.short": 1, date: 1 });
 
 export default MatchSchema;
 

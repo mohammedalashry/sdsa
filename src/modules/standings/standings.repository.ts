@@ -23,12 +23,13 @@ export class StandingsRepository {
         return cached;
       }
 
-      // Get standings from MongoDB TeamStats collection
-      const teamStats = await Models.TeamStats.find({
-        tournament_id: leagueId,
-        season: season?.toString() || new Date().getFullYear().toString(),
+      // Get standings from MongoDB Team collection (stats are embedded)
+      // Sort by current_rank if available, otherwise by goal difference
+      const teamStats = await Models.Team.find({
+        // Add any filters based on league/season if needed
+        "stats_summary.current_rank": { $exists: true, $ne: null }
       })
-        .sort({ "stats.points": -1, "stats.goal_difference": -1 })
+        .sort({ "stats_summary.current_rank": 1 }) // Sort by rank ascending (1st, 2nd, 3rd...)
         .limit(20);
 
       if (teamStats.length === 0) {
@@ -69,18 +70,18 @@ export class StandingsRepository {
       const team = teams.find((t) => t.korastats_id === stat.team_id);
 
       return {
-        rank: index + 1,
+        rank: stat.stats_summary?.current_rank || (index + 1), // Use ranking from Korastats if available
         team: {
           id: stat.team_id || 0,
           name: team?.name || stat.team_name || "Unknown Team",
-          logo: team?.logo || team?.club?.logo_url || "",
+          logo: team?.logo || "",
         },
         points: stat.stats?.points || 0,
         goalsDiff: stat.stats?.goal_difference || 0,
-        group: "Main",
+        group: stat.stats_summary?.current_group || "Main", // Use group from Korastats if available
         form: stat.form?.form_string || "-----",
-        status: this.getStatus(index + 1),
-        description: this.getDescription(index + 1),
+        status: this.getStatus(stat.stats_summary?.current_rank || (index + 1)),
+        description: this.getDescription(stat.stats_summary?.current_rank || (index + 1)),
         all: {
           played: stat.stats?.matches_played || 0,
           win: stat.stats?.wins || 0,

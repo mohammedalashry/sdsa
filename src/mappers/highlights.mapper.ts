@@ -1,16 +1,16 @@
 // src/integrations/korastats/mappers/highlights.mapper.ts
-import { HighlightsResponse } from "@/legacy-types/highlights.types";
+// import { HighlightsResponse } from "@/legacy-types/highlights.types";
 
 export class HighlightsMapper {
   /**
    * Map KoraStats match video data to Django highlights format
    */
-  static mapToHighlightsResponse(matchVideoData: any): HighlightsResponse {
+  static mapToHighlightsResponse(matchVideoData: any): any {
     console.log("HighlightsMapper: Mapping match video data to highlights format");
     console.log("Match video data:", JSON.stringify(matchVideoData, null, 2));
 
     // Default response if no video data available
-    const defaultResponse: HighlightsResponse = {
+    const defaultResponse: any = {
       host: "youtube-channel",
       url: "https://youtube.com/@saudisportscompany",
     };

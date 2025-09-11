@@ -12,6 +12,7 @@ export interface IPlayer extends Document {
 
   // Personal info
   name: string;
+  nickname?: string;
   firstname?: string;
   lastname?: string;
   birth: {
@@ -177,7 +178,9 @@ const PlayerSchema = new Schema<IPlayer>(
       type: String,
       required: true,
     },
-
+    nickname: {
+      type: String,
+    },
     firstname: {
       type: String,
     },
@@ -247,7 +250,7 @@ const PlayerSchema = new Schema<IPlayer>(
       team_name: { type: String, required: true },
       league: { type: String, required: true },
     },
-    image_url: {
+    photo: {
       type: String,
     },
     status: {

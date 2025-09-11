@@ -99,10 +99,15 @@ export class KorastatsService {
     objectType: "coach" | "player" | "referee" | "club",
     objectId: number,
   ): Promise<string> {
-    return this.client.makeRequest<string>("ImageLoad", {
-      object_type: objectType,
-      object_id: objectId,
-    });
+    // Construct the image URL based on the correct Korastats API structure
+    const pathMap = {
+      coach: "coaches",
+      player: "players",
+      referee: "referees",
+      club: "club", // Note: singular for clubs, not plural
+    };
+
+    return `https://korastats.sirv.com/root/${pathMap[objectType]}/${objectId}.png`;
   }
   /**
    * Get match summary with detailed statistics
@@ -429,6 +434,16 @@ export class KorastatsService {
   async getEntityClub(clubId: number): Promise<KorastatsEntityClubResponse> {
     return this.client.makeRequest<KorastatsEntityClubResponse>("EntityClub", {
       club_id: clubId,
+    });
+  }
+
+  /**
+   * Get entity team data
+   * @param teamId - Team ID
+   */
+  async getEntityTeam(teamId: number): Promise<any> {
+    return this.client.makeRequest<any>("EntityTeam", {
+      team_id: teamId,
     });
   }
 

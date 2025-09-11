@@ -14,7 +14,8 @@
  *   npm run sync:all        - Sync all modules
  */
 
-import { SyncerService } from "../syncer/syncer.service";
+//import { SyncerService } from "../syncer/syncer.service";
+import { SyncerService } from "../syncer/syncer-clean.service";
 import { connectToDatabase } from "../db/mogodb/connection";
 
 async function main() {
@@ -58,7 +59,7 @@ async function main() {
 
       case "players":
         console.log("🏃 Syncing Players...");
-        const playerResult = await syncer.syncPlayersComprehensive();
+        const playerResult = await syncer.syncEntityDataComprehensive();
         console.log("✅ Players sync completed:", playerResult);
         break;
 
@@ -66,7 +67,7 @@ async function main() {
         console.log("🔄 Syncing All Modules...");
 
         console.log("1️⃣ Syncing Leagues...");
-        const leagues = await syncer.syncLeaguesComprehensive();
+        const leagues = await syncer.syncTournamentsComprehensive();
         console.log("✅ Leagues:", leagues);
 
         console.log("2️⃣ Syncing Matches...");
@@ -78,7 +79,7 @@ async function main() {
         console.log("✅ Teams:", teams);
 
         console.log("4️⃣ Syncing Players...");
-        const players = await syncer.syncPlayersComprehensive();
+        const players = await syncer.syncEntityDataComprehensive();
         console.log("✅ Players:", players);
 
         console.log("🎉 All modules synced successfully!");

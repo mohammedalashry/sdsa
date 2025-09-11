@@ -14,7 +14,7 @@ export const fixturesValidationSchemas = {
       .integer()
       .min(2000)
       .max(new Date().getFullYear() + 2)
-      .required(),
+      .optional(),
   }),
 
   // GET /api/fixture/comparison/ - fixture (query)

@@ -14,7 +14,7 @@ export { fixturesValidationSchemas } from "./fixtures.validator";
 export { default as fixturesRoutes } from "./routes";
 
 // Export integration services
-export { FixtureKorastatsService } from "../../integrations/korastats/services/fixture.service";
+// export { FixtureKorastatsService } from "../../integrations/korastats/services/fixture.service";
 
 // Export integration types
 export * from "../../integrations/korastats/types/fixture.types";

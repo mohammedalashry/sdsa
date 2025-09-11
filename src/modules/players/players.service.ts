@@ -32,7 +32,7 @@ export class PlayersService {
     id: number;
     league: number;
   }): Promise<FixtureDataResponse> {
-    return await this.playersRepository.getPlayerFixtures(options);
+    return await this.playersRepository.getPlayerFixtures(options.id);
   }
 
   /**
@@ -68,7 +68,7 @@ export class PlayersService {
     league: number;
     season: number;
   }): Promise<PlayerStatistics[]> {
-    return await this.playersRepository.getPlayerStats(options);
+    return await this.playersRepository.getPlayerStats(options.id);
   }
 
   /**

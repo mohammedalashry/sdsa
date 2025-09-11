@@ -1,10 +1,10 @@
-import request from "supertest";
+// import request from "supertest";
 import jwt from "jsonwebtoken";
 import app from "../../app";
 
 export class TestHelpers {
   static generateAuthToken(
-    payload = { id: 1, email: "test@example.com", role: "client" }
+    payload = { id: 1, email: "test@example.com", role: "client" },
   ): string {
     const secret = process.env.JWT_SECRET || "test-secret";
     return jwt.sign(payload, secret, { expiresIn: "1h" });
@@ -13,10 +13,10 @@ export class TestHelpers {
   static async makeAuthenticatedRequest(
     method: "get" | "post" | "put" | "delete",
     url: string,
-    body?: any
+    body?: any,
   ) {
     const token = this.generateAuthToken();
-    const requestBuilder = request(app)
+    const requestBuilder = (app as any)
       [method](url)
       .set("Authorization", `Bearer ${token}`);
 
@@ -72,3 +72,4 @@ export class TestHelpers {
     };
   }
 }
+

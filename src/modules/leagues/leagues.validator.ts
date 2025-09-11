@@ -18,11 +18,7 @@ export const leaguesValidationSchemas = {
   // GET /api/league/rounds/ - league (query), season (query)
   getLeagueRounds: Joi.object({
     league: Joi.number().integer().positive().required(),
-    season: Joi.number()
-      .integer()
-      .min(2000)
-      .max(new Date().getFullYear() + 2)
-      .required(),
+    season: Joi.optional(),
   }),
 };
 

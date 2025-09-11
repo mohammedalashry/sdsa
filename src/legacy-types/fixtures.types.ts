@@ -192,7 +192,6 @@ export interface FixturePlayerStatsData {
     id: number;
     name: string;
     logo: string;
-    update: string;
   };
   players: Array<{
     player: {

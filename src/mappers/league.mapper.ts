@@ -4,18 +4,18 @@ import {
   LeagueSeason,
   LeagueHistoricalWinner,
   LeagueLastFixture,
-} from "@/legacy-types/leagues.types";
+} from "../legacy-types/leagues.types";
 import {
   KorastatsTournament,
   KorastatsTournamentStructure,
   KorastatsTeamInStructure,
   KorastatsMatchInStructure,
   KorastatsStanding,
-  KorastatsMatchListItem,
+  //  KorastatsMatchListItem,
   KorastatsSeason,
-} from "@/integrations/korastats/types/league.types";
-import { Team } from "@/legacy-types/teams.types";
-import { LeagueLogoService } from "@/integrations/korastats/services/league-logo.service";
+} from "../integrations/korastats/types/league.types";
+import { Team } from "../legacy-types/teams.types";
+import { LeagueLogoService } from "../integrations/korastats/services/league-logo.service";
 
 export class LeagueMapper {
   /**

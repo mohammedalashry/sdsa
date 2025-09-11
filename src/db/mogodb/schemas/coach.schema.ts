@@ -10,8 +10,9 @@ export interface ICoach extends Document {
   // Korastats identifiers
   korastats_id: number;
 
-  // Personal info  firstname: string;
+  // Personal info
   name: string;
+  nickname?: string;
   firstname: string;
   lastname: string;
   age: number;
@@ -76,6 +77,9 @@ const CoachSchema = new Schema<ICoach>(
       type: String,
       required: true,
     },
+    nickname: {
+      type: String,
+    },
     firstname: {
       type: String,
     },
@@ -84,6 +88,11 @@ const CoachSchema = new Schema<ICoach>(
     },
     age: {
       type: Number,
+    },
+    birth: {
+      date: { type: Date },
+      place: { type: String },
+      country: { type: String },
     },
     nationality: {
       id: { type: Number, required: true },
@@ -95,7 +104,9 @@ const CoachSchema = new Schema<ICoach>(
     weight: {
       type: Number,
     },
-
+    photo: {
+      type: String,
+    },
     career_history: [
       {
         team_id: { type: Number, required: true },

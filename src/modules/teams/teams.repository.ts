@@ -36,21 +36,21 @@ export class TeamsRepository {
           team: {
             id: team.korastats_id,
             name: team.name,
-            code: team.code || team.short_name || "",
-            country: team.country.name,
-            founded: team.founded || team.club?.founded_year || null,
-            national: team.national || team.club?.is_national_team || false,
-            logo: team.logo || team.club?.logo_url || "",
+            code: team.code || "",
+            country: team.country,
+            founded: team.founded || null,
+            national: team.national || false,
+            logo: team.logo || "",
           },
-          venue: team.stadium
+          venue: team.venue
             ? {
-                id: team.stadium.id,
-                name: team.stadium.name,
-                address: null,
-                city: team.stadium.city || "",
-                capacity: team.stadium.capacity || null,
-                surface: team.stadium.surface || null,
-                image: null,
+                id: team.venue.id,
+                name: team.venue.name,
+                address: team.venue.address || null,
+                city: team.venue.city || "",
+                capacity: team.venue.capacity || null,
+                surface: team.venue.surface || null,
+                image: team.venue.image || null,
               }
             : {
                 id: null,
@@ -101,21 +101,21 @@ export class TeamsRepository {
           team: {
             id: mongoTeam.korastats_id,
             name: mongoTeam.name,
-            code: mongoTeam.code || mongoTeam.short_name || "",
-            country: mongoTeam.country.name,
-            founded: mongoTeam.founded || mongoTeam.club?.founded_year || null,
-            national: mongoTeam.national || mongoTeam.club?.is_national_team || false,
-            logo: mongoTeam.logo || mongoTeam.club?.logo_url || "",
+            code: mongoTeam.code || "",
+            country: mongoTeam.country,
+            founded: mongoTeam.founded || null,
+            national: mongoTeam.national || false,
+            logo: mongoTeam.logo || "",
           },
-          venue: mongoTeam.stadium
+          venue: mongoTeam.venue
             ? {
-                id: mongoTeam.stadium.id,
-                name: mongoTeam.stadium.name,
-                address: null,
-                city: mongoTeam.stadium.city || "",
-                capacity: mongoTeam.stadium.capacity || null,
-                surface: mongoTeam.stadium.surface || null,
-                image: null,
+                id: mongoTeam.venue.id,
+                name: mongoTeam.venue.name,
+                address: mongoTeam.venue.address || null,
+                city: mongoTeam.venue.city || "",
+                capacity: mongoTeam.venue.capacity || null,
+                surface: mongoTeam.venue.surface || null,
+                image: mongoTeam.venue.image || null,
               }
             : {
                 id: null,
@@ -124,52 +124,47 @@ export class TeamsRepository {
                 city: null,
                 capacity: null,
                 surface: null,
+
                 image: null,
               },
-          coach: mongoTeam.current_coach
-            ? [
-                {
-                  id: mongoTeam.current_coach.id,
-                  name: mongoTeam.current_coach.name,
-                  firstname: mongoTeam.current_coach.name?.split(" ")[0] || null,
-                  lastname:
-                    mongoTeam.current_coach.name?.split(" ").slice(1).join(" ") || null,
-                  age: null,
-                  birth: {
-                    date: null,
-                    place: null,
-                    country: mongoTeam.current_coach.nationality || "",
+          coach:
+            mongoTeam.coaches && mongoTeam.coaches.length > 0
+              ? [
+                  {
+                    id: mongoTeam.coaches[0].id,
+                    name: mongoTeam.coaches[0].name,
+                    firstname: mongoTeam.coaches[0].name?.split(" ")[0] || null,
+                    lastname:
+                      mongoTeam.coaches[0].name?.split(" ").slice(1).join(" ") || null,
+                    age: null,
+                    birth: {
+                      date: null,
+                      place: null,
+                      country: "",
+                    },
+                    nationality: "",
+                    height: null,
+                    weight: null,
+                    photo: "",
+                    team: {
+                      id: mongoTeam.korastats_id,
+                      name: mongoTeam.name,
+                      code: mongoTeam.code || "",
+                      country: mongoTeam.country,
+                      founded: mongoTeam.founded || null,
+                      national: mongoTeam.national || false,
+                      logo: mongoTeam.logo || "",
+                    },
+                    career: [],
                   },
-                  nationality: mongoTeam.current_coach.nationality || "",
-                  height: null,
-                  weight: null,
-                  photo: "",
-                  team: {
-                    id: mongoTeam.korastats_id,
-                    name: mongoTeam.name,
-                    code: mongoTeam.code || mongoTeam.short_name || "",
-                    country: mongoTeam.country.name,
-                    founded: mongoTeam.founded || mongoTeam.club?.founded_year || null,
-                    national:
-                      mongoTeam.national || mongoTeam.club?.is_national_team || false,
-                    logo: mongoTeam.logo || mongoTeam.club?.logo_url || "",
-                  },
-                  career: [],
-                },
-              ]
-            : [],
+                ]
+              : [],
           transfers: [], // Ignoring transfers as requested
-          totalPlayers: mongoTeam.current_squad?.length || 0,
-          foreignPlayers: mongoTeam.foreign_players_count || 0,
-          averagePlayerAge: mongoTeam.average_player_age || 0,
-          clubMarketValue: mongoTeam.club_market_value || null,
-          currentLeagues:
-            mongoTeam.current_leagues?.map((league) => ({
-              id: league.league_id,
-              name: league.league_name,
-              type: "League", // Default type
-              logo: league.logo || "",
-            })) || [],
+          totalPlayers: mongoTeam.totalPlayers || 0,
+          foreignPlayers: mongoTeam.foreignPlayers || 0,
+          averagePlayerAge: mongoTeam.averagePlayerAge || 0,
+          clubMarketValue: mongoTeam.clubMarketValue || null,
+          currentLeagues: [], // Will be populated from tournament data
           trophies:
             mongoTeam.trophies?.map((trophy) => ({
               league: trophy.league,
@@ -208,10 +203,8 @@ export class TeamsRepository {
 
     try {
       // Try to get team stats from MongoDB first
-      const mongoTeamStats = await Models.TeamStats.findOne({
-        team_id: teamId,
-        tournament_id: league,
-        season: season,
+      const mongoTeamStats = await Models.Team.findOne({
+        korastats_id: teamId,
       });
 
       if (mongoTeamStats) {
@@ -224,7 +217,7 @@ export class TeamsRepository {
         const stats = {
           team: {
             id: teamId,
-            name: team?.name || mongoTeamStats.team_name || "Unknown Team",
+            name: team?.name || "Unknown Team",
           },
           season: parseInt(season),
           stats: mongoTeamStats.stats || {
@@ -238,12 +231,12 @@ export class TeamsRepository {
             points: 0,
             position: 0,
           },
-          form: mongoTeamStats.form || {
+          form: {
             recent_results: [],
             form_string: "-----",
             points_from_last_5: 0,
           },
-          goals: mongoTeamStats.goals || {
+          goals: {
             total_for: 0,
             total_against: 0,
             home_for: 0,
@@ -251,7 +244,7 @@ export class TeamsRepository {
             away_for: 0,
             away_against: 0,
           },
-          cards: mongoTeamStats.cards || {
+          cards: {
             total_yellow: 0,
             total_red: 0,
             home_yellow: 0,
@@ -259,7 +252,7 @@ export class TeamsRepository {
             away_yellow: 0,
             away_red: 0,
           },
-          recent_matches: mongoTeamStats.recent_matches || [],
+          recent_matches: [],
         };
 
         // Cache the result
@@ -382,7 +375,7 @@ export class TeamsRepository {
       }
 
       // Get team stats from MongoDB
-      const teamStats = await Models.TeamStats.findOne({
+      const teamStats = await Models.Team.findOne({
         team_id: teamId,
         season: season.toString(),
       });
@@ -433,7 +426,7 @@ export class TeamsRepository {
       const result = {
         team: {
           id: teamId,
-          name: teamStats.team_name || "Unknown Team",
+          name: "Unknown Team",
         },
         season: season,
         stats: teamStats.stats || {
@@ -447,12 +440,12 @@ export class TeamsRepository {
           points: 0,
           position: 0,
         },
-        form: teamStats.form || {
+        form: {
           recent_results: [],
           form_string: "",
           points_from_last_5: 0,
         },
-        goals: teamStats.goals || {
+        goals: {
           total_for: 0,
           total_against: 0,
           home_for: 0,
@@ -460,7 +453,7 @@ export class TeamsRepository {
           away_for: 0,
           away_against: 0,
         },
-        cards: teamStats.cards || {
+        cards: {
           total_yellow: 0,
           total_red: 0,
           home_yellow: 0,
@@ -537,66 +530,85 @@ export class TeamsRepository {
         season: season,
       }).sort({ date: -1 });
 
+      // Get tournament data
+      const tournament = await Models.Tournament.findOne({ korastats_id: league });
+
+      // Get country data (Saudi Arabia - ID 160)
+      const { CountryRepository } = await import("../country/country.repository");
+      const countryRepo = new CountryRepository();
+      const countries = await countryRepo.getCountries({});
+      const saudiArabia = countries.find((country) => country.id === 160);
+
       const fixtures = matches.map((match) => ({
         fixture: {
           id: match.korastats_id,
-          referee: match.officials.referee.name,
+          referee: match.referee?.name || null,
           timezone: "UTC",
-          date: match.date.toISOString(),
-          timestamp: Math.floor(match.date.getTime() / 1000),
+          date: match.date,
+          timestamp: match.timestamp,
           periods: {
-            first: null,
-            second: null,
+            first: match.periods?.first || null,
+            second: match.periods?.second || null,
           },
           venue: {
-            id: match.venue.id,
-            name: match.venue.name,
-            city: match.venue.city || "",
+            id: match.venue?.id || null,
+            name: match.venue?.name || null,
+            city: null, // Not available in match schema
           },
           status: {
-            long: match.status.name,
-            short: match.status.short,
-            elapsed: null,
+            long: match.status?.long || "Finished",
+            short: match.status?.short || "FT",
+            elapsed: match.status?.elapsed || null,
           },
         },
         league: {
-          id: match.tournament_id,
-          name: "League Name", // Would need to fetch from tournament
-          country: "",
-          logo: "",
-          flag: null,
-          season: parseInt(match.season),
-          round: match.round.toString(),
+          id: tournament?.korastats_id || match.tournament_id || 0,
+          name: tournament?.name || "",
+          country: saudiArabia?.name || "Saudi Arabia",
+          logo: tournament?.logo || "",
+          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
+
+          season: parseInt(match.season) || 0,
+          round: match.round?.toString() || "",
         },
         teams: {
           home: {
-            id: match.teams.home.id,
-            name: match.teams.home.name,
-            logo: "",
-            winner: match.teams.home.score > match.teams.away.score,
+            id: match.teams?.home?.id || 0,
+            name: match.teams?.home?.name || "",
+            logo: "", // Will be populated from team schema
+            winner: match.teams?.home?.winner || match.goals?.home > match.goals?.away,
           },
           away: {
-            id: match.teams.away.id,
-            name: match.teams.away.name,
-            logo: "",
-            winner: match.teams.away.score > match.teams.home.score,
+            id: match.teams?.away?.id || 0,
+            name: match.teams?.away?.name || "",
+            logo: "", // Will be populated from team schema
+            winner: match.teams?.away?.winner || match.goals?.away > match.goals?.home,
           },
         },
         goals: {
-          home: match.teams.home.score,
-          away: match.teams.away.score,
+          home: match.goals?.home || null,
+          away: match.goals?.away || null,
         },
         score: {
-          halftime: { home: null, away: null },
-          fulltime: {
-            home: match.teams.home.score,
-            away: match.teams.away.score,
+          halftime: {
+            home: match.score?.halftime?.home || null,
+            away: match.score?.halftime?.away || null,
           },
-          extratime: { home: null, away: null },
-          penalty: { home: null, away: null },
+          fulltime: {
+            home: match.score?.fulltime?.home || match.goals?.home || null,
+            away: match.score?.fulltime?.away || match.goals?.away || null,
+          },
+          extratime: {
+            home: match.score?.extratime?.home || null,
+            away: match.score?.extratime?.away || null,
+          },
+          penalty: {
+            home: match.score?.penalty?.home || null,
+            away: match.score?.penalty?.away || null,
+          },
         },
-        tablePosition: match.table_position || null,
-        averageTeamRating: match.average_team_rating || null,
+        tablePosition: null, // Will be calculated from standings
+        averageTeamRating: null, // Will be calculated from player ratings
       }));
 
       const response: FixtureDataResponse = fixtures;
@@ -688,8 +700,8 @@ export class TeamsRepository {
 
       const formData = matches.map((match) => {
         const isHome = match.teams.home.id === teamId;
-        const teamScore = isHome ? match.teams.home.score : match.teams.away.score;
-        const opponentScore = isHome ? match.teams.away.score : match.teams.home.score;
+        const teamScore = isHome ? match.goals.home : match.goals.away;
+        const opponentScore = isHome ? match.goals.away : match.goals.home;
 
         let result = "D"; // Draw
         if (teamScore > opponentScore)
@@ -698,7 +710,7 @@ export class TeamsRepository {
 
         return {
           match_id: match.korastats_id,
-          date: match.date,
+          date: new Date(match.date),
           opponent: isHome ? match.teams.away.name : match.teams.home.name,
           result: result,
           score: `${teamScore}-${opponentScore}`,
@@ -760,7 +772,7 @@ export class TeamsRepository {
       }
 
       // Get team stats from MongoDB
-      const teamStats = await Models.TeamStats.findOne({
+      const teamStats = await Models.Team.findOne({
         team_id: teamId,
         season: season.toString(),
       });
@@ -793,7 +805,7 @@ export class TeamsRepository {
       const result = {
         team_id: teamId,
         season: season,
-        form: teamStats.form || {
+        form: {
           recent_results: [],
           form_string: "",
           points_from_last_5: 0,
@@ -809,7 +821,7 @@ export class TeamsRepository {
           points: 0,
           position: 0,
         },
-        recent_matches: teamStats.recent_matches || [],
+        recent_matches: [],
       };
 
       this.cacheService.set(cacheKey, result, 30 * 60 * 1000); // Cache for 30 minutes
@@ -861,31 +873,42 @@ export class TeamsRepository {
         return [];
       }
 
+      // Get tournament data
+      const tournament = await Models.Tournament.findOne({
+        korastats_id: upcomingMatch.tournament_id,
+      });
+
+      // Get country data (Saudi Arabia - ID 160)
+      const { CountryRepository } = await import("../country/country.repository");
+      const countryRepo = new CountryRepository();
+      const countries = await countryRepo.getCountries({});
+      const saudiArabia = countries.find((country) => country.id === 160);
+
       const fixture = {
         fixture: {
           id: upcomingMatch.korastats_id,
-          referee: upcomingMatch.officials.referee.name,
+          referee: upcomingMatch.referee.name,
           timezone: "UTC",
-          date: upcomingMatch.date.toISOString(),
-          timestamp: Math.floor(upcomingMatch.date.getTime() / 1000),
+          date: upcomingMatch.date,
+          timestamp: upcomingMatch.timestamp,
           periods: { first: null, second: null },
           venue: {
             id: upcomingMatch.venue.id,
             name: upcomingMatch.venue.name,
-            city: upcomingMatch.venue.city || "",
+            city: "",
           },
           status: {
-            long: upcomingMatch.status.name,
+            long: upcomingMatch.status.long,
             short: upcomingMatch.status.short,
             elapsed: null,
           },
         },
         league: {
-          id: upcomingMatch.tournament_id,
-          name: "League Name",
-          country: "",
-          logo: "",
-          flag: null,
+          id: tournament?.korastats_id || upcomingMatch.tournament_id,
+          name: tournament?.name || "",
+          country: saudiArabia?.name || "Saudi Arabia",
+          logo: tournament?.logo || "",
+          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
           season: parseInt(upcomingMatch.season),
           round: upcomingMatch.round.toString(),
         },
@@ -995,34 +1018,45 @@ export class TeamsRepository {
         return [];
       }
 
+      // Get tournament data
+      const tournament = await Models.Tournament.findOne({
+        korastats_id: lastMatch.tournament_id,
+      });
+
+      // Get country data (Saudi Arabia - ID 160)
+      const { CountryRepository } = await import("../country/country.repository");
+      const countryRepo = new CountryRepository();
+      const countries = await countryRepo.getCountries({});
+      const saudiArabia = countries.find((country) => country.id === 160);
+
       const fixture = {
         fixture: {
           id: lastMatch.korastats_id,
-          referee: lastMatch.officials.referee.name,
+          referee: lastMatch.referee.name,
           timezone: "UTC",
-          date: lastMatch.date.toISOString(),
-          timestamp: Math.floor(lastMatch.date.getTime() / 1000),
+          date: lastMatch.date,
+          timestamp: lastMatch.timestamp,
           periods: {
-            first: null,
-            second: null,
+            first: lastMatch.periods?.first || null,
+            second: lastMatch.periods?.second || null,
           },
           venue: {
             id: lastMatch.venue.id,
             name: lastMatch.venue.name,
-            city: lastMatch.venue.city || "",
+            city: "",
           },
           status: {
-            long: lastMatch.status.name,
+            long: lastMatch.status.long,
             short: lastMatch.status.short,
             elapsed: null,
           },
         },
         league: {
-          id: lastMatch.tournament_id,
-          name: "League Name",
-          country: "",
-          logo: "",
-          flag: null,
+          id: tournament?.korastats_id || lastMatch.tournament_id,
+          name: tournament?.name || "",
+          country: saudiArabia?.name || "Saudi Arabia",
+          logo: tournament?.logo || "",
+          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
           season: parseInt(lastMatch.season),
           round: lastMatch.round.toString(),
         },
@@ -1031,30 +1065,30 @@ export class TeamsRepository {
             id: lastMatch.teams.home.id,
             name: lastMatch.teams.home.name,
             logo: "",
-            winner: lastMatch.teams.home.score > lastMatch.teams.away.score,
+            winner: lastMatch.goals.home > lastMatch.goals.away,
           },
           away: {
             id: lastMatch.teams.away.id,
             name: lastMatch.teams.away.name,
             logo: "",
-            winner: lastMatch.teams.away.score > lastMatch.teams.home.score,
+            winner: lastMatch.goals.away > lastMatch.goals.home,
           },
         },
         goals: {
-          home: lastMatch.teams.home.score,
-          away: lastMatch.teams.away.score,
+          home: lastMatch.goals.home,
+          away: lastMatch.goals.away,
         },
         score: {
           halftime: { home: null, away: null },
           fulltime: {
-            home: lastMatch.teams.home.score,
-            away: lastMatch.teams.away.score,
+            home: lastMatch.goals.home,
+            away: lastMatch.goals.away,
           },
           extratime: { home: null, away: null },
           penalty: { home: null, away: null },
         },
-        tablePosition: lastMatch.table_position || null,
-        averageTeamRating: lastMatch.average_team_rating || null,
+        tablePosition: null, // Will be calculated from standings
+        averageTeamRating: null, // Will be calculated from player ratings
       };
 
       const response: FixtureDataResponse = [fixture];
@@ -1110,12 +1144,12 @@ export class TeamsRepository {
 
       const goalsData = matches.map((match, index) => {
         const isHome = match.teams.home.id === teamId;
-        const teamGoals = isHome ? match.teams.home.score : match.teams.away.score;
-        const opponentGoals = isHome ? match.teams.away.score : match.teams.home.score;
+        const teamGoals = isHome ? match.goals.home : match.goals.away;
+        const opponentGoals = isHome ? match.goals.away : match.goals.home;
 
         return {
           matchday: index + 1,
-          date: match.date,
+          date: new Date(match.date),
           goals_for: teamGoals,
           goals_against: opponentGoals,
           goal_difference: teamGoals - opponentGoals,
@@ -1171,7 +1205,7 @@ export class TeamsRepository {
       // Get team from MongoDB
       const team = await Models.Team.findOne({ korastats_id: teamId });
 
-      if (!team || !team.current_squad) {
+      if (!team || !team.lineup) {
         return {
           team_id: teamId,
           squad: [],
@@ -1180,12 +1214,12 @@ export class TeamsRepository {
 
       const result = {
         team_id: teamId,
-        squad: team.current_squad.map((player) => ({
-          player_id: player.player_id,
-          player_name: player.player_name,
-          jersey_number: player.jersey_number,
-          position: player.position,
-          joined_date: player.joined_date,
+        squad: team.lineup.startXI.map((player) => ({
+          player_id: player.id,
+          player_name: player.name,
+          jersey_number: player.number,
+          position: player.pos,
+          joined_date: null,
         })),
       };
 

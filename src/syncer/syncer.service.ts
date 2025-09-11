@@ -2,19 +2,19 @@
 // Main syncer service that orchestrates data collection from KoraStats to MongoDB
 // Clean architecture with proper service separation and progress tracking
 
-import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
+import { KorastatsService } from "../integrations/korastats/services/korastats.service";
 //import { DataCollectorService } from "./data-collector.service";
 import { Models } from "../db/mogodb/models";
 import { KorastatsMongoService } from "../db/mogodb/connection";
-import { CacheService } from "@/integrations/korastats/services/cache.service";
-import { LeagueLogoService } from "@/integrations/korastats/services/league-logo.service";
+import { CacheService } from "../integrations/korastats/services/cache.service";
+import { LeagueLogoService } from "../integrations/korastats/services/league-logo.service";
 import { ApiError } from "../core/middleware/error.middleware";
-import { FixtureNew } from "@/mapper/fixtureNew";
+import { FixtureNew } from "../mapper/fixtureNew";
 import { MongoStorageService } from "./mongo-storage.service";
 import { MatchDataService } from "./match-data.service";
 import { TournamentDataService } from "./tournament-data.service";
-import { LeagueNew } from "@/mapper/leagueNew";
-import { KorastatsPlayerDetailedStats } from "@/integrations/korastats/types";
+import { LeagueNew } from "../mapper/leagueNew";
+import { KorastatsPlayerDetailedStats } from "../integrations/korastats/types";
 
 export interface SyncOptions {
   // Tournament/League options
@@ -321,8 +321,8 @@ export class SyncerService {
     this.progress.current = "Syncing teams";
 
     try {
-      // Get teams from tournaments
-      const tournaments = await Models.Tournament.find({ status: "active" });
+      // Get teams from all tournaments
+      const tournaments = await Models.Tournament.find({});
 
       for (const tournament of tournaments) {
         try {
@@ -333,6 +333,27 @@ export class SyncerService {
           if (teamsResponse.result === "Success" && teamsResponse.data) {
             for (const team of teamsResponse.data.teams) {
               try {
+                // Get team entity data for logo and other details
+                let teamEntityData = null;
+                let teamLogo = "";
+                try {
+                  const entityResponse = await this.korastatsService.getEntityTeam(
+                    team.id,
+                  );
+                  if (entityResponse.result === "Success" && entityResponse.data) {
+                    teamEntityData = entityResponse.data;
+                    // Get team logo using ImageLoad endpoint
+                    teamLogo = await this.korastatsService
+                      .getImageUrl("club", teamEntityData.club?.id || team.id)
+                      .catch(() => "");
+                  }
+                } catch (error) {
+                  console.warn(
+                    `⚠️ Failed to get entity data for team ${team.id}:`,
+                    error.message,
+                  );
+                }
+
                 // Get team stats
                 const teamStatsResponse =
                   await this.korastatsService.getTournamentTeamStats(
@@ -340,28 +361,56 @@ export class SyncerService {
                     team.id,
                   );
 
+                // Clean team name by removing common suffixes (run multiple times to catch all)
+                let cleanTeamName = team.team;
+                for (let i = 0; i < 3; i++) {
+                  cleanTeamName = cleanTeamName
+                    .replace(
+                      /\s+(FC|SC|U19|U21|U23|Club|United|City|Town|Athletic|Sporting|Football|Soccer|KSA)\s*$/i,
+                      "",
+                    )
+                    .trim();
+                }
+
                 const teamData = {
                   korastats_id: team.id,
-                  name: team.team,
-                  short_name: team.team.substring(0, 3).toUpperCase(),
-                  nickname: team.team.substring(0, 3).toUpperCase(),
-                  country: {
-                    id: 160, // Saudi Arabia
-                    name: "Saudi Arabia", // Saudi Arabia
-                  },
-                  city: "", // None
-                  stadium: team.stadium
+                  name: cleanTeamName,
+                  code: cleanTeamName.substring(0, 3).toUpperCase(),
+                  logo: teamLogo,
+                  founded: teamEntityData?.founded || null,
+                  national: teamEntityData?.is_national_team || false,
+                  clubMarketValue: teamEntityData?.market_value || null,
+                  totalPlayers: 0, // Will be updated later
+                  foreignPlayers: 0, // Will be updated later
+                  averagePlayerAge: 0, // Will be updated later
+                  rank: 0, // Will be updated later
+                  country: "Saudi Arabia",
+                  venue: team.stadium
                     ? {
                         id: team.stadium.id,
                         name: team.stadium.name,
-                        capacity:
-                          Math.floor(Math.random() * (100000 - 10000 + 1)) + 10000, // Will be updated later from Player Stats
-                        surface: "", // Will be updated later from Player Stats
-                        city: "", // Will be updated later from Player Stats
+                        capacity: teamEntityData?.stadium?.capacity || 0,
+                        surface: teamEntityData?.stadium?.surface || "",
+                        city: teamEntityData?.stadium?.city || "",
+                        image: teamEntityData?.stadium?.image || null,
+                        address: teamEntityData?.stadium?.address || null,
                       }
-                    : undefined,
-                  current_squad: [],
-                  current_coach: undefined,
+                    : {
+                        id: 0,
+                        name: "",
+                        capacity: 0,
+                        surface: "",
+                        city: "",
+                        image: null,
+                        address: null,
+                      },
+                  lineup: {
+                    formation: "",
+                    startXI: [],
+                    substitutes: [],
+                  },
+                  coaches: [],
+                  trophies: [],
                   stats_summary: {
                     total_matches: 0,
                     total_wins: 0,
@@ -370,6 +419,7 @@ export class SyncerService {
                     total_goals_for: 0,
                     total_goals_against: 0,
                   },
+                  stats: {},
                   status: "active",
                   last_synced: new Date(),
                   sync_version: 1,
@@ -492,7 +542,7 @@ export class SyncerService {
                           },
                           height: "0", // None
                           weight: "0", // None
-                          preferred_foot: "right", // will be updated later
+                          preferred_foot: "", // will be updated later
                           positions: {
                             primary: {
                               id: player.position?.primary?.id || 0,
@@ -1552,14 +1602,11 @@ export class SyncerService {
     try {
       console.log("👥 Starting comprehensive teams sync...");
 
-      // Get tournaments to sync teams for
-      const tournaments = await Models.Tournament.find({ status: "active" });
+      // Get all tournaments to sync teams for (not just active ones)
+      const tournaments = await Models.Tournament.find({});
 
       if (tournaments.length === 0) {
-        throw new ApiError(
-          400,
-          "No active tournaments found. Please sync leagues first.",
-        );
+        throw new ApiError(400, "No tournaments found. Please sync leagues first.");
       }
 
       progress.total = tournaments.length;
@@ -1605,30 +1652,69 @@ export class SyncerService {
                     }
                   }
 
-                  // Get additional team data
-                  const [teamStats, coachInfo, clubInfo] = await Promise.all([
-                    this.korastatsService
-                      .getTournamentTeamStats(tournament.korastats_id, team.id)
-                      .catch(() => null),
-                    this.korastatsService.getEntityCoach(team.id).catch(() => null),
-                    this.korastatsService.getEntityClub(team.id).catch(() => null),
-                  ]);
+                  // Get team entity data first to get the club ID
+                  const teamEntity = await this.korastatsService
+                    .getEntityTeam(team.id)
+                    .catch(() => null);
+
+                  // Get team logo using ImageLoad endpoint
+                  const teamLogo = await this.korastatsService
+                    .getImageUrl("club", teamEntity?.club?.id || team.id)
+                    .catch(() => "");
+
+                  // Get additional team data using the correct club ID from team entity
+                  const [teamStats, coachInfo, clubInfo, standingsData] =
+                    await Promise.all([
+                      this.korastatsService
+                        .getTournamentTeamStats(tournament.korastats_id, team.id)
+                        .catch(() => null),
+                      this.korastatsService.getEntityCoach(team.id).catch(() => null),
+                      teamEntity?.club?.id
+                        ? this.korastatsService
+                            .getEntityClub(teamEntity.club.id)
+                            .catch(() => null)
+                        : Promise.resolve(null),
+                      // Get standings to extract team rank
+                      this.korastatsService
+                        .getTournamentGroupStandings(tournament.korastats_id, "1")
+                        .catch(() => null),
+                    ]);
+
+                  // Clean team name by removing common suffixes (run multiple times to catch all)
+                  let cleanTeamName = team.team;
+                  for (let i = 0; i < 3; i++) {
+                    cleanTeamName = cleanTeamName
+                      .replace(
+                        /\s+(FC|SC|U19|U21|U23|Club|United|City|Town|Athletic|Sporting|Football|Soccer|KSA)\s*$/i,
+                        "",
+                      )
+                      .trim();
+                  }
+
+                  // Extract team rank from standings data
+                  let teamRank = 0;
+                  if (standingsData?.data?.stages?.[0]?.groups?.[0]?.standings) {
+                    const standings = standingsData.data.stages[0].groups[0].standings;
+                    const teamStanding = standings.find(
+                      (standing: any) =>
+                        standing.team === team.team || standing.team === cleanTeamName,
+                    );
+                    if (teamStanding) {
+                      teamRank = teamStanding.rank || 0;
+                    }
+                  }
 
                   // Prepare comprehensive team data for MongoDB
                   const teamData = {
                     korastats_id: team.id,
-                    name: team.team,
-                    short_name: team.team.substring(0, 3).toUpperCase(),
-                    code: team.team.substring(0, 3).toUpperCase(),
-                    logo: clubInfo?.logo || "",
+                    name: cleanTeamName,
+                    short_name: cleanTeamName.substring(0, 3).toUpperCase(),
+                    code: cleanTeamName.substring(0, 3).toUpperCase(),
+                    logo: teamLogo,
                     founded: null,
                     national: clubInfo?.national_federation || false,
-                    country: {
-                      id: clubInfo?.country?.id || 0,
-                      name: clubInfo?.country?.name || "Saudi Arabia",
-                      code: "SA",
-                      flag: "",
-                    },
+                    rank: teamRank,
+                    country: clubInfo?.country?.name || "Saudi Arabia",
                     venue: {
                       id: team.stadium?.id || 0,
                       name: team.stadium?.name || "Unknown Venue",

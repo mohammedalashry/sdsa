@@ -36,7 +36,7 @@ export class RefereeRepository {
         const refereeData = mongoReferees.map((referee) => ({
           id: referee.korastats_id,
           name: referee.name,
-          nationality: referee.nationality.name,
+          nationality: referee.country,
           photo: referee.photo || null,
         }));
 
@@ -104,7 +104,7 @@ export class RefereeRepository {
           {
             id: referee.korastats_id,
             name: referee.name,
-            nationality: referee.nationality.name,
+            nationality: referee.country,
             photo: referee.photo || null,
           },
         ];
@@ -178,7 +178,7 @@ export class RefereeRepository {
       const refereeData: RefereeData = {
         id: referee.korastats_id,
         name: referee.name,
-        nationality: referee.nationality.name,
+        nationality: referee.country,
         photo: null, // Would need to add photo field to schema
       };
 
@@ -277,16 +277,20 @@ export class RefereeRepository {
       }
 
       const careerStats = {
-        total_matches: referee.career_stats?.total_matches || 0,
-        total_yellow_cards: referee.career_stats?.total_yellow_cards || 0,
-        total_red_cards: referee.career_stats?.total_red_cards || 0,
-        total_penalties: referee.career_stats?.total_penalties || 0,
-        average_cards_per_match: referee.career_stats?.average_cards_per_match || 0,
-        current_season_matches: referee.career_stats?.current_season_matches || 0,
-        current_season_yellow_cards:
-          referee.career_stats?.current_season_yellow_cards || 0,
-        current_season_red_cards: referee.career_stats?.current_season_red_cards || 0,
-        current_season_penalties: referee.career_stats?.current_season_penalties || 0,
+        total_matches: referee.career_stats?.[0]?.total_matches || 0,
+        total_yellow_cards: referee.career_stats?.[0]?.total_yellow_cards || 0,
+        total_red_cards: referee.career_stats?.[0]?.total_red_cards || 0,
+        total_penalties: referee.career_stats?.[0]?.total_penalties || 0,
+        average_cards_per_match:
+          referee.career_stats?.[0]?.total_matches > 0
+            ? (referee.career_stats[0].total_yellow_cards +
+                referee.career_stats[0].total_red_cards) /
+              referee.career_stats[0].total_matches
+            : 0,
+        current_season_matches: referee.career_stats?.[0]?.total_matches || 0,
+        current_season_yellow_cards: referee.career_stats?.[0]?.total_yellow_cards || 0,
+        current_season_red_cards: referee.career_stats?.[0]?.total_red_cards || 0,
+        current_season_penalties: referee.career_stats?.[0]?.total_penalties || 0,
       };
 
       this.cacheService.set(cacheKey, careerStats, 30 * 60 * 1000); // Cache for 30 minutes

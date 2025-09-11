@@ -132,6 +132,7 @@ export class FixtureNew {
       venue: {
         id: matchSummary.stadium.id,
         name: matchSummary.stadium.name,
+        city: null, // Not available in match summary
       },
       status: {
         long: "Match Finished", // Would need to determine from match state

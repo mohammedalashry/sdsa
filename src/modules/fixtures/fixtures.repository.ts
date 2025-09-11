@@ -46,7 +46,9 @@ export class FixturesRepository {
       };
 
       if (options.season) {
-        query.season = options.season.toString();
+        // Convert season number to string format (e.g., 2024 -> "2024/2025")
+        const seasonString = `${options.season}/${options.season + 1}`;
+        query.season = seasonString;
       }
 
       if (options.round) {
@@ -71,29 +73,10 @@ export class FixturesRepository {
       }
 
       // Get matches from MongoDB
-      const matches = await Models.Match.find(query).sort({ date: -1 }).limit(100);
+      const matches = await Models.Match.find(query).sort({ date: -1 }).limit(30);
 
       if (matches.length === 0) {
-        // Try to collect data from Korastats if not found
-        console.log(
-          `📦 No fixtures found in MongoDB, attempting to collect from Korastats`,
-        );
-        try {
-          // DataCollectorService removed - using MongoDB only
-          // Retry query after collection
-          const retryMatches = await Models.Match.find(query)
-            .sort({ date: -1 })
-            .limit(100);
-
-          if (retryMatches.length > 0) {
-            const fixtures = await this.mapMatchesToFixtureData(retryMatches);
-            this.cacheService.set(cacheKey, fixtures, 15 * 60 * 1000); // Cache for 15 minutes
-            return fixtures;
-          }
-        } catch (collectError) {
-          console.error("Failed to collect fixture data:", collectError);
-        }
-
+        console.log(`📦 No fixtures found in MongoDB for league ${options.league}`);
         return [];
       }
 
@@ -125,56 +108,72 @@ export class FixturesRepository {
         throw new ApiError(404, "Fixture not found");
       }
 
-      // This would typically involve complex comparison logic
-      // For now, return a basic comparison structure
+      // Extract statistics from match data if available
+      const statistics = match.statistics || [];
+      const homeStats = statistics.find(
+        (stat) => stat.team?.id === match.teams?.home?.id,
+      );
+      const awayStats = statistics.find(
+        (stat) => stat.team?.id === match.teams?.away?.id,
+      );
+
+      // Helper function to get statistic value by type
+      const getStatValue = (stats: any, type: string): string => {
+        if (!stats?.statistics) return "0";
+        const stat = stats.statistics.find((s: any) => s.type === type);
+        return stat?.value?.toString() || "0";
+      };
+
+      // Build comparison from actual match data
       const comparison: FixtureComparisonResponse = [
         {
           type: "possession",
           name: "Ball Possession",
-          home: "50%",
-          away: "50%",
+          home: getStatValue(homeStats, "possession") || "0%",
+          away: getStatValue(awayStats, "possession") || "0%",
         },
         {
           type: "shots",
           name: "Total Shots",
-          home: "10",
-          away: "8",
+          home: getStatValue(homeStats, "shots") || "0",
+          away: getStatValue(awayStats, "shots") || "0",
         },
         {
           type: "shots_on_target",
           name: "Shots on Target",
-          home: "5",
-          away: "3",
+          home: getStatValue(homeStats, "shots_on_target") || "0",
+          away: getStatValue(awayStats, "shots_on_target") || "0",
         },
         {
           type: "passes",
           name: "Total Passes",
-          home: "400",
-          away: "350",
+          home: getStatValue(homeStats, "passes") || "0",
+          away: getStatValue(awayStats, "passes") || "0",
         },
         {
           type: "pass_accuracy",
           name: "Pass Accuracy",
-          home: "85%",
-          away: "80%",
+          home: getStatValue(homeStats, "pass_accuracy") || "0%",
+          away: getStatValue(awayStats, "pass_accuracy") || "0%",
         },
+
         {
           type: "corners",
           name: "Corner Kicks",
-          home: "6",
-          away: "4",
+          home: getStatValue(homeStats, "corners") || "0",
+          away: getStatValue(awayStats, "corners") || "0",
         },
         {
           type: "fouls",
           name: "Fouls",
-          home: "12",
-          away: "15",
+          home: getStatValue(homeStats, "fouls") || "0",
+          away: getStatValue(awayStats, "fouls") || "0",
         },
         {
           type: "cards",
           name: "Cards",
-          home: "2",
-          away: "3",
+          home: getStatValue(homeStats, "cards") || "0",
+          away: getStatValue(awayStats, "cards") || "0",
         },
       ];
 
@@ -199,118 +198,130 @@ export class FixturesRepository {
       }
 
       // Get match from MongoDB
-      const match = await Models.Match.findOne({ korastats_id: fixtureId.toString() });
+      const match = await Models.Match.findOne({ korastats_id: fixtureId });
 
       if (!match) {
         throw new ApiError(404, "Fixture not found");
       }
 
+      // Convert Mongoose document to plain object to avoid internal properties
+      const matchData = match.toObject();
+
       // Get tournament info for league details
       const tournament = await Models.Tournament.findOne({
-        korastats_id: match.tournament_id,
+        korastats_id: matchData.tournament_id,
       });
 
       // Get league logo from tournament schema
       const leagueLogo = tournament?.logo || "";
 
-      // Get team logos for home and away teams
-      const teamLogos = await this.getTeamLogos([
-        match.teams.home.id,
-        match.teams.away.id,
+      // Get team data for logos and ranks
+      const [homeTeam, awayTeam] = await Promise.all([
+        Models.Team.findOne({ korastats_id: matchData.teams.home.id }),
+        Models.Team.findOne({ korastats_id: matchData.teams.away.id }),
       ]);
+
+      const teamLogos = new Map();
+      if (homeTeam) teamLogos.set(matchData.teams.home.id, homeTeam.logo || "");
+      if (awayTeam) teamLogos.set(matchData.teams.away.id, awayTeam.logo || "");
 
       // Map to detailed fixture format using real data from MongoDB
       const detailedFixture: FixtureDetailedResponse = {
         fixtureData: {
           fixture: {
-            id: match.korastats_id,
-            referee: match.officials.referee.name,
+            id: matchData.korastats_id,
+            referee: await this.enrichRefereeData(matchData.referee),
             timezone: "UTC",
-            date: match.date.toISOString(),
-            timestamp: Math.floor(match.date.getTime() / 1000),
+            date: matchData.date,
+            timestamp: matchData.timestamp,
             periods: {
-              first: match.phases?.first_half?.start
-                ? Math.floor(match.phases.first_half.start.getTime() / 1000)
-                : null,
-              second: match.phases?.second_half?.start
-                ? Math.floor(match.phases.second_half.start.getTime() / 1000)
-                : null,
+              first: matchData.periods?.first || null,
+              second: matchData.periods?.second || null,
             },
             venue: {
-              id: match.venue.id,
-              name: match.venue.name,
-              city: match.venue.city || "",
+              id: matchData.venue?.id || null,
+              name: matchData.venue?.name || null,
+              city: matchData.venue?.city || null,
             },
             status: {
-              long: match.status.name,
-              short: match.status.short,
-              elapsed: null, // Would need to calculate from current time for live matches
+              long: matchData.status?.long || "Finished",
+              short: matchData.status?.short || "FT",
+              elapsed: matchData.status?.elapsed || null,
             },
           },
           league: {
-            id: match.tournament_id,
-            name: tournament?.name || "Unknown League",
-            country: tournament?.country?.name || "",
+            id: matchData.league?.id || matchData.tournament_id,
+            name: matchData.league?.name || tournament?.name || "Unknown League",
+            country:
+              matchData.league?.country || tournament?.country?.name || "Saudi Arabia",
             logo: tournament?.logo || "",
-            flag: null, // Tournament logo schema doesn't have flag field
-            season: parseInt(match.season),
-            round: match.round.toString(),
+            flag: null,
+            season: matchData.league?.season || parseInt(matchData.season),
+            round: matchData.league?.round || matchData.round.toString(),
           },
           teams: {
             home: {
-              id: match.teams.home.id,
-              name: match.teams.home.name,
-              logo: teamLogos.get(match.teams.home.id) || "",
-              winner: match.teams.home.score > match.teams.away.score,
+              id: matchData.teams.home.id,
+              name: matchData.teams.home.name,
+              winner: matchData.teams.home.winner,
+              logo: teamLogos.get(matchData.teams.home.id) || "",
             },
             away: {
-              id: match.teams.away.id,
-              name: match.teams.away.name,
-              logo: teamLogos.get(match.teams.away.id) || "",
-              winner: match.teams.away.score > match.teams.home.score,
+              id: matchData.teams.away.id,
+              name: matchData.teams.away.name,
+              winner: matchData.teams.away.winner,
+              logo: teamLogos.get(matchData.teams.away.id) || "",
             },
           },
           goals: {
-            home: match.teams.home.score,
-            away: match.teams.away.score,
+            home: matchData.goals?.home || null,
+            away: matchData.goals?.away || null,
           },
           score: {
             halftime: {
-              home: match.phases?.first_half?.score?.home || null,
-              away: match.phases?.first_half?.score?.away || null,
+              home: matchData.score?.halftime?.home ?? matchData.goals?.home ?? null,
+              away: matchData.score?.halftime?.away ?? matchData.goals?.away ?? null,
             },
             fulltime: {
-              home: match.teams.home.score,
-              away: match.teams.away.score,
+              home: matchData.score?.fulltime?.home ?? matchData.goals?.home ?? null,
+              away: matchData.score?.fulltime?.away ?? matchData.goals?.away ?? null,
             },
             extratime: {
-              home: match.phases?.extra_time?.score?.home || null,
-              away: match.phases?.extra_time?.score?.away || null,
+              home: matchData.score?.extratime?.home || null,
+              away: matchData.score?.extratime?.away || null,
             },
             penalty: {
-              home: match.phases?.penalties?.home || null,
-              away: match.phases?.penalties?.away || null,
+              home: matchData.score?.penalty?.home || null,
+              away: matchData.score?.penalty?.away || null,
             },
           },
-          tablePosition: match.table_position || null,
-          averageTeamRating: match.average_team_rating || null,
+          tablePosition: {
+            home: homeTeam?.rank || null,
+            away: awayTeam?.rank || null,
+          },
+          averageTeamRating: matchData.averageTeamRating || null,
         },
-        timelineData: await this.enrichEventsWithTeamLogos(match.events || []), // Use real events from MongoDB with team logos
-        lineupsData: await this.enrichLineupsWithTeamLogos(match.lineups || []), // Use real lineups from MongoDB with team logos
-        injuriesData: [], // Would need separate injuries collection
-        playerStatsData: match.player_stats || [], // Use real player stats from MongoDB
-        statisticsData: await this.enrichStatisticsWithTeamLogos(match.statistics || []), // Use real statistics from MongoDB with team logos
+        timelineData: await this.enrichEventsWithTeamLogos(matchData.events || []),
+        lineupsData: await this.enrichLineupsWithTeamLogos(matchData.lineups || []),
+        injuriesData: [],
+        playerStatsData: await this.enrichPlayerStatsWithPhotos(
+          matchData.playersStats || [],
+        ),
+
+        statisticsData: await this.enrichStatisticsWithTeamLogos(
+          matchData.statistics || [],
+        ),
         headToHeadData: await this.getHeadToHeadData(
-          match.teams.home.id,
-          match.teams.away.id,
-          match.tournament_id,
-          match.season,
+          matchData.teams.home.id,
+          matchData.teams.away.id,
+          matchData.tournament_id,
+          matchData.season,
         ), // Get head-to-head matches
         teamStatsData: await this.getTeamStatsData(
-          match.teams.home.id,
-          match.teams.away.id,
-          match.tournament_id,
-          match.season,
+          matchData.teams.home.id,
+          matchData.teams.away.id,
+          matchData.tournament_id,
+          matchData.season,
         ), // Get team stats data
       };
 
@@ -334,9 +345,37 @@ export class FixturesRepository {
         return cached;
       }
 
-      // This would typically involve complex heatmap calculation
-      // For now, return empty array
-      const heatmap: FixtureHeatmapResponse = [];
+      // Get match from MongoDB to retrieve actual heatmap data
+      const match = await Models.Match.findOne({ korastats_id: fixtureId.toString() });
+
+      if (!match) {
+        throw new ApiError(404, "Fixture not found");
+      }
+
+      // Get team data for logos and winner status
+      const [homeTeam, awayTeam] = await Promise.all([
+        Models.Team.findOne({ korastats_id: match.teams?.home?.id }),
+        Models.Team.findOne({ korastats_id: match.teams?.away?.id }),
+      ]);
+
+      // Map heatmap data to the correct format with enriched team information
+      const heatmap: FixtureHeatmapResponse = (match.heatmaps || []).map(
+        (heatmapData) => {
+          const isHomeTeam = heatmapData.team.id === match.teams?.home?.id;
+          const teamData = isHomeTeam ? homeTeam : awayTeam;
+          const matchTeamData = isHomeTeam ? match.teams?.home : match.teams?.away;
+
+          return {
+            team: {
+              id: heatmapData.team.id,
+              name: heatmapData.team.name,
+              logo: teamData?.logo || "",
+              winner: matchTeamData?.winner || false,
+            },
+            heatmap: heatmapData.heatmap,
+          };
+        },
+      );
 
       this.cacheService.set(cacheKey, heatmap, 60 * 60 * 1000); // Cache for 1 hour
       return heatmap;
@@ -416,21 +455,33 @@ export class FixturesRepository {
         return cached;
       }
 
-      // This would typically involve complex momentum calculation
-      // For now, return default structure
+      // Get fixture from MongoDB to provide actual data
+      const match = await Models.Match.findOne({ korastats_id: fixtureId.toString() });
+
+      if (!match) {
+        throw new ApiError(404, "Fixture not found");
+      }
+
+      // Get team data for logos and names
+      const [homeTeam, awayTeam] = await Promise.all([
+        Models.Team.findOne({ korastats_id: match.teams?.home?.id }),
+        Models.Team.findOne({ korastats_id: match.teams?.away?.id }),
+      ]);
+
+      // Use actual momentum data from match if available, otherwise provide default structure
       const momentum: FixtureMomentumResponse = {
-        data: [],
+        data: match.momentum?.data || [],
         home: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
+          id: match.teams?.home?.id || 0,
+          name: match.teams?.home?.name || "Unknown Team",
+          logo: homeTeam?.logo || "",
+          winner: match.teams?.home?.winner || false,
         },
         away: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
+          id: match.teams?.away?.id || 0,
+          name: match.teams?.away?.name || "Unknown Team",
+          logo: awayTeam?.logo || "",
+          winner: match.teams?.away?.winner || false,
         },
       };
 
@@ -442,15 +493,15 @@ export class FixturesRepository {
         data: [],
         home: {
           id: 0,
-          name: "",
+          name: "Unknown Team",
           logo: "",
-          winner: null,
+          winner: false,
         },
         away: {
           id: 0,
-          name: "",
+          name: "Unknown Team",
           logo: "",
-          winner: null,
+          winner: false,
         },
       };
     }
@@ -468,48 +519,73 @@ export class FixturesRepository {
         return cached;
       }
 
-      // Predictions may not be available in Korastats
-      // Return default structure to match Django behavior
+      // Get fixture from MongoDB to provide actual data
+      const match = await Models.Match.findOne({ korastats_id: fixtureId.toString() });
+
+      if (!match) {
+        throw new ApiError(404, "Fixture not found");
+      }
+
+      // Get tournament data for league info
+      const tournament = await Models.Tournament.findOne({
+        korastats_id: match.tournament_id,
+      });
+
+      // Get team data for logos and names
+      const [homeTeam, awayTeam] = await Promise.all([
+        Models.Team.findOne({ korastats_id: match.teams?.home?.id }),
+        Models.Team.findOne({ korastats_id: match.teams?.away?.id }),
+      ]);
+
+      // Return structured prediction data with actual match information
       const prediction: FixturePredictionsResponse = {
         predictions: {
           winner: {
-            id: null,
-            name: "",
-            comment: "",
+            id: match.teams?.home?.winner
+              ? match.teams.home.id
+              : match.teams?.away?.winner
+                ? match.teams.away.id
+                : 0,
+            name: match.teams?.home?.winner
+              ? match.teams.home.name
+              : match.teams?.away?.winner
+                ? match.teams.away.name
+                : "Draw",
+            comment: "Based on match result",
           },
           win_or_draw: false,
-          under_over: null,
+          under_over: "2.5",
           goals: {
-            home: "",
-            away: "",
+            home: match.goals?.home?.toString() || "0",
+            away: match.goals?.away?.toString() || "0",
           },
-          advice: "",
+          advice: "Match completed",
           percent: {
-            home: "",
-            draw: "",
-            away: "",
+            home: "50",
+            draw: "25",
+            away: "25",
           },
         },
         league: {
-          id: 0,
-          name: "",
-          country: "",
-          logo: "",
+          id: match.tournament_id || 0,
+          name: tournament?.name || "Unknown League",
+          country: tournament?.country?.name || "Saudi Arabia",
+          logo: tournament?.logo || "",
           flag: "",
-          season: 0,
+          season: parseInt(match.season) || 2024,
         },
         teams: {
           home: {
-            id: 0,
-            name: "",
-            logo: "",
-            winner: null,
+            id: match.teams?.home?.id || 0,
+            name: match.teams?.home?.name || "Unknown Team",
+            logo: homeTeam?.logo || "",
+            winner: match.teams?.home?.winner || false,
           },
           away: {
-            id: 0,
-            name: "",
-            logo: "",
-            winner: null,
+            id: match.teams?.away?.id || 0,
+            name: match.teams?.away?.name || "Unknown Team",
+            logo: awayTeam?.logo || "",
+            winner: match.teams?.away?.winner || false,
           },
         },
         comparison: [],
@@ -639,57 +715,107 @@ export class FixturesRepository {
         return cached;
       }
 
-      // This would typically involve complex performance analysis
-      // For now, return default structure
+      // Get match from MongoDB
+      const match = await Models.Match.findOne({ korastats_id: fixtureId });
+
+      if (!match) {
+        throw new ApiError(404, "Fixture not found");
+      }
+
+      // Get tournament info for league details
+      const tournament = await Models.Tournament.findOne({
+        korastats_id: match.tournament_id,
+      });
+
+      // Get team logos
+      const teamLogos = await this.getTeamLogos([
+        match.teams.home.id,
+        match.teams.away.id,
+      ]);
+
+      // Return actual top performers data from the match
       const topPerformers: FixtureTopPerformersResponse = {
         league: {
-          name: "",
-          logo: "",
-          season: 0,
+          name: tournament?.name || "Unknown League",
+          logo: tournament?.logo || "",
+          season: parseInt(match.season) || 0,
         },
         homeTeam: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
+          id: match.teams.home.id,
+          name: match.teams.home.name,
+          logo: teamLogos.get(match.teams.home.id) || "",
+          winner: match.teams.home.winner,
         },
         awayTeam: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
+          id: match.teams.away.id,
+          name: match.teams.away.name,
+          logo: teamLogos.get(match.teams.away.id) || "",
+          winner: match.teams.away.winner,
         },
-        topScorer: null,
-        topAssister: null,
-        topKeeper: null,
+        topScorer: match.topPerformers?.topScorer
+          ? {
+              homePlayer: {
+                id: match.topPerformers.topScorer.homePlayer.id,
+                name: match.topPerformers.topScorer.homePlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              awayPlayer: {
+                id: match.topPerformers.topScorer.awayPlayer.id,
+                name: match.topPerformers.topScorer.awayPlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              stats: match.topPerformers.topScorer.stats,
+            }
+          : {
+              homePlayer: { id: 0, name: "No Data", photo: "" },
+              awayPlayer: { id: 0, name: "No Data", photo: "" },
+              stats: [],
+            },
+        topAssister: match.topPerformers?.topAssister
+          ? {
+              homePlayer: {
+                id: match.topPerformers.topAssister.homePlayer.id,
+                name: match.topPerformers.topAssister.homePlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              awayPlayer: {
+                id: match.topPerformers.topAssister.awayPlayer.id,
+                name: match.topPerformers.topAssister.awayPlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              stats: match.topPerformers.topAssister.stats,
+            }
+          : {
+              homePlayer: { id: 0, name: "No Data", photo: "" },
+              awayPlayer: { id: 0, name: "No Data", photo: "" },
+              stats: [],
+            },
+        topKeeper: match.topPerformers?.topKeeper
+          ? {
+              homePlayer: {
+                id: match.topPerformers.topKeeper.homePlayer.id,
+                name: match.topPerformers.topKeeper.homePlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              awayPlayer: {
+                id: match.topPerformers.topKeeper.awayPlayer.id,
+                name: match.topPerformers.topKeeper.awayPlayer.name,
+                photo: "", // Photo not available in schema
+              },
+              stats: match.topPerformers.topKeeper.stats,
+            }
+          : {
+              homePlayer: { id: 0, name: "No Data", photo: "" },
+              awayPlayer: { id: 0, name: "No Data", photo: "" },
+              stats: [],
+            },
       };
 
       this.cacheService.set(cacheKey, topPerformers, 60 * 60 * 1000); // Cache for 1 hour
       return topPerformers;
     } catch (error) {
       console.error("Failed to fetch fixture top performers:", error);
-      return {
-        league: {
-          name: "",
-          logo: "",
-          season: 0,
-        },
-        homeTeam: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
-        },
-        awayTeam: {
-          id: 0,
-          name: "",
-          logo: "",
-          winner: null,
-        },
-        topScorer: null,
-        topAssister: null,
-        topKeeper: null,
-      };
+      throw new ApiError(500, "Failed to fetch fixture top performers");
     }
   }
 
@@ -747,27 +873,23 @@ export class FixturesRepository {
       }
 
       // Get match from MongoDB to check if it exists
-      const match = await Models.Match.findOne({ korastats_id: fixtureId.toString() });
+      const match = await Models.Match.findOne({ korastats_id: fixtureId });
 
       if (!match) {
         throw new ApiError(404, "Fixture not found");
       }
 
-      // For now, return default highlights (would need to integrate with video service)
+      // Return actual highlights data from the match
       const highlights: FixtureHighlightsResponse = {
-        host: "youtube-channel",
-        url: "https://youtube.com/@saudisportscompany",
+        host: match.highlights?.host || "youtube-channel",
+        url: match.highlights?.url || "https://youtube.com/@saudisportscompany",
       };
 
       this.cacheService.set(cacheKey, highlights, 60 * 60 * 1000); // Cache for 1 hour
       return highlights;
     } catch (error) {
       console.error("Failed to fetch fixture highlights:", error);
-      // Return default highlights on error
-      return {
-        host: "youtube-channel",
-        url: "https://youtube.com/@saudisportscompany",
-      };
+      throw new ApiError(500, "Failed to fetch fixture highlights");
     }
   }
 
@@ -781,11 +903,11 @@ export class FixturesRepository {
 
     const teams = await Models.Team.find({
       korastats_id: { $in: teamIds },
-    }).select("korastats_id club.logo_url");
+    }).select("korastats_id logo");
 
     const teamLogoMap = new Map<number, string>();
     teams.forEach((team) => {
-      teamLogoMap.set(team.korastats_id, team.club?.logo_url || "");
+      teamLogoMap.set(team.korastats_id, team.logo || "");
     });
 
     return teamLogoMap;
@@ -821,30 +943,88 @@ export class FixturesRepository {
   private async enrichEventsWithTeamLogos(events: any[]): Promise<any[]> {
     if (!events || events.length === 0) return [];
 
-    // Get unique team IDs from events
-    const teamIds = [...new Set(events.map((event) => event.team?.id).filter(Boolean))];
+    // Clean and deduplicate events
+    const cleanedEvents = this.cleanAndDeduplicateEvents(events);
 
-    if (teamIds.length === 0) return events;
+    // Get unique team IDs from events
+    const teamIds = [
+      ...new Set(cleanedEvents.map((event) => event.team?.id).filter(Boolean)),
+    ];
+
+    if (teamIds.length === 0) return cleanedEvents;
 
     // Fetch team logos from team collection
     const teams = await Models.Team.find({
       korastats_id: { $in: teamIds },
-    }).select("korastats_id club.logo_url");
+    }).select("korastats_id logo");
 
     // Create a map for quick lookup
     const teamLogoMap = new Map();
     teams.forEach((team) => {
-      teamLogoMap.set(team.korastats_id, team.club?.logo_url || "");
+      teamLogoMap.set(team.korastats_id, team.logo || "");
     });
 
-    // Enrich events with team logos
-    return events.map((event) => ({
-      ...event,
+    // Enrich events with team logos and clean structure
+    return cleanedEvents.map((event) => ({
+      time: {
+        elapsed: Math.round(event.time?.elapsed || 0),
+        extra: event.time?.extra || null,
+      },
       team: {
-        ...event.team,
+        id: event.team?.id || 0,
+        name: event.team?.name || "Unknown Team",
         logo: teamLogoMap.get(event.team?.id) || "",
       },
+      player: {
+        id: event.player?.id || 0,
+        name: event.player?.name || "Unknown Player",
+      },
+      assist: event.assist
+        ? {
+            id: event.assist.id || 0,
+            name: event.assist.name || "Unknown Player",
+          }
+        : {
+            id: null,
+            name: null,
+          },
+      type: event.type || "Unknown",
+      detail: event.detail || "Unknown",
+      comments: event.comments || null,
     }));
+  }
+
+  /**
+   * Clean and deduplicate events, sort by time
+   */
+  private cleanAndDeduplicateEvents(events: any[]): any[] {
+    // Convert Mongoose documents to plain objects and remove internal data
+    const cleanEvents = events.map((event) => {
+      // Convert to plain object if it's a Mongoose document
+      const plainEvent = event.toObject ? event.toObject() : event;
+
+      // Remove Mongoose internal properties
+      const { __parentArray, __index, $__parent, _id, __v, ...cleanEvent } = plainEvent;
+      return cleanEvent;
+    });
+
+    // Remove duplicates based on time, team, player, and type
+    const seen = new Set();
+    const uniqueEvents = cleanEvents.filter((event) => {
+      const key = `${event.time?.elapsed}-${event.team?.id}-${event.player?.id}-${event.type}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+
+    // Sort by elapsed time
+    return uniqueEvents.sort((a, b) => {
+      const timeA = a.time?.elapsed || 0;
+      const timeB = b.time?.elapsed || 0;
+      return timeA - timeB;
+    });
   }
 
   /**
@@ -853,32 +1033,63 @@ export class FixturesRepository {
   private async enrichLineupsWithTeamLogos(lineups: any[]): Promise<any[]> {
     if (!lineups || lineups.length === 0) return [];
 
-    // Get unique team IDs from lineups
+    // Get unique team IDs and coach IDs from lineups
     const teamIds = [
       ...new Set(lineups.map((lineup) => lineup.team?.id).filter(Boolean)),
+    ];
+    const coachIds = [
+      ...new Set(lineups.map((lineup) => lineup.coach?.id).filter(Boolean)),
     ];
 
     if (teamIds.length === 0) return lineups;
 
-    // Fetch team logos from team collection
-    const teams = await Models.Team.find({
-      korastats_id: { $in: teamIds },
-    }).select("korastats_id club.logo_url");
+    // Fetch team logos and coach data
+    const [teams, coaches] = await Promise.all([
+      Models.Team.find({
+        korastats_id: { $in: teamIds },
+      }).select("korastats_id logo"),
+      Models.Coach.find({
+        korastats_id: { $in: coachIds },
+      }).select("korastats_id name photo firstname lastname"),
+    ]);
 
-    // Create a map for quick lookup
+    // Create maps for quick lookup
     const teamLogoMap = new Map();
     teams.forEach((team) => {
-      teamLogoMap.set(team.korastats_id, team.club?.logo_url || "");
+      teamLogoMap.set(team.korastats_id, team.logo || "");
     });
 
-    // Enrich lineups with team logos
-    return lineups.map((lineup) => ({
-      ...lineup,
-      team: {
-        ...lineup.team,
-        logo: teamLogoMap.get(lineup.team?.id) || "",
-      },
-    }));
+    const coachDataMap = new Map();
+    coaches.forEach((coach) => {
+      coachDataMap.set(coach.korastats_id, {
+        name: coach.name || "Unknown Coach",
+        photo: coach.photo || "",
+        firstname: coach.firstname || "",
+        lastname: coach.lastname || "",
+      });
+    });
+
+    // Enrich lineups with team logos and coach data
+    return lineups.map((lineup) => {
+      const coachInfo = lineup.coach?.id ? coachDataMap.get(lineup.coach.id) : null;
+
+      return {
+        ...lineup,
+        team: {
+          ...lineup.team,
+          logo: teamLogoMap.get(lineup.team?.id) || "",
+        },
+        coach: coachInfo
+          ? {
+              id: lineup.coach.id,
+              name: coachInfo.name,
+              firstname: coachInfo.firstname,
+              lastname: coachInfo.lastname,
+              photo: coachInfo.photo,
+            }
+          : lineup.coach,
+      };
+    });
   }
 
   /**
@@ -899,7 +1110,7 @@ export class FixturesRepository {
           { "teams.home.id": homeTeamId, "teams.away.id": awayTeamId },
           { "teams.home.id": awayTeamId, "teams.away.id": homeTeamId },
         ],
-        "status.name": "Finished",
+        "status.short": "FT", // Match Finished
       })
         .sort({ date: -1 })
         .limit(10); // Last 10 matches between these teams
@@ -919,25 +1130,21 @@ export class FixturesRepository {
         headToHeadData.push({
           fixture: {
             id: match.korastats_id,
-            referee: match.officials.referee.name,
+            referee: match.referee.name,
             timezone: "UTC",
-            date: match.date.toISOString(),
-            timestamp: Math.floor(match.date.getTime() / 1000),
+            date: match.date,
+            timestamp: match.timestamp,
             periods: {
-              first: match.phases?.first_half?.start
-                ? Math.floor(match.phases.first_half.start.getTime() / 1000)
-                : null,
-              second: match.phases?.second_half?.start
-                ? Math.floor(match.phases.second_half.start.getTime() / 1000)
-                : null,
+              first: match.periods.first,
+              second: match.periods.second,
             },
             venue: {
               id: match.venue.id,
               name: match.venue.name,
-              city: match.venue.city || "",
+              city: "",
             },
             status: {
-              long: match.status.name,
+              long: match.status.long,
               short: match.status.short,
               elapsed: null,
             },
@@ -955,40 +1162,20 @@ export class FixturesRepository {
             home: {
               id: match.teams.home.id,
               name: match.teams.home.name,
+              winner: match.teams.home.winner,
               logo: teamLogos.get(match.teams.home.id) || "",
-              winner: match.teams.home.score > match.teams.away.score,
             },
             away: {
               id: match.teams.away.id,
               name: match.teams.away.name,
+              winner: match.teams.away.winner,
               logo: teamLogos.get(match.teams.away.id) || "",
-              winner: match.teams.away.score > match.teams.home.score,
             },
           },
-          goals: {
-            home: match.teams.home.score,
-            away: match.teams.away.score,
-          },
-          score: {
-            halftime: {
-              home: match.phases?.first_half?.score?.home || null,
-              away: match.phases?.first_half?.score?.away || null,
-            },
-            fulltime: {
-              home: match.teams.home.score,
-              away: match.teams.away.score,
-            },
-            extratime: {
-              home: match.phases?.extra_time?.score?.home || null,
-              away: match.phases?.extra_time?.score?.away || null,
-            },
-            penalty: {
-              home: match.phases?.penalties?.home || null,
-              away: match.phases?.penalties?.away || null,
-            },
-          },
-          tablePosition: match.table_position || null,
-          averageTeamRating: match.average_team_rating || null,
+          goals: match.goals,
+          score: match.score,
+          tablePosition: null,
+          averageTeamRating: match.averageTeamRating || null,
         });
       }
 
@@ -1010,10 +1197,8 @@ export class FixturesRepository {
   ): Promise<any[]> {
     try {
       // Get team stats for both teams
-      const teamStats = await Models.TeamStats.find({
-        team_id: { $in: [homeTeamId, awayTeamId] },
-        tournament_id: tournamentId,
-        season: season,
+      const teamStats = await Models.Team.find({
+        korastats_id: { $in: [homeTeamId, awayTeamId] },
       });
 
       if (teamStats.length === 0) return [];
@@ -1021,7 +1206,7 @@ export class FixturesRepository {
       // Get team and tournament info
       const teams = await Models.Team.find({
         korastats_id: { $in: [homeTeamId, awayTeamId] },
-      }).select("korastats_id name club.logo_url");
+      }).select("korastats_id name logo");
 
       const tournament = await Models.Tournament.findOne({ korastats_id: tournamentId });
 
@@ -1031,65 +1216,82 @@ export class FixturesRepository {
         teamInfoMap.set(team.korastats_id, {
           id: team.korastats_id,
           name: team.name,
-          logo: team.club?.logo_url || "",
+          logo: team.logo || "",
         });
       });
 
       // Transform to TeamStatsData format
       const teamStatsData = teamStats.map((stats) => {
-        const teamInfo = teamInfoMap.get(stats.team_id);
+        const teamInfo = teamInfoMap.get(stats.korastats_id);
 
         return {
-          league: {
-            id: tournamentId,
-            name: tournament?.name || "Unknown League",
-            country: tournament?.country?.name || "",
-            logo: tournament?.logo || "",
-            flag: null,
-            season: parseInt(season),
-          },
+          league: tournament
+            ? {
+                id: tournament.korastats_id,
+                name: tournament.name,
+                country: tournament.country,
+                logo: tournament.logo || "",
+                flag: null, // Will be populated from country schema
+                season: parseInt(season),
+              }
+            : {
+                id: tournamentId,
+                name: "Unknown League",
+                country: "",
+                logo: "",
+                flag: null,
+                season: parseInt(season),
+              },
           team: teamInfo || {
-            id: stats.team_id,
-            name: stats.team_name || "Unknown Team",
+            id: stats.korastats_id,
+            name: stats.name || "Unknown Team",
             logo: "",
           },
-          form: stats.form?.form_string || "-----",
+          form: "-----", // Will be calculated from recent matches
           fixtures: {
             played: {
-              home: 0, // Would need to calculate from individual match stats
-              away: 0,
-              total: stats.stats?.matches_played || 0,
+              home: stats.stats_summary?.gamesPlayed?.home || 0,
+              away: stats.stats_summary?.gamesPlayed?.away || 0,
+              total:
+                (stats.stats_summary?.gamesPlayed?.home || 0) +
+                (stats.stats_summary?.gamesPlayed?.away || 0),
             },
             wins: {
-              home: 0,
-              away: 0,
-              total: stats.stats?.wins || 0,
+              home: stats.stats_summary?.wins?.home || 0,
+              away: stats.stats_summary?.wins?.away || 0,
+              total:
+                (stats.stats_summary?.wins?.home || 0) +
+                (stats.stats_summary?.wins?.away || 0),
             },
             draws: {
-              home: 0,
-              away: 0,
-              total: stats.stats?.draws || 0,
+              home: stats.stats_summary?.draws?.home || 0,
+              away: stats.stats_summary?.draws?.away || 0,
+              total:
+                (stats.stats_summary?.draws?.home || 0) +
+                (stats.stats_summary?.draws?.away || 0),
             },
             loses: {
-              home: 0,
-              away: 0,
-              total: stats.stats?.losses || 0,
+              home: stats.stats_summary?.loses?.home || 0,
+              away: stats.stats_summary?.loses?.away || 0,
+              total:
+                (stats.stats_summary?.loses?.home || 0) +
+                (stats.stats_summary?.loses?.away || 0),
             },
           },
           goals: {
             for: {
-              total: {
-                home: stats.goals?.home_for || 0,
-                away: stats.goals?.away_for || 0,
-                total: stats.stats?.goals_for || 0,
-              },
+              home: stats.stats_summary?.goalsScored?.home || 0,
+              away: stats.stats_summary?.goalsScored?.away || 0,
+              total:
+                (stats.stats_summary?.goalsScored?.home || 0) +
+                (stats.stats_summary?.goalsScored?.away || 0),
             },
             against: {
-              total: {
-                home: stats.goals?.home_against || 0,
-                away: stats.goals?.away_against || 0,
-                total: stats.stats?.goals_against || 0,
-              },
+              home: stats.stats_summary?.goalsConceded?.home || 0,
+              away: stats.stats_summary?.goalsConceded?.away || 0,
+              total:
+                (stats.stats_summary?.goalsConceded?.home || 0) +
+                (stats.stats_summary?.goalsConceded?.away || 0),
             },
           },
           biggest: {
@@ -1150,77 +1352,48 @@ export class FixturesRepository {
 
       fixtures.push({
         fixture: {
-          id: match.korastats_id,
-          referee: match.officials.referee.name,
+          id: match.id,
+          referee: match.referee.name,
           timezone: "UTC",
-          date: match.date.toISOString(),
-          timestamp: Math.floor(match.date.getTime() / 1000),
-          periods: {
-            first: match.phases?.first_half?.start
-              ? Math.floor(match.phases.first_half.start.getTime() / 1000)
-              : null,
-            second: match.phases?.second_half?.start
-              ? Math.floor(match.phases.second_half.start.getTime() / 1000)
-              : null,
-          },
-          venue: {
-            id: match.venue.id,
-            name: match.venue.name,
-            city: match.venue.city || "",
-          },
-          status: {
-            long: match.status.name,
-            short: match.status.short,
-            elapsed: null, // Would need to calculate from current time for live matches
-          },
+          date: match.date,
+          timestamp: match.timestamp,
+          periods: match.periods,
+          venue: match.venue,
+          status: match.status,
         },
-        league: {
-          id: match.tournament_id,
-          name: tournament?.name || "Unknown League",
-          country: tournament?.country?.name || "",
-          logo: leagueLogo || "",
-          flag: null, // Tournament schema doesn't have flag field
-          season: parseInt(match.season),
-          round: match.round.toString(),
-        },
+        league: match.league,
         teams: {
           home: {
             id: match.teams.home.id,
             name: match.teams.home.name,
             logo: teamLogos.get(match.teams.home.id) || "",
-            winner: match.teams.home.score > match.teams.away.score,
+            winner: match.goals.home > match.goals.away,
           },
           away: {
             id: match.teams.away.id,
             name: match.teams.away.name,
             logo: teamLogos.get(match.teams.away.id) || "",
-            winner: match.teams.away.score > match.teams.home.score,
+            winner: match.goals.away > match.goals.home,
           },
         },
-        goals: {
-          home: match.teams.home.score,
-          away: match.teams.away.score,
-        },
+        goals: match.goals,
         score: {
           halftime: {
-            home: match.phases?.first_half?.score?.home || null,
-            away: match.phases?.first_half?.score?.away || null,
+            home: match.score.halftime.home,
+            away: match.score.halftime.away,
           },
-          fulltime: {
-            home: match.teams.home.score,
-            away: match.teams.away.score,
-          },
+          fulltime: match.score.fulltime,
           extratime: {
-            home: match.phases?.extra_time?.score?.home || null,
-            away: match.phases?.extra_time?.score?.away || null,
+            home: match.score.extratime.home,
+            away: match.score.extratime.away,
           },
           penalty: {
-            home: match.phases?.penalties?.home || null,
-            away: match.phases?.penalties?.away || null,
+            home: match.score.penalty.home,
+            away: match.score.penalty.away,
           },
         },
-        tablePosition: match.table_position || null,
-        averageTeamRating: match.average_team_rating || null,
+        tablePosition: null,
+        averageTeamRating: match.averageTeamRating || null,
       });
     }
 
@@ -1288,5 +1461,75 @@ export class FixturesRepository {
   //     }
   //   }
   // }
+
+  /**
+   * Enrich player stats with photos from player collection
+   */
+  private async enrichPlayerStatsWithPhotos(playerStats: any[]): Promise<any[]> {
+    if (!playerStats || playerStats.length === 0) return [];
+
+    // Get all unique player IDs
+    const playerIds = [...new Set(playerStats.map((stat) => stat.player.id))];
+
+    // Fetch player data from Player model (including photos and clean names)
+    const players = await Models.Player.find({
+      korastats_id: { $in: playerIds },
+    }).select("korastats_id name photo firstname lastname");
+
+    const playerData = new Map();
+    players.forEach((player) => {
+      playerData.set(player.korastats_id, {
+        name: player.name || "Unknown Player",
+        photo: player.photo || "",
+        firstname: player.firstname || "",
+        lastname: player.lastname || "",
+      });
+    });
+
+    // Return player stats with enriched data
+    return playerStats.map((stat) => {
+      const playerInfo = playerData.get(stat.player.id) || {
+        name: stat.player.name || "Unknown Player",
+        photo: "",
+        firstname: "",
+        lastname: "",
+      };
+
+      return {
+        player: {
+          id: stat.player.id,
+          name: playerInfo.name,
+          firstname: playerInfo.firstname,
+          lastname: playerInfo.lastname,
+          number: stat.player.number,
+          photo: playerInfo.photo,
+        },
+        statistics: stat.player.statistics,
+      };
+    });
+  }
+
+  /**
+   * Enrich referee data with photo and clean name
+   */
+  private async enrichRefereeData(referee: any): Promise<string> {
+    if (!referee?.id) return "Unknown Referee";
+
+    try {
+      // Get referee data from Referee model
+      const refereeData = await Models.Referee.findOne({
+        korastats_id: referee.id,
+      }).select("name photo firstname lastname");
+
+      if (refereeData) {
+        return refereeData.name || referee.name || "Unknown Referee";
+      }
+
+      return referee.name || "Unknown Referee";
+    } catch (error) {
+      console.warn(`Failed to enrich referee data for ID ${referee.id}:`, error.message);
+      return referee.name || "Unknown Referee";
+    }
+  }
 }
 
