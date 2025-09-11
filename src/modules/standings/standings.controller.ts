@@ -40,13 +40,13 @@ export class StandingsController {
         message: result.message,
         league,
         teamsUpdated: result.teamsUpdated,
-        groups: result.groups
+        groups: result.groups,
       });
     } catch (error) {
       console.error("Error in syncTeamRankings:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to sync team rankings",
-        details: error instanceof Error ? error.message : "Unknown error"
+        details: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });
