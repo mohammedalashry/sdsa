@@ -11,8 +11,6 @@ map2.json
 folderNodestructure.txt
 *.DS_Store
 structure.txt
-tsconfig.json
-package-lock.json
 logs
 Dockerfile
 .dockerignore
