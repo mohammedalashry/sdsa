@@ -42,5 +42,5 @@ jobs:
             npx prisma generate --schema=src/db/prismadb/prisma/schema.prisma
             npx prisma migrate deploy --schema=src/db/prismadb/prisma/schema.prisma
             npm run build
-            pm2 reload ecosystem.config.js --env production
+            pm2 restart sdsa-backend
 
