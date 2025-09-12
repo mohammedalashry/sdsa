@@ -1,0 +1,1076 @@
+.
+├── Dockerfile
+├── dist
+│   ├── __tests__
+│   │   ├── factories
+│   │   │   ├── team.factory.d.ts
+│   │   │   ├── team.factory.d.ts.map
+│   │   │   ├── team.factory.js
+│   │   │   └── team.factory.js.map
+│   │   ├── setup.d.ts
+│   │   ├── setup.d.ts.map
+│   │   ├── setup.js
+│   │   ├── setup.js.map
+│   │   └── utils
+│   │       ├── test-helpers.d.ts
+│   │       ├── test-helpers.d.ts.map
+│   │       ├── test-helpers.js
+│   │       └── test-helpers.js.map
+│   ├── app.d.ts
+│   ├── app.d.ts.map
+│   ├── app.js
+│   ├── app.js.map
+│   ├── core
+│   │   ├── enums
+│   │   │   ├── dial-codes.enum.d.ts
+│   │   │   ├── dial-codes.enum.d.ts.map
+│   │   │   ├── dial-codes.enum.js
+│   │   │   ├── dial-codes.enum.js.map
+│   │   │   ├── enums.d.ts
+│   │   │   ├── enums.d.ts.map
+│   │   │   ├── enums.js
+│   │   │   ├── enums.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   └── index.js.map
+│   │   ├── helpers
+│   │   │   ├── get-country-code.d.ts
+│   │   │   ├── get-country-code.d.ts.map
+│   │   │   ├── get-country-code.js
+│   │   │   ├── get-country-code.js.map
+│   │   │   ├── hash-password.d.ts
+│   │   │   ├── hash-password.d.ts.map
+│   │   │   ├── hash-password.js
+│   │   │   └── hash-password.js.map
+│   │   ├── i18n
+│   │   │   ├── i18n.d.ts
+│   │   │   ├── i18n.d.ts.map
+│   │   │   ├── i18n.js
+│   │   │   └── i18n.js.map
+│   │   ├── index.d.ts
+│   │   ├── index.d.ts.map
+│   │   ├── index.js
+│   │   ├── index.js.map
+│   │   ├── middleware
+│   │   │   ├── auth.middleware.d.ts
+│   │   │   ├── auth.middleware.d.ts.map
+│   │   │   ├── auth.middleware.js
+│   │   │   ├── auth.middleware.js.map
+│   │   │   ├── error.middleware.d.ts
+│   │   │   ├── error.middleware.d.ts.map
+│   │   │   ├── error.middleware.js
+│   │   │   ├── error.middleware.js.map
+│   │   │   ├── validation.middleware.d.ts
+│   │   │   ├── validation.middleware.d.ts.map
+│   │   │   ├── validation.middleware.js
+│   │   │   └── validation.middleware.js.map
+│   │   ├── token
+│   │   │   ├── jwt.d.ts
+│   │   │   ├── jwt.d.ts.map
+│   │   │   ├── jwt.js
+│   │   │   ├── jwt.js.map
+│   │   │   ├── refresh.store.d.ts
+│   │   │   ├── refresh.store.d.ts.map
+│   │   │   ├── refresh.store.js
+│   │   │   ├── refresh.store.js.map
+│   │   │   ├── token.service.d.ts
+│   │   │   ├── token.service.d.ts.map
+│   │   │   ├── token.service.js
+│   │   │   └── token.service.js.map
+│   │   ├── types
+│   │   │   ├── auth.types.d.ts
+│   │   │   ├── auth.types.d.ts.map
+│   │   │   ├── auth.types.js
+│   │   │   ├── auth.types.js.map
+│   │   │   ├── common.types.d.ts
+│   │   │   ├── common.types.d.ts.map
+│   │   │   ├── common.types.js
+│   │   │   ├── common.types.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   └── index.js.map
+│   │   └── utils
+│   │       ├── app-error.d.ts
+│   │       ├── app-error.d.ts.map
+│   │       ├── app-error.js
+│   │       ├── app-error.js.map
+│   │       ├── catch-async.d.ts
+│   │       ├── catch-async.d.ts.map
+│   │       ├── catch-async.js
+│   │       ├── catch-async.js.map
+│   │       ├── response.utils.d.ts
+│   │       ├── response.utils.d.ts.map
+│   │       ├── response.utils.js
+│   │       └── response.utils.js.map
+│   ├── db
+│   │   ├── mogodb
+│   │   │   ├── connection.d.ts
+│   │   │   ├── connection.d.ts.map
+│   │   │   ├── connection.js
+│   │   │   ├── connection.js.map
+│   │   │   ├── models.d.ts
+│   │   │   ├── models.d.ts.map
+│   │   │   ├── models.js
+│   │   │   ├── models.js.map
+│   │   │   └── schemas
+│   │   │       ├── coach.schema.d.ts
+│   │   │       ├── coach.schema.d.ts.map
+│   │   │       ├── coach.schema.js
+│   │   │       ├── coach.schema.js.map
+│   │   │       ├── country.schema.d.ts
+│   │   │       ├── country.schema.d.ts.map
+│   │   │       ├── country.schema.js
+│   │   │       ├── country.schema.js.map
+│   │   │       ├── index.d.ts
+│   │   │       ├── index.d.ts.map
+│   │   │       ├── index.js
+│   │   │       ├── index.js.map
+│   │   │       ├── match.schema.d.ts
+│   │   │       ├── match.schema.d.ts.map
+│   │   │       ├── match.schema.js
+│   │   │       ├── match.schema.js.map
+│   │   │       ├── player.schema.d.ts
+│   │   │       ├── player.schema.d.ts.map
+│   │   │       ├── player.schema.js
+│   │   │       ├── player.schema.js.map
+│   │   │       ├── referee.schema.d.ts
+│   │   │       ├── referee.schema.d.ts.map
+│   │   │       ├── referee.schema.js
+│   │   │       ├── referee.schema.js.map
+│   │   │       ├── sync-logs.schema.d.ts
+│   │   │       ├── sync-logs.schema.d.ts.map
+│   │   │       ├── sync-logs.schema.js
+│   │   │       ├── sync-logs.schema.js.map
+│   │   │       ├── team.schema.d.ts
+│   │   │       ├── team.schema.d.ts.map
+│   │   │       ├── team.schema.js
+│   │   │       ├── team.schema.js.map
+│   │   │       ├── tournament-data.schema.d.ts
+│   │   │       ├── tournament-data.schema.d.ts.map
+│   │   │       ├── tournament-data.schema.js
+│   │   │       ├── tournament-data.schema.js.map
+│   │   │       ├── tournament.schema.d.ts
+│   │   │       ├── tournament.schema.d.ts.map
+│   │   │       ├── tournament.schema.js
+│   │   │       ├── tournament.schema.js.map
+│   │   │       ├── trophies.schema.d.ts
+│   │   │       ├── trophies.schema.d.ts.map
+│   │   │       ├── trophies.schema.js
+│   │   │       └── trophies.schema.js.map
+│   │   └── prismadb
+│   │       ├── prisma.config.d.ts
+│   │       ├── prisma.config.d.ts.map
+│   │       ├── prisma.config.js
+│   │       ├── prisma.config.js.map
+│   │       ├── prisma.service.d.ts
+│   │       ├── prisma.service.d.ts.map
+│   │       ├── prisma.service.js
+│   │       └── prisma.service.js.map
+│   ├── integrations
+│   │   └── korastats
+│   │       ├── client.d.ts
+│   │       ├── client.d.ts.map
+│   │       ├── client.js
+│   │       ├── client.js.map
+│   │       ├── integration-service.interface.d.ts
+│   │       ├── integration-service.interface.d.ts.map
+│   │       ├── integration-service.interface.js
+│   │       ├── integration-service.interface.js.map
+│   │       ├── integration.factory.d.ts
+│   │       ├── integration.factory.d.ts.map
+│   │       ├── integration.factory.js
+│   │       ├── integration.factory.js.map
+│   │       ├── integration.service.d.ts
+│   │       ├── integration.service.d.ts.map
+│   │       ├── integration.service.js
+│   │       ├── integration.service.js.map
+│   │       ├── services
+│   │       │   ├── cache.service.d.ts
+│   │       │   ├── cache.service.d.ts.map
+│   │       │   ├── cache.service.js
+│   │       │   ├── cache.service.js.map
+│   │       │   ├── fixture.service.d.ts
+│   │       │   ├── fixture.service.d.ts.map
+│   │       │   ├── fixture.service.js
+│   │       │   ├── fixture.service.js.map
+│   │       │   ├── korastats.service.d.ts
+│   │       │   ├── korastats.service.d.ts.map
+│   │       │   ├── korastats.service.js
+│   │       │   ├── korastats.service.js.map
+│   │       │   ├── league-logo.service.d.ts
+│   │       │   ├── league-logo.service.d.ts.map
+│   │       │   ├── league-logo.service.js
+│   │       │   ├── league-logo.service.js.map
+│   │       │   ├── league.service.d.ts
+│   │       │   ├── league.service.d.ts.map
+│   │       │   ├── league.service.js
+│   │       │   ├── league.service.js.map
+│   │       │   ├── team.service.d.ts
+│   │       │   ├── team.service.d.ts.map
+│   │       │   ├── team.service.js
+│   │       │   └── team.service.js.map
+│   │       └── types
+│   │           ├── coach.types.d.ts
+│   │           ├── coach.types.d.ts.map
+│   │           ├── coach.types.js
+│   │           ├── coach.types.js.map
+│   │           ├── country.types.d.ts
+│   │           ├── country.types.d.ts.map
+│   │           ├── country.types.js
+│   │           ├── country.types.js.map
+│   │           ├── fixture.types.d.ts
+│   │           ├── fixture.types.d.ts.map
+│   │           ├── fixture.types.js
+│   │           ├── fixture.types.js.map
+│   │           ├── index.d.ts
+│   │           ├── index.d.ts.map
+│   │           ├── index.js
+│   │           ├── index.js.map
+│   │           ├── league.types.d.ts
+│   │           ├── league.types.d.ts.map
+│   │           ├── league.types.js
+│   │           ├── league.types.js.map
+│   │           ├── player.types.d.ts
+│   │           ├── player.types.d.ts.map
+│   │           ├── player.types.js
+│   │           ├── player.types.js.map
+│   │           ├── referee.types.d.ts
+│   │           ├── referee.types.d.ts.map
+│   │           ├── referee.types.js
+│   │           ├── referee.types.js.map
+│   │           ├── team.types.d.ts
+│   │           ├── team.types.d.ts.map
+│   │           ├── team.types.js
+│   │           └── team.types.js.map
+│   ├── legacy-types
+│   │   ├── fixtures.types.d.ts
+│   │   ├── fixtures.types.d.ts.map
+│   │   ├── fixtures.types.js
+│   │   ├── fixtures.types.js.map
+│   │   ├── index.d.ts
+│   │   ├── index.d.ts.map
+│   │   ├── index.js
+│   │   ├── index.js.map
+│   │   ├── leagues.types.d.ts
+│   │   ├── leagues.types.d.ts.map
+│   │   ├── leagues.types.js
+│   │   ├── leagues.types.js.map
+│   │   ├── players.types.d.ts
+│   │   ├── players.types.d.ts.map
+│   │   ├── players.types.js
+│   │   ├── players.types.js.map
+│   │   ├── standings.types.d.ts
+│   │   ├── standings.types.d.ts.map
+│   │   ├── standings.types.js
+│   │   ├── standings.types.js.map
+│   │   ├── team-stats.types.d.ts
+│   │   ├── team-stats.types.d.ts.map
+│   │   ├── team-stats.types.js
+│   │   ├── team-stats.types.js.map
+│   │   ├── teams.types.d.ts
+│   │   ├── teams.types.d.ts.map
+│   │   ├── teams.types.js
+│   │   ├── teams.types.js.map
+│   │   ├── transfers.types.d.ts
+│   │   ├── transfers.types.d.ts.map
+│   │   ├── transfers.types.js
+│   │   ├── transfers.types.js.map
+│   │   ├── trophies.types.d.ts
+│   │   ├── trophies.types.d.ts.map
+│   │   ├── trophies.types.js
+│   │   └── trophies.types.js.map
+│   ├── mapper
+│   │   ├── fixtureNew.d.ts
+│   │   ├── fixtureNew.d.ts.map
+│   │   ├── fixtureNew.js
+│   │   ├── fixtureNew.js.map
+│   │   ├── helpers.d.ts
+│   │   ├── helpers.d.ts.map
+│   │   ├── helpers.js
+│   │   ├── helpers.js.map
+│   │   ├── leagueNew.d.ts
+│   │   ├── leagueNew.d.ts.map
+│   │   ├── leagueNew.js
+│   │   └── leagueNew.js.map
+│   ├── mappers
+│   │   ├── default-values.d.ts
+│   │   ├── default-values.d.ts.map
+│   │   ├── default-values.js
+│   │   ├── default-values.js.map
+│   │   ├── fixture-detail.mapper.d.ts
+│   │   ├── fixture-detail.mapper.d.ts.map
+│   │   ├── fixture-detail.mapper.js
+│   │   ├── fixture-detail.mapper.js.map
+│   │   ├── fixture.mapper.d.ts
+│   │   ├── fixture.mapper.d.ts.map
+│   │   ├── fixture.mapper.js
+│   │   ├── fixture.mapper.js.map
+│   │   ├── highlights.mapper.d.ts
+│   │   ├── highlights.mapper.d.ts.map
+│   │   ├── highlights.mapper.js
+│   │   ├── highlights.mapper.js.map
+│   │   ├── index.d.ts
+│   │   ├── index.d.ts.map
+│   │   ├── index.js
+│   │   ├── index.js.map
+│   │   ├── korastats-data-collector.mapper.d.ts
+│   │   ├── korastats-data-collector.mapper.d.ts.map
+│   │   ├── korastats-data-collector.mapper.js
+│   │   ├── korastats-data-collector.mapper.js.map
+│   │   ├── korastats-to-mongo.mapper.d.ts
+│   │   ├── korastats-to-mongo.mapper.d.ts.map
+│   │   ├── korastats-to-mongo.mapper.js
+│   │   ├── korastats-to-mongo.mapper.js.map
+│   │   ├── league.mapper.d.ts
+│   │   ├── league.mapper.d.ts.map
+│   │   ├── league.mapper.js
+│   │   ├── league.mapper.js.map
+│   │   ├── mapper
+│   │   │   ├── fixtureNew.d.ts
+│   │   │   ├── fixtureNew.d.ts.map
+│   │   │   ├── fixtureNew.js
+│   │   │   ├── fixtureNew.js.map
+│   │   │   ├── helpers.d.ts
+│   │   │   ├── helpers.d.ts.map
+│   │   │   ├── helpers.js
+│   │   │   ├── helpers.js.map
+│   │   │   ├── leagueNew.d.ts
+│   │   │   ├── leagueNew.d.ts.map
+│   │   │   ├── leagueNew.js
+│   │   │   └── leagueNew.js.map
+│   │   ├── mapper.service.d.ts
+│   │   ├── mapper.service.d.ts.map
+│   │   ├── mapper.service.js
+│   │   ├── mapper.service.js.map
+│   │   ├── player.mapper.d.ts
+│   │   ├── player.mapper.d.ts.map
+│   │   ├── player.mapper.js
+│   │   ├── player.mapper.js.map
+│   │   ├── standings.mapper.d.ts
+│   │   ├── standings.mapper.d.ts.map
+│   │   ├── standings.mapper.js
+│   │   ├── standings.mapper.js.map
+│   │   ├── team-comprehensive.mapper.d.ts
+│   │   ├── team-comprehensive.mapper.d.ts.map
+│   │   ├── team-comprehensive.mapper.js
+│   │   ├── team-comprehensive.mapper.js.map
+│   │   ├── team-helpers.d.ts
+│   │   ├── team-helpers.d.ts.map
+│   │   ├── team-helpers.js
+│   │   ├── team-helpers.js.map
+│   │   ├── team.mapper.d.ts
+│   │   ├── team.mapper.d.ts.map
+│   │   ├── team.mapper.js
+│   │   └── team.mapper.js.map
+│   ├── modules
+│   │   ├── admin
+│   │   │   ├── admin.controller.d.ts
+│   │   │   ├── admin.controller.d.ts.map
+│   │   │   ├── admin.controller.js
+│   │   │   ├── admin.controller.js.map
+│   │   │   ├── admin.model.d.ts
+│   │   │   ├── admin.model.d.ts.map
+│   │   │   ├── admin.model.js
+│   │   │   ├── admin.model.js.map
+│   │   │   ├── admin.repository.d.ts
+│   │   │   ├── admin.repository.d.ts.map
+│   │   │   ├── admin.repository.js
+│   │   │   ├── admin.repository.js.map
+│   │   │   ├── admin.service.d.ts
+│   │   │   ├── admin.service.d.ts.map
+│   │   │   ├── admin.service.js
+│   │   │   ├── admin.service.js.map
+│   │   │   ├── admin.validator.d.ts
+│   │   │   ├── admin.validator.d.ts.map
+│   │   │   ├── admin.validator.js
+│   │   │   ├── admin.validator.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── auth
+│   │   │   ├── auth-validation.d.ts
+│   │   │   ├── auth-validation.d.ts.map
+│   │   │   ├── auth-validation.js
+│   │   │   ├── auth-validation.js.map
+│   │   │   ├── auth.controller.d.ts
+│   │   │   ├── auth.controller.d.ts.map
+│   │   │   ├── auth.controller.js
+│   │   │   ├── auth.controller.js.map
+│   │   │   ├── auth.router.d.ts
+│   │   │   ├── auth.router.d.ts.map
+│   │   │   ├── auth.router.js
+│   │   │   ├── auth.router.js.map
+│   │   │   ├── auth.service.d.ts
+│   │   │   ├── auth.service.d.ts.map
+│   │   │   ├── auth.service.js
+│   │   │   ├── auth.service.js.map
+│   │   │   ├── user.interface.d.ts
+│   │   │   ├── user.interface.d.ts.map
+│   │   │   ├── user.interface.js
+│   │   │   └── user.interface.js.map
+│   │   ├── coach
+│   │   │   ├── coach.controller.d.ts
+│   │   │   ├── coach.controller.d.ts.map
+│   │   │   ├── coach.controller.js
+│   │   │   ├── coach.controller.js.map
+│   │   │   ├── coach.repository.d.ts
+│   │   │   ├── coach.repository.d.ts.map
+│   │   │   ├── coach.repository.js
+│   │   │   ├── coach.repository.js.map
+│   │   │   ├── coach.service.d.ts
+│   │   │   ├── coach.service.d.ts.map
+│   │   │   ├── coach.service.js
+│   │   │   ├── coach.service.js.map
+│   │   │   ├── coach.validator.d.ts
+│   │   │   ├── coach.validator.d.ts.map
+│   │   │   ├── coach.validator.js
+│   │   │   ├── coach.validator.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── contact
+│   │   │   ├── contact.controller.d.ts
+│   │   │   ├── contact.controller.d.ts.map
+│   │   │   ├── contact.controller.js
+│   │   │   ├── contact.controller.js.map
+│   │   │   ├── contact.model.d.ts
+│   │   │   ├── contact.model.d.ts.map
+│   │   │   ├── contact.model.js
+│   │   │   ├── contact.model.js.map
+│   │   │   ├── contact.validator.d.ts
+│   │   │   ├── contact.validator.d.ts.map
+│   │   │   ├── contact.validator.js
+│   │   │   ├── contact.validator.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── country
+│   │   │   ├── country.controller.d.ts
+│   │   │   ├── country.controller.d.ts.map
+│   │   │   ├── country.controller.js
+│   │   │   ├── country.controller.js.map
+│   │   │   ├── country.repository.d.ts
+│   │   │   ├── country.repository.d.ts.map
+│   │   │   ├── country.repository.js
+│   │   │   ├── country.repository.js.map
+│   │   │   ├── country.service.d.ts
+│   │   │   ├── country.service.d.ts.map
+│   │   │   ├── country.service.js
+│   │   │   ├── country.service.js.map
+│   │   │   ├── country.validator.d.ts
+│   │   │   ├── country.validator.d.ts.map
+│   │   │   ├── country.validator.js
+│   │   │   ├── country.validator.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── export
+│   │   │   ├── export.controller.d.ts
+│   │   │   ├── export.controller.d.ts.map
+│   │   │   ├── export.controller.js
+│   │   │   ├── export.controller.js.map
+│   │   │   ├── export.validator.d.ts
+│   │   │   ├── export.validator.d.ts.map
+│   │   │   ├── export.validator.js
+│   │   │   ├── export.validator.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── fixtures
+│   │   │   ├── fixtures.controller.d.ts
+│   │   │   ├── fixtures.controller.d.ts.map
+│   │   │   ├── fixtures.controller.js
+│   │   │   ├── fixtures.controller.js.map
+│   │   │   ├── fixtures.repository.d.ts
+│   │   │   ├── fixtures.repository.d.ts.map
+│   │   │   ├── fixtures.repository.js
+│   │   │   ├── fixtures.repository.js.map
+│   │   │   ├── fixtures.service.d.ts
+│   │   │   ├── fixtures.service.d.ts.map
+│   │   │   ├── fixtures.service.js
+│   │   │   ├── fixtures.service.js.map
+│   │   │   ├── fixtures.validator.d.ts
+│   │   │   ├── fixtures.validator.d.ts.map
+│   │   │   ├── fixtures.validator.js
+│   │   │   ├── fixtures.validator.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── leagues
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── leagues.controller.d.ts
+│   │   │   ├── leagues.controller.d.ts.map
+│   │   │   ├── leagues.controller.js
+│   │   │   ├── leagues.controller.js.map
+│   │   │   ├── leagues.repository.d.ts
+│   │   │   ├── leagues.repository.d.ts.map
+│   │   │   ├── leagues.repository.js
+│   │   │   ├── leagues.repository.js.map
+│   │   │   ├── leagues.service.d.ts
+│   │   │   ├── leagues.service.d.ts.map
+│   │   │   ├── leagues.service.js
+│   │   │   ├── leagues.service.js.map
+│   │   │   ├── leagues.validator.d.ts
+│   │   │   ├── leagues.validator.d.ts.map
+│   │   │   ├── leagues.validator.js
+│   │   │   ├── leagues.validator.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── players
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── players.controller.d.ts
+│   │   │   ├── players.controller.d.ts.map
+│   │   │   ├── players.controller.js
+│   │   │   ├── players.controller.js.map
+│   │   │   ├── players.repository.d.ts
+│   │   │   ├── players.repository.d.ts.map
+│   │   │   ├── players.repository.js
+│   │   │   ├── players.repository.js.map
+│   │   │   ├── players.service.d.ts
+│   │   │   ├── players.service.d.ts.map
+│   │   │   ├── players.service.js
+│   │   │   ├── players.service.js.map
+│   │   │   ├── players.validator.d.ts
+│   │   │   ├── players.validator.d.ts.map
+│   │   │   ├── players.validator.js
+│   │   │   ├── players.validator.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── profile
+│   │   │   ├── controllers
+│   │   │   │   ├── profile.controller.d.ts
+│   │   │   │   ├── profile.controller.d.ts.map
+│   │   │   │   ├── profile.controller.js
+│   │   │   │   └── profile.controller.js.map
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   ├── routes.js.map
+│   │   │   ├── services
+│   │   │   │   ├── profile.service.d.ts
+│   │   │   │   ├── profile.service.d.ts.map
+│   │   │   │   ├── profile.service.js
+│   │   │   │   └── profile.service.js.map
+│   │   │   └── validators
+│   │   │       ├── profile.validator.d.ts
+│   │   │       ├── profile.validator.d.ts.map
+│   │   │       ├── profile.validator.js
+│   │   │       └── profile.validator.js.map
+│   │   ├── referee
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── referee.controller.d.ts
+│   │   │   ├── referee.controller.d.ts.map
+│   │   │   ├── referee.controller.js
+│   │   │   ├── referee.controller.js.map
+│   │   │   ├── referee.repository.d.ts
+│   │   │   ├── referee.repository.d.ts.map
+│   │   │   ├── referee.repository.js
+│   │   │   ├── referee.repository.js.map
+│   │   │   ├── referee.service.d.ts
+│   │   │   ├── referee.service.d.ts.map
+│   │   │   ├── referee.service.js
+│   │   │   ├── referee.service.js.map
+│   │   │   ├── referee.validator.d.ts
+│   │   │   ├── referee.validator.d.ts.map
+│   │   │   ├── referee.validator.js
+│   │   │   ├── referee.validator.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   └── routes.js.map
+│   │   ├── search
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   ├── routes.js.map
+│   │   │   ├── search.controller.d.ts
+│   │   │   ├── search.controller.d.ts.map
+│   │   │   ├── search.controller.js
+│   │   │   ├── search.controller.js.map
+│   │   │   ├── search.model.d.ts
+│   │   │   ├── search.model.d.ts.map
+│   │   │   ├── search.model.js
+│   │   │   ├── search.model.js.map
+│   │   │   ├── search.repository.d.ts
+│   │   │   ├── search.repository.d.ts.map
+│   │   │   ├── search.repository.js
+│   │   │   ├── search.repository.js.map
+│   │   │   ├── search.service.d.ts
+│   │   │   ├── search.service.d.ts.map
+│   │   │   ├── search.service.js
+│   │   │   ├── search.service.js.map
+│   │   │   ├── search.validator.d.ts
+│   │   │   ├── search.validator.d.ts.map
+│   │   │   ├── search.validator.js
+│   │   │   └── search.validator.js.map
+│   │   ├── standings
+│   │   │   ├── index.d.ts
+│   │   │   ├── index.d.ts.map
+│   │   │   ├── index.js
+│   │   │   ├── index.js.map
+│   │   │   ├── routes.d.ts
+│   │   │   ├── routes.d.ts.map
+│   │   │   ├── routes.js
+│   │   │   ├── routes.js.map
+│   │   │   ├── standings.controller.d.ts
+│   │   │   ├── standings.controller.d.ts.map
+│   │   │   ├── standings.controller.js
+│   │   │   ├── standings.controller.js.map
+│   │   │   ├── standings.repository.d.ts
+│   │   │   ├── standings.repository.d.ts.map
+│   │   │   ├── standings.repository.js
+│   │   │   ├── standings.repository.js.map
+│   │   │   ├── standings.service.d.ts
+│   │   │   ├── standings.service.d.ts.map
+│   │   │   ├── standings.service.js
+│   │   │   ├── standings.service.js.map
+│   │   │   ├── standings.validator.d.ts
+│   │   │   ├── standings.validator.d.ts.map
+│   │   │   ├── standings.validator.js
+│   │   │   └── standings.validator.js.map
+│   │   └── teams
+│   │       ├── helpers
+│   │       │   ├── team-helpers.d.ts
+│   │       │   ├── team-helpers.d.ts.map
+│   │       │   ├── team-helpers.js
+│   │       │   ├── team-helpers.js.map
+│   │       │   ├── team-mappers.d.ts
+│   │       │   ├── team-mappers.d.ts.map
+│   │       │   ├── team-mappers.js
+│   │       │   └── team-mappers.js.map
+│   │       ├── index.d.ts
+│   │       ├── index.d.ts.map
+│   │       ├── index.js
+│   │       ├── index.js.map
+│   │       ├── routes.d.ts
+│   │       ├── routes.d.ts.map
+│   │       ├── routes.js
+│   │       ├── routes.js.map
+│   │       ├── teams.controller.d.ts
+│   │       ├── teams.controller.d.ts.map
+│   │       ├── teams.controller.js
+│   │       ├── teams.controller.js.map
+│   │       ├── teams.repository.d.ts
+│   │       ├── teams.repository.d.ts.map
+│   │       ├── teams.repository.js
+│   │       ├── teams.repository.js.map
+│   │       ├── teams.service.d.ts
+│   │       ├── teams.service.d.ts.map
+│   │       ├── teams.service.js
+│   │       ├── teams.service.js.map
+│   │       ├── teams.validator.d.ts
+│   │       ├── teams.validator.d.ts.map
+│   │       ├── teams.validator.js
+│   │       └── teams.validator.js.map
+│   ├── scripts
+│   │   ├── check-matches-data.d.ts
+│   │   ├── check-matches-data.d.ts.map
+│   │   ├── check-matches-data.js
+│   │   ├── check-matches-data.js.map
+│   │   ├── check-tournament-mapping.d.ts
+│   │   ├── check-tournament-mapping.d.ts.map
+│   │   ├── check-tournament-mapping.js
+│   │   ├── check-tournament-mapping.js.map
+│   │   ├── check-tournaments.d.ts
+│   │   ├── check-tournaments.d.ts.map
+│   │   ├── check-tournaments.js
+│   │   ├── check-tournaments.js.map
+│   │   ├── collect-korastats-data.d.ts
+│   │   ├── collect-korastats-data.d.ts.map
+│   │   ├── collect-korastats-data.js
+│   │   ├── collect-korastats-data.js.map
+│   │   ├── fix-tournament-ids.d.ts
+│   │   ├── fix-tournament-ids.d.ts.map
+│   │   ├── fix-tournament-ids.js
+│   │   ├── fix-tournament-ids.js.map
+│   │   ├── run-syncer.d.ts
+│   │   ├── run-syncer.d.ts.map
+│   │   ├── run-syncer.js
+│   │   ├── run-syncer.js.map
+│   │   ├── sync-specific-data.d.ts
+│   │   ├── sync-specific-data.d.ts.map
+│   │   ├── sync-specific-data.js
+│   │   ├── sync-specific-data.js.map
+│   │   ├── syncer-example.d.ts
+│   │   ├── syncer-example.d.ts.map
+│   │   ├── syncer-example.js
+│   │   ├── syncer-example.js.map
+│   │   ├── test-entity-sync.d.ts
+│   │   ├── test-entity-sync.d.ts.map
+│   │   ├── test-entity-sync.js
+│   │   ├── test-entity-sync.js.map
+│   │   ├── test-fixture-details.d.ts
+│   │   ├── test-fixture-details.d.ts.map
+│   │   ├── test-fixture-details.js
+│   │   ├── test-fixture-details.js.map
+│   │   ├── test-fixture-endpoints.d.ts
+│   │   ├── test-fixture-endpoints.d.ts.map
+│   │   ├── test-fixture-endpoints.js
+│   │   ├── test-fixture-endpoints.js.map
+│   │   ├── test-matches-limit.d.ts
+│   │   ├── test-matches-limit.d.ts.map
+│   │   ├── test-matches-limit.js
+│   │   ├── test-matches-limit.js.map
+│   │   ├── test-matches-syncer-limited.d.ts
+│   │   ├── test-matches-syncer-limited.d.ts.map
+│   │   ├── test-matches-syncer-limited.js
+│   │   ├── test-matches-syncer-limited.js.map
+│   │   ├── test-syncer-flow.d.ts
+│   │   ├── test-syncer-flow.d.ts.map
+│   │   ├── test-syncer-flow.js
+│   │   ├── test-syncer-flow.js.map
+│   │   ├── test-syncer.d.ts
+│   │   ├── test-syncer.d.ts.map
+│   │   ├── test-syncer.js
+│   │   ├── test-syncer.js.map
+│   │   ├── test-tournament-syncer-flow.d.ts
+│   │   ├── test-tournament-syncer-flow.d.ts.map
+│   │   ├── test-tournament-syncer-flow.js
+│   │   ├── test-tournament-syncer-flow.js.map
+│   │   ├── update-korastats-data.d.ts
+│   │   ├── update-korastats-data.d.ts.map
+│   │   ├── update-korastats-data.js
+│   │   ├── update-korastats-data.js.map
+│   │   ├── update-tournament-status.d.ts
+│   │   ├── update-tournament-status.d.ts.map
+│   │   ├── update-tournament-status.js
+│   │   └── update-tournament-status.js.map
+│   ├── server.d.ts
+│   ├── server.d.ts.map
+│   ├── server.js
+│   ├── server.js.map
+│   └── syncer
+│       ├── batch-collector.service.d.ts
+│       ├── batch-collector.service.d.ts.map
+│       ├── batch-collector.service.js
+│       ├── batch-collector.service.js.map
+│       ├── data-collector.service.d.ts
+│       ├── data-collector.service.d.ts.map
+│       ├── data-collector.service.js
+│       ├── data-collector.service.js.map
+│       ├── entity-data.service.d.ts
+│       ├── entity-data.service.d.ts.map
+│       ├── entity-data.service.js
+│       ├── entity-data.service.js.map
+│       ├── index.d.ts
+│       ├── index.d.ts.map
+│       ├── index.js
+│       ├── index.js.map
+│       ├── match-data.service.d.ts
+│       ├── match-data.service.d.ts.map
+│       ├── match-data.service.js
+│       ├── match-data.service.js.map
+│       ├── mongo-storage.service.d.ts
+│       ├── mongo-storage.service.d.ts.map
+│       ├── mongo-storage.service.js
+│       ├── mongo-storage.service.js.map
+│       ├── syncer-clean.service.d.ts
+│       ├── syncer-clean.service.d.ts.map
+│       ├── syncer-clean.service.js
+│       ├── syncer-clean.service.js.map
+│       ├── syncer.service.d.ts
+│       ├── syncer.service.d.ts.map
+│       ├── syncer.service.js
+│       ├── syncer.service.js.map
+│       ├── tournament-data.service.d.ts
+│       ├── tournament-data.service.d.ts.map
+│       ├── tournament-data.service.js
+│       └── tournament-data.service.js.map
+├── docker-compose.yml
+├── docs
+│   ├── KoraStats API v2.1.pdf
+│   ├── SDSA (1).json
+│   ├── api
+│   ├── data.txt
+│   ├── fixture.txt
+│   ├── other.txt
+│   ├── sdsa-map-Sheet1.json
+│   ├── sdsa-map-Sheet2.json
+│   ├── sdsa-map.xlsx
+│   └── seastourmoredata.txt
+├── folderstructure.txt
+├── jest.config.js
+├── logs
+├── nodemon.json
+├── package-lock.json
+├── package.json
+├── src
+│   ├── __tests__
+│   │   ├── factories
+│   │   │   └── team.factory.ts
+│   │   ├── integration
+│   │   │   └── korastats.integration.test.ts
+│   │   ├── performance
+│   │   │   └── load.test.ts
+│   │   ├── setup.ts
+│   │   └── utils
+│   │       └── test-helpers.ts
+│   ├── app.ts
+│   ├── core
+│   │   ├── enums
+│   │   │   ├── dial-codes.enum.ts
+│   │   │   ├── enums.ts
+│   │   │   └── index.ts
+│   │   ├── helpers
+│   │   │   ├── get-country-code.ts
+│   │   │   └── hash-password.ts
+│   │   ├── i18n
+│   │   │   ├── ar
+│   │   │   │   └── translation.json
+│   │   │   ├── en
+│   │   │   │   └── translation.json
+│   │   │   └── i18n.ts
+│   │   ├── index.ts
+│   │   ├── middleware
+│   │   │   ├── auth.middleware.ts
+│   │   │   ├── error.middleware.ts
+│   │   │   └── validation.middleware.ts
+│   │   ├── token
+│   │   │   ├── jwt.ts
+│   │   │   ├── refresh.store.ts
+│   │   │   └── token.service.ts
+│   │   ├── types
+│   │   │   ├── auth.types.ts
+│   │   │   ├── common.types.ts
+│   │   │   └── index.ts
+│   │   └── utils
+│   │       ├── app-error.ts
+│   │       ├── catch-async.ts
+│   │       └── response.utils.ts
+│   ├── db
+│   │   ├── mogodb
+│   │   │   ├── README.md
+│   │   │   ├── connection.ts
+│   │   │   ├── models.ts
+│   │   │   └── schemas
+│   │   │       ├── coach.schema.ts
+│   │   │       ├── country.schema.ts
+│   │   │       ├── index.ts
+│   │   │       ├── match.schema.ts
+│   │   │       ├── player.schema.ts
+│   │   │       ├── referee.schema.ts
+│   │   │       ├── sync-logs.schema.ts
+│   │   │       ├── team.schema.ts
+│   │   │       ├── tournament-data.schema.ts
+│   │   │       ├── tournament.schema.ts
+│   │   │       └── trophies.schema.ts
+│   │   └── prismadb
+│   │       ├── prisma
+│   │       │   ├── migrations
+│   │       │   │   ├── 20250903232450_sdsa
+│   │       │   │   │   └── migration.sql
+│   │       │   │   └── migration_lock.toml
+│   │       │   └── schema.prisma
+│   │       ├── prisma.config.ts
+│   │       └── prisma.service.ts
+│   ├── integrations
+│   │   └── korastats
+│   │       ├── __tests__
+│   │       │   ├── korastats.client.test.ts
+│   │       │   └── team.mapper.test.ts
+│   │       ├── client.ts
+│   │       ├── integration-service.interface.ts
+│   │       ├── integration.factory.ts
+│   │       ├── integration.service.ts
+│   │       ├── services
+│   │       │   ├── cache.service.ts
+│   │       │   ├── korastats.service.ts
+│   │       │   ├── league-logo.service.ts
+│   │       │   ├── league.service.ts
+│   │       │   └── team.service.ts
+│   │       └── types
+│   │           ├── coach.types.ts
+│   │           ├── country.types.ts
+│   │           ├── fixture.types.ts
+│   │           ├── index.ts
+│   │           ├── league.types.ts
+│   │           ├── player.types.ts
+│   │           ├── referee.types.ts
+│   │           └── team.types.ts
+│   ├── legacy-types
+│   │   ├── fixtures.types.ts
+│   │   ├── index.ts
+│   │   ├── leagues.types.ts
+│   │   ├── players.types.ts
+│   │   ├── standings.types.ts
+│   │   ├── team-stats.types.ts
+│   │   ├── teams.types.ts
+│   │   ├── transfers.types.ts
+│   │   └── trophies.types.ts
+│   ├── mapper
+│   │   ├── fixtureNew.ts
+│   │   ├── helpers.ts
+│   │   └── leagueNew.ts
+│   ├── mappers
+│   │   ├── README.md
+│   │   ├── default-values.ts
+│   │   ├── fixture-detail.mapper.ts
+│   │   ├── fixture.mapper.ts
+│   │   ├── highlights.mapper.ts
+│   │   ├── index.ts
+│   │   ├── league.mapper.ts
+│   │   ├── player.mapper.ts
+│   │   ├── standings.mapper.ts
+│   │   ├── team-comprehensive.mapper.ts
+│   │   ├── team-helpers.ts
+│   │   └── team.mapper.ts
+│   ├── modules
+│   │   ├── auth
+│   │   │   ├── auth-validation.ts
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.router.ts
+│   │   │   ├── auth.service.ts
+│   │   │   └── user.interface.ts
+│   │   ├── coach
+│   │   │   ├── coach.controller.ts
+│   │   │   ├── coach.repository.ts
+│   │   │   ├── coach.service.ts
+│   │   │   ├── coach.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── country
+│   │   │   ├── country.controller.ts
+│   │   │   ├── country.repository.ts
+│   │   │   ├── country.service.ts
+│   │   │   ├── country.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── fixtures
+│   │   │   ├── fixtures.controller.ts
+│   │   │   ├── fixtures.repository.ts
+│   │   │   ├── fixtures.service.ts
+│   │   │   ├── fixtures.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── leagues
+│   │   │   ├── index.ts
+│   │   │   ├── leagues.controller.ts
+│   │   │   ├── leagues.repository.ts
+│   │   │   ├── leagues.service.ts
+│   │   │   ├── leagues.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── players
+│   │   │   ├── index.ts
+│   │   │   ├── players.controller.ts
+│   │   │   ├── players.repository.ts
+│   │   │   ├── players.service.ts
+│   │   │   ├── players.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── profile
+│   │   │   ├── controllers
+│   │   │   │   └── profile.controller.ts
+│   │   │   ├── index.ts
+│   │   │   ├── routes.ts
+│   │   │   ├── services
+│   │   │   │   └── profile.service.ts
+│   │   │   └── validators
+│   │   │       └── profile.validator.ts
+│   │   ├── referee
+│   │   │   ├── index.ts
+│   │   │   ├── referee.controller.ts
+│   │   │   ├── referee.repository.ts
+│   │   │   ├── referee.service.ts
+│   │   │   ├── referee.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── standings
+│   │   │   ├── index.ts
+│   │   │   ├── routes.ts
+│   │   │   ├── standings.controller.ts
+│   │   │   ├── standings.repository.ts
+│   │   │   ├── standings.service.ts
+│   │   │   └── standings.validator.ts
+│   │   └── teams
+│   │       ├── __tests__
+│   │       │   ├── teams.controller.test.ts
+│   │       │   ├── teams.repository.test.ts
+│   │       │   └── teams.service.test.ts
+│   │       ├── helpers
+│   │       │   ├── team-helpers.ts
+│   │       │   └── team-mappers.ts
+│   │       ├── index.ts
+│   │       ├── routes.ts
+│   │       ├── teams.controller.ts
+│   │       ├── teams.repository.ts
+│   │       ├── teams.service.ts
+│   │       └── teams.validator.ts
+│   ├── scripts
+│   │   ├── check-matches-data.ts
+│   │   ├── check-tournament-mapping.ts
+│   │   ├── check-tournaments.ts
+│   │   ├── collect-korastats-data.ts
+│   │   ├── fix-tournament-ids.ts
+│   │   ├── run-syncer.ts
+│   │   ├── sync-specific-data.ts
+│   │   ├── syncer-example.ts
+│   │   ├── test-entity-sync.ts
+│   │   ├── test-fixture-details.ts
+│   │   ├── test-fixture-endpoints.ts
+│   │   ├── test-matches-limit.ts
+│   │   ├── test-matches-syncer-limited.ts
+│   │   ├── test-syncer-flow.ts
+│   │   ├── test-syncer.ts
+│   │   ├── test-tournament-syncer-flow.ts
+│   │   ├── update-korastats-data.ts
+│   │   └── update-tournament-status.ts
+│   ├── server.ts
+│   ├── syncer
+│   │   ├── entity-data.service.ts
+│   │   ├── index.ts
+│   │   ├── match-data.service.ts
+│   │   ├── mongo-storage.service.ts
+│   │   ├── syncer-clean.service.ts
+│   │   ├── syncer.service.ts
+│   │   └── tournament-data.service.ts
+│   └── types
+│       ├── env.d.ts
+│       └── node_env.d.ts
+├── structure.txt
+├── tsconfig-paths-bootstrap.js
+└── tsconfig.json
+
+99 directories, 975 files
