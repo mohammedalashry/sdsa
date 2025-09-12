@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "nvm-use": "nvm use $(Get-Content ./.nvmrc)",
-    "build": "npx tsc -p .",
+    "build": "tsc && tsc-alias",
     "nodemon": "nodemon --watch src --exec \"ts-node src/server.ts\"",
     "start": "node -r tsconfig-paths/register dist/server.js",
     "dev": "nodemon src/server.ts",
@@ -52,7 +52,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -68,6 +69,7 @@
     "prettier": "^3.6.2",
     "prisma": "^6.13.0",
     "ts-node-dev": "^2.0.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"
   },
@@ -75,4 +77,3 @@
     "schema": "./src/db/prismadb/prisma/schema.prisma"
   }
 }
-
