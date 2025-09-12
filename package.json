@@ -7,7 +7,7 @@
     "nvm-use": "nvm use $(Get-Content ./.nvmrc)",
     "build": "tsc && tsc-alias",
     "nodemon": "nodemon --watch src --exec \"ts-node src/server.ts\"",
-    "start": "node -r tsconfig-paths/register dist/server.js",
+    "start": "node -r ./tsconfig-paths-bootstrap.js dist/server.js",
     "dev": "nodemon src/server.ts",
     "migrate:postgres": "npx prisma migrate dev",
     "reset:postgres": "npx prisma migrate reset --force",
