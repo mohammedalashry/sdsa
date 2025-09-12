@@ -7,7 +7,7 @@
     "nvm-use": "nvm use $(Get-Content ./.nvmrc)",
     "build": "npx tsc -p .",
     "nodemon": "nodemon --watch src --exec \"ts-node src/server.ts\"",
-    "start": "node dist/server.js",
+    "start": "node -r tsconfig-paths/register dist/server.js",
     "dev": "nodemon src/server.ts",
     "migrate:postgres": "npx prisma migrate dev",
     "reset:postgres": "npx prisma migrate reset --force",
@@ -72,8 +72,7 @@
     "typescript": "^5.9.2"
   },
   "prisma": {
-    "schema": "./src/db/prismadb/prisma/schema.prisma",
-    "envPath": ".env.local"
+    "schema": "./src/db/prismadb/prisma/schema.prisma"
   }
 }
 

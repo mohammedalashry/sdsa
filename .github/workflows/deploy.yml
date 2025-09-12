@@ -21,15 +21,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
       - name: Generate Prisma client
-        run: npx prisma generate
+        run: npx prisma generate --schema=src/db/prismadb/prisma/schema.prisma
 
       - name: Build TypeScript
         run: npm run build
-
-      # Optional: Run tests before deploy
-      # - name: Run tests
-      #   run: npm test
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -42,7 +39,8 @@ jobs:
             cd ${{ secrets.PRODUCTION_APP_PATH }}
             git pull origin main
             npm ci
+            npx prisma generate --schema=src/db/prismadb/prisma/schema.prisma
+            npx prisma migrate deploy --schema=src/db/prismadb/prisma/schema.prisma
             npm run build
-            npx prisma migrate deploy
-            pm2 reload all --update-env
+            pm2 reload ecosystem.config.js --env production
 
