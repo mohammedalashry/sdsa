@@ -293,7 +293,7 @@ export class RefereeDataService {
                 age: referee.age?.toString() || "0",
                 retired: referee.status === "retired",
                 gender: "male",
-                image: referee.image || "",
+                image: referee.photo || "",
               },
               [newStats],
               tournamentId,

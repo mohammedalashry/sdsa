@@ -18,7 +18,7 @@ async function checkTournaments() {
     console.log("✅ MongoDB connected");
 
     // Get all tournaments
-    const tournaments = await Models.Tournament.find({});
+    const tournaments = await Models.League.find({});
     console.log(`📊 Found ${tournaments.length} tournaments:`);
 
     tournaments.forEach((tournament, index) => {
@@ -31,7 +31,7 @@ async function checkTournaments() {
     });
 
     // Check for active tournaments specifically
-    const activeTournaments = await Models.Tournament.find({ status: "active" });
+    const activeTournaments = await Models.League.find({ status: "active" });
     console.log(`\n🏆 Active tournaments: ${activeTournaments.length}`);
 
     if (activeTournaments.length === 0) {
