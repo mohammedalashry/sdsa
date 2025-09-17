@@ -160,7 +160,7 @@ export class FixtureDetailMapper {
 
       result.push({
         team: teamInfo,
-        statistics,
+        statistics: statistics as any,
       });
     });
 

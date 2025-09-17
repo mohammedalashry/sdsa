@@ -6,14 +6,6 @@ import { KorastatsService } from "@/integrations/korastats/services/korastats.se
 import { Models } from "../db/mogodb/models";
 import { PlayerNew } from "@/mapper/playerNew";
 import { PlayerInterface } from "@/db/mogodb/schemas/player.schema";
-import { ApiError } from "../core/middleware/error.middleware";
-import {
-  KorastatsEntityPlayerResponse,
-  KorastatsTournamentPlayerStatsResponse,
-  KorastatsPlayerInfoResponse,
-  KorastatsSeasonPlayerTopStatsResponse,
-  StatType,
-} from "@/integrations/korastats/types";
 
 export interface PlayerSyncOptions {
   tournamentId: number;

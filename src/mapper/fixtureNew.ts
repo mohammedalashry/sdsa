@@ -174,7 +174,7 @@ export class FixtureNew {
       playerStatsData: await this.mapPlayerStats(matchPlayerStats),
 
       // === TEAM STATISTICS ===
-      statisticsData: await this.mapTeamStatistics(matchSummary),
+      statisticsData: (await this.mapTeamStatistics(matchSummary)) as any,
 
       injuriesData: null, // TODO: Add injuries data
 
