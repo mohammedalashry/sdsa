@@ -1,18 +1,19 @@
-// src/db/mogodb/schemas/player.schema.ts
-// Player MongoDB schema for SDSA
-
-import { Schema, Document, Types } from "mongoose";
+import {
+  PlayerStatistics,
+  PlayerTraits,
+  PlayerHeatMap,
+  PlayerShotMap,
+} from "@/legacy-types/players.types";
+import { Transfer } from "@/legacy-types/teams.types";
+import { Schema } from "mongoose";
 
 // Interface for TypeScript
-export interface IPlayer extends Document {
-  _id: Types.ObjectId;
-
+export interface PlayerInterface {
   // Korastats identifiers
   korastats_id: number;
 
   // Personal info
   name: string;
-  nickname?: string;
   firstname?: string;
   lastname?: string;
   birth: {
@@ -57,105 +58,33 @@ export interface IPlayer extends Document {
     team_name: string;
     league: string;
   };
+  transfers: Array<Transfer>;
   // Injury status
   injured: boolean;
 
   // Career summary (denormalized for quick access)
   career_summary: {
     total_matches: number;
-    careerData: [
-      {
-        team: {
-          id: number;
-          name: string;
-          logo: string;
-        };
-        season: number;
-      },
-    ];
-    goals: {
-      total: number;
-      assists: number;
-      conceded: number;
-      saves: number;
-    };
-  };
-
-  stats: [
-    {
+    careerData: Array<{
       team: {
         id: number;
         name: string;
         logo: string;
       };
       season: number;
-      attempts: number;
-      success: number;
-      past: number;
-      games: {
-        appearences: number;
-        lineups: number;
-        minutes: number;
-        number: number;
-        position: string;
-        rating: string;
-        captain: boolean;
-      };
-      substitutes: {
-        in: number;
-        out: number;
-        bench: number;
-      };
-      shots: {
-        total: number;
-        on: number;
-      };
       goals: {
         total: number;
-        conceded: number;
         assists: number;
+        conceded: number;
         saves: number;
       };
-      passes: {
-        total: number;
-        key: number;
-        accuracy: number;
-      };
-      tackles: {
-        total: number;
-        blocks: number;
-        interceptions: number;
-      };
-      duels: {
-        total: number;
-        won: number;
-      };
-      dribbles: {
-        attempts: number;
-        success: number;
-        past: number;
-      };
-      fouls: {
-        drawn: number;
-        committed: number;
-      };
-      cards: {
-        yellow: number;
-        yellowred: number;
-        red: number;
-      };
-      penalty: {
-        won: number;
-        commited: number;
-        scored: number;
-        missed: number;
-        saved: number;
-      };
-    },
-  ];
-  // Image/Media
-  image_url?: string;
+    }>;
+  };
 
+  stats: Array<PlayerStatistics>;
+  playerTraits: PlayerTraits;
+  playerHeatMap: PlayerHeatMap;
+  playerShotMap: PlayerShotMap;
   // Status
   status: "active" | "retired" | "inactive";
 
@@ -167,50 +96,34 @@ export interface IPlayer extends Document {
 }
 
 // MongoDB Schema
-const PlayerSchema = new Schema<IPlayer>(
+const PlayerSchema = new Schema<PlayerInterface>(
   {
-    korastats_id: {
-      type: Number,
-      required: true,
-      unique: true,
-    },
-    name: {
-      type: String,
-      required: true,
-    },
-    nickname: {
-      type: String,
-    },
-    firstname: {
-      type: String,
-    },
-    lastname: {
-      type: String,
-    },
+    // Korastats identifiers
+    korastats_id: { type: Number, required: true, unique: true },
+
+    // Personal info
+    name: { type: String, required: true },
+    firstname: { type: String, required: false },
+    lastname: { type: String, required: false },
     birth: {
       date: { type: Date, required: true },
       place: { type: String, required: true },
       country: { type: String, required: true },
     },
-    age: {
-      type: Number,
-      required: true,
-    },
+    age: { type: Number, required: true },
+    nationality: { type: String, required: true },
 
-    nationality: {
-      id: { type: Number, required: true },
-      name: { type: String, required: true },
-    },
-    height: {
-      type: Number,
-    },
-    weight: {
-      type: Number,
-    },
+    // Physical attributes
+    height: { type: Number, required: false },
+    weight: { type: Number, required: false },
     preferred_foot: {
       type: String,
       enum: ["left", "right", "both"],
+      required: false,
     },
+    photo: { type: String, required: true },
+
+    // Position data
     positions: {
       primary: {
         id: { type: Number, required: true },
@@ -223,25 +136,15 @@ const PlayerSchema = new Schema<IPlayer>(
         category: { type: String, required: true },
       },
     },
+
+    // Current status
     current_team: {
-      id: { type: Number },
-      name: { type: String },
-      jersey_number: { type: Number },
-      position: { type: String },
-      joined_date: { type: Date },
+      id: { type: Number, required: false },
+      name: { type: String, required: false },
+      position: { type: String, required: false },
     },
-    injured: {
-      type: Boolean,
-      required: true,
-      default: false,
-    },
-    career_summary: {
-      total_matches: { type: Number, default: 0 },
-      total_goals: { type: Number, default: 0 },
-      total_assists: { type: Number, default: 0 },
-      total_cards: { type: Number, default: 0 },
-      current_market_value: { type: Number },
-    },
+
+    // Trophies
     trophies: {
       id: { type: Number, required: true },
       name: { type: String, required: true },
@@ -250,31 +153,184 @@ const PlayerSchema = new Schema<IPlayer>(
       team_name: { type: String, required: true },
       league: { type: String, required: true },
     },
-    photo: {
-      type: String,
+
+    // Transfers
+    transfers: [
+      {
+        date: { type: String, required: true },
+        type: { type: String, default: null },
+        teams: {
+          in: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            logo: { type: String, required: true },
+          },
+          out: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            logo: { type: String, required: true },
+          },
+        },
+      },
+    ],
+
+    // Injury status
+    injured: { type: Boolean, default: false },
+
+    // Career summary
+    career_summary: {
+      total_matches: { type: Number, default: 0 },
+      careerData: [
+        {
+          team: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            logo: { type: String, required: true },
+          },
+          season: { type: Number, required: true },
+          goals: {
+            total: { type: Number, default: 0 },
+            assists: { type: Number, default: 0 },
+            conceded: { type: Number, default: 0 },
+            saves: { type: Number, default: 0 },
+          },
+        },
+      ],
     },
+
+    // Statistics
+    stats: [
+      {
+        team: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          logo: { type: String, required: true },
+        },
+        league: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          country: { type: String, required: true },
+          logo: { type: String, required: true },
+          flag: { type: String, default: null },
+          season: { type: Number, required: true },
+        },
+        games: {
+          appearences: { type: Number, default: 0 },
+          lineups: { type: Number, default: 0 },
+          minutes: { type: Number, default: 0 },
+          number: { type: Number, default: 0 },
+          position: { type: String, default: "" },
+          rating: { type: String, default: "0.0" },
+          captain: { type: Boolean, default: false },
+        },
+        substitutes: {
+          in: { type: Number, default: 0 },
+          out: { type: Number, default: 0 },
+          bench: { type: Number, default: 0 },
+        },
+        shots: {
+          total: { type: Number, default: 0 },
+          on: { type: Number, default: 0 },
+        },
+        goals: {
+          total: { type: Number, default: 0 },
+          assists: { type: Number, default: 0 },
+          conceded: { type: Number, default: 0 },
+          saves: { type: Number, default: 0 },
+        },
+        passes: {
+          total: { type: Number, default: 0 },
+          key: { type: Number, default: 0 },
+          accuracy: { type: Number, default: 0 },
+        },
+        tackles: {
+          total: { type: Number, default: 0 },
+          blocks: { type: Number, default: 0 },
+          interceptions: { type: Number, default: 0 },
+        },
+        duels: {
+          total: { type: Number, default: 0 },
+          won: { type: Number, default: 0 },
+        },
+        dribbles: {
+          attempts: { type: Number, default: 0 },
+          success: { type: Number, default: 0 },
+          past: { type: Number, default: 0 },
+        },
+        fouls: {
+          drawn: { type: Number, default: 0 },
+          committed: { type: Number, default: 0 },
+        },
+        cards: {
+          yellow: { type: Number, default: 0 },
+          yellowred: { type: Number, default: 0 },
+          red: { type: Number, default: 0 },
+        },
+        penalty: {
+          won: { type: Number, default: 0 },
+          commited: { type: Number, default: 0 },
+          scored: { type: Number, default: 0 },
+          missed: { type: Number, default: 0 },
+          saved: { type: Number, default: 0 },
+        },
+      },
+    ],
+
+    // Player traits
+    playerTraits: {
+      att: { type: Number, default: 0 },
+      dri: { type: Number, default: 0 },
+      phy: { type: Number, default: 0 },
+      pas: { type: Number, default: 0 },
+      sht: { type: Number, default: 0 },
+      def_: { type: Number, default: 0 },
+      tac: { type: Number, default: 0 },
+      due: { type: Number, default: 0 },
+    },
+
+    // Player heat map
+    playerHeatMap: {
+      points: [[Number]],
+    },
+
+    // Player shot map
+    playerShotMap: {
+      shots: [
+        {
+          id: { type: Number, required: true },
+          playerId: { type: Number, required: true },
+          time: { type: String, required: true },
+          zone: { type: String, required: true },
+          outcome: { type: String, required: true },
+          x: { type: Number, required: true },
+          y: { type: Number, required: true },
+          isBlocked: { type: Boolean, default: false },
+          isOnTarget: { type: Boolean, default: false },
+          blockedX: { type: Number, default: null },
+          blockedY: { type: Number, default: null },
+          goalCrossedY: { type: Number, default: null },
+          goalCrossedZ: { type: Number, default: null },
+          shotType: { type: String, required: true },
+          situation: { type: String, required: true },
+          playerName: { type: String, required: true },
+          PlayerLogo: { type: String, required: true },
+        },
+      ],
+      accuracy: { type: Number, default: 0 },
+    },
+
+    // Status
     status: {
       type: String,
-      required: true,
       enum: ["active", "retired", "inactive"],
       default: "active",
     },
-    last_synced: {
-      type: Date,
-      default: Date.now,
-    },
-    sync_version: {
-      type: Number,
-      default: 1,
-    },
-    created_at: {
-      type: Date,
-      default: Date.now,
-    },
-    updated_at: {
-      type: Date,
-      default: Date.now,
-    },
+
+    // Sync tracking
+    last_synced: { type: Date, default: Date.now },
+    sync_version: { type: Number, default: 1 },
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
@@ -288,11 +344,15 @@ PlayerSchema.index({ name: 1 });
 PlayerSchema.index({ firstname: 1 });
 PlayerSchema.index({ lastname: 1 });
 PlayerSchema.index({ "current_team.id": 1 });
-PlayerSchema.index({ "nationality.id": 1 });
+PlayerSchema.index({ nationality: 1 });
 PlayerSchema.index({ "positions.primary.id": 1 });
+PlayerSchema.index({ "positions.secondary.id": 1 });
 PlayerSchema.index({ status: 1, "current_team.id": 1 });
 PlayerSchema.index({ age: 1, status: 1 });
 PlayerSchema.index({ injured: 1 });
+PlayerSchema.index({ "birth.country": 1 });
+PlayerSchema.index({ "stats.team.id": 1 });
+PlayerSchema.index({ "stats.league.id": 1 });
 
 export default PlayerSchema;
 

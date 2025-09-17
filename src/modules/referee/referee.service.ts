@@ -1,6 +1,12 @@
 // src/modules/referee/referee.service.ts
 import { RefereeRepository } from "./referee.repository";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { FixtureData, FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import {
+  RefereeCareerStatsResponse,
+  RefereeInfoResponse,
+  RefereeMatchStatsResponse,
+  RefereeResponse,
+} from "@/legacy-types/referee.types";
 
 // Simple referee interface
 export interface RefereeData {
@@ -16,7 +22,10 @@ export class RefereeService {
   /**
    * GET /api/referee/ - Get referees
    */
-  async getReferees(options: { league: number; season: number }): Promise<RefereeData[]> {
+  async getReferees(options: {
+    league: number;
+    season: number;
+  }): Promise<RefereeResponse> {
     return await this.refereeRepository.getReferees(options);
   }
 
@@ -28,9 +37,9 @@ export class RefereeService {
   }
 
   /**
-   * GET /api/referee/career/ - Get referee career
+   * GET /api/referee/career-stats/ - Get referee career
    */
-  async getRefereeCareer(refereeId: number): Promise<RefereeData[]> {
+  async getRefereeCareer(refereeId: number): Promise<RefereeCareerStatsResponse> {
     return await this.refereeRepository.getRefereeCareer(refereeId);
   }
 
@@ -40,61 +49,22 @@ export class RefereeService {
   async getRefereeFixtures(options: {
     referee: number;
     league: number;
-  }): Promise<FixtureDataResponse> {
+  }): Promise<RefereeMatchStatsResponse> {
     return await this.refereeRepository.getRefereeFixtures(options);
   }
 
   /**
    * GET /api/referee/info/ - Get referee info
    */
-  async getRefereeInfo(refereeId: number): Promise<RefereeData> {
+  async getRefereeInfo(refereeId: number): Promise<RefereeInfoResponse> {
     return await this.refereeRepository.getRefereeInfo(refereeId);
   }
 
   /**
-   * GET /api/referee/statistics/ - Get referee statistics
+   * GET /api/referee/last-match/ - Get referee statistics
    */
-  async getRefereeStatistics(options: {
-    referee: number;
-    league: number;
-    season: number;
-  }): Promise<any> {
-    return await this.refereeRepository.getRefereeStatistics(options);
-  }
-
-  /**
-   * GET /api/referee/transfer/ - Get referee transfers
-   */
-  async getRefereeTransfers(refereeId: number): Promise<any[]> {
-    return await this.refereeRepository.getRefereeTransfers(refereeId);
-  }
-
-  /**
-   * GET /api/referee/career-stats/ - Get referee career statistics from database
-   */
-  async getRefereeCareerStats(refereeId: number): Promise<any> {
-    return await this.refereeRepository.getRefereeCareerStats(refereeId);
-  }
-
-  /**
-   * GET /api/referee/career-stats/ - Get referee career statistics
-   */
-  async getCareerStats(options: { referee: number; season: number }): Promise<any> {
-    return await this.refereeRepository.getRefereeStatistics({
-      referee: options.referee,
-      league: 0, // Default league
-      season: options.season,
-    });
-  }
-
-  /**
-   * GET /api/referee/last-match/ - Get referee last match
-   */
-  async getRefereeLastMatch(refereeId: number): Promise<FixtureDataResponse> {
-    return await this.refereeRepository.getRefereeFixtures({
-      referee: refereeId,
-      league: 0, // Default league
-    });
+  async getRefereeLastMatch(refereeId: number): Promise<FixtureData> {
+    return await this.refereeRepository.getRefereeLastMatch(refereeId);
   }
 }
 

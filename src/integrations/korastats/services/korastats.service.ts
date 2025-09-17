@@ -274,7 +274,7 @@ export class KorastatsService {
    */
   async getTournamentGroupStandings(
     tournamentId: number,
-    stageId: string,
+    stageId: number,
   ): Promise<KorastatsStandingsResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,
@@ -316,7 +316,7 @@ export class KorastatsService {
    */
   async getTournamentPlayerStats(
     tournamentId: number,
-    playerId?: number,
+    playerId: number,
   ): Promise<KorastatsTournamentPlayerStatsResponse> {
     const params: Record<string, any> = {
       tournament_id: tournamentId,

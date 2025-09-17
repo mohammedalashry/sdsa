@@ -3,7 +3,7 @@
 
 import mongoose from "mongoose";
 import {
-  TournamentSchema,
+  LeagueSchema,
   MatchSchema,
   PlayerSchema,
   TeamSchema,
@@ -11,30 +11,41 @@ import {
   RefereeSchema,
   CountrySchema,
   SyncLogSchema,
-  ITournament,
-  IPlayer,
-  ITeam,
-  ICoach,
-  IReferee,
-  ICountry,
+  MatchDetailsSchema,
+  StandingsSchema,
+  LeagueInterface,
+  PlayerInterface,
+  TeamInterface,
+  CoachInterface,
+  RefereeInterface,
+  CountryInterface,
   ISyncLog,
-  IMatch,
+  MatchInterface,
+  MatchDetailsInterface,
+  StandingsInterface,
 } from "./schemas";
 
 // Create models
-export const Tournament = mongoose.model<ITournament>("Tournament", TournamentSchema);
-export const Match = mongoose.model<IMatch>("Match", MatchSchema);
-export const Player = mongoose.model<IPlayer>("Player", PlayerSchema);
-export const Team = mongoose.model<ITeam>("Team", TeamSchema);
-export const Coach = mongoose.model<ICoach>("Coach", CoachSchema);
-export const Referee = mongoose.model<IReferee>("Referee", RefereeSchema);
-export const Country = mongoose.model<ICountry>("Country", CountrySchema);
+export const League = mongoose.model<LeagueInterface>("League", LeagueSchema);
+export const Match = mongoose.model<MatchInterface>("Match", MatchSchema);
+export const MatchDetails = mongoose.model<MatchDetailsInterface>(
+  "MatchDetails",
+  MatchDetailsSchema,
+);
+export const Standings = mongoose.model<StandingsInterface>("Standings", StandingsSchema);
+export const Player = mongoose.model<PlayerInterface>("Player", PlayerSchema);
+export const Team = mongoose.model<TeamInterface>("Team", TeamSchema);
+export const Coach = mongoose.model<CoachInterface>("Coach", CoachSchema);
+export const Referee = mongoose.model<RefereeInterface>("Referee", RefereeSchema);
+export const Country = mongoose.model<CountryInterface>("Country", CountrySchema);
 export const SyncLog = mongoose.model<ISyncLog>("SyncLog", SyncLogSchema);
 
 // Export all models as a single object for easy importing
 export const Models = {
-  Tournament,
+  League,
   Match,
+  MatchDetails,
+  Standings,
   Player,
   Team,
   Coach,
@@ -44,5 +55,16 @@ export const Models = {
 };
 
 // Export types
-export type { ITournament, IMatch, IPlayer, ITeam, ICoach, IReferee, ICountry, ISyncLog };
+export type {
+  LeagueInterface,
+  MatchInterface,
+  MatchDetailsInterface,
+  StandingsInterface,
+  PlayerInterface,
+  TeamInterface,
+  CoachInterface,
+  RefereeInterface,
+  CountryInterface,
+  ISyncLog,
+};
 

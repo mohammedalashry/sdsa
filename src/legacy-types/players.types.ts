@@ -1,7 +1,8 @@
 import { Team } from "./teams.types";
 import { League } from "./leagues.types";
+import { FixtureData, Shot } from "./fixtures.types";
 
-export interface PlayerData {
+export interface PlayerInfo {
   id: number;
   name: string;
   firstname: string | null;
@@ -19,94 +20,172 @@ export interface PlayerData {
   photo: string;
 }
 
-export interface CoachData {
-  id: number;
-  name: string;
-  firstname: string | null;
-  lastname: string | null;
-  age: number | null;
-  birth: {
-    date: string | null;
-    place: string | null;
-    country: string | null;
-  };
-  nationality: string | null;
-  height: string | null;
-  weight: string | null;
-  photo: string;
-  team: Team;
-  career: any[];
+export interface PlayerGames {
+  appearences: number;
+  lineups: number;
+  minutes: number;
+  number: number;
+  position: string;
+  rating: string;
+  captain: boolean;
 }
-
-export interface PlayerAndCoachData {
-  players: PlayerData[];
-  coaches: CoachData[];
+export interface PlayerPenalty {
+  won: number;
+  commited: number;
+  scored: number;
+  missed: number;
+  saved: number;
 }
-
-export interface PlayerInfo extends PlayerData {
-  statistics: PlayerStatistics[];
+export interface PlayerCard {
+  yellow: number;
+  yellowred: number;
+  red: number;
 }
-
+export interface PlayerFouls {
+  drawn: number;
+  committed: number;
+}
+export interface PlayerDribbles {
+  attempts: number;
+  success: number;
+  past: number;
+}
+export interface PlayerTackles {
+  total: number;
+  blocks: number;
+  interceptions: number;
+}
+export interface PlayerDuels {
+  total: number;
+  won: number;
+}
+export interface PlayerPasses {
+  total: number;
+  key: number;
+  accuracy: number;
+}
+export interface PlayerShots {
+  total: number;
+  on: number;
+}
+export interface PlayerGoals {
+  total: number;
+  assists: number;
+  conceded: number;
+  saves: number;
+}
+export interface PlayerSubstitutes {
+  in: number;
+  out: number;
+  bench: number;
+}
 export interface PlayerStatistics {
   team: Team;
   league: League;
-  games: {
-    appearences: number | null;
-    lineups: number | null;
-    minutes: number | null;
-    number: number | null;
-    position: string | null;
-    rating: string | null;
-    captain: boolean;
-  };
-  substitutes: {
-    in: number | null;
-    out: number | null;
-    bench: number | null;
-  };
-  shots: {
-    total: number | null;
-    on: number | null;
-  };
-  goals: {
-    total: number | null;
-    conceded: number | null;
-    assists: number | null;
-    saves: number | null;
-  };
-  passes: {
-    total: number | null;
-    key: number | null;
-    accuracy: number | null;
-  };
-  tackles: {
-    total: number | null;
-    blocks: number | null;
-    interceptions: number | null;
-  };
-  duels: {
-    total: number | null;
-    won: number | null;
-  };
-  dribbles: {
-    attempts: number | null;
-    success: number | null;
-    past: number | null;
-  };
-  fouls: {
-    drawn: number | null;
-    committed: number | null;
-  };
-  cards: {
-    yellow: number | null;
-    yellowred: number | null;
-    red: number | null;
-  };
-  penalty: {
-    won: number | null;
-    commited: number | null;
-    scored: number | null;
-    missed: number | null;
-    saved: number | null;
+  games: PlayerGames;
+  substitutes: PlayerSubstitutes;
+  shots: PlayerShots;
+  goals: PlayerGoals;
+  passes: PlayerPasses;
+  tackles: PlayerTackles;
+  duels: PlayerDuels;
+  dribbles: PlayerDribbles;
+  fouls: PlayerFouls;
+  cards: PlayerCard;
+  penalty: PlayerPenalty;
+}
+export interface PlayerData {
+  player: PlayerInfo;
+  statistics: PlayerStatistics[];
+}
+interface TransferData {
+  player: PlayerData;
+  update: string;
+  transfers: Transfer[];
+}
+
+interface Transfer {
+  date: string;
+  type: string | null;
+  teams: {
+    in: Team;
+    out: Team;
   };
 }
+
+export interface TrophiesTeamData {
+  league: League;
+  season: string;
+  seasonInt: number;
+  team: Team;
+}
+export interface CareerData {
+  team: Team;
+  season: number;
+  goals: {
+    total: number;
+    assists: number;
+    conceded: number;
+    saves: number;
+  };
+}
+export interface PlayerBaseInfo {
+  player: PlayerInfo;
+  transfers: string;
+  position: string;
+  shirtNumber: number;
+  team: { id: number; name: string; logo: string };
+}
+export interface PlayerStatisticsItem {
+  games: PlayerGames;
+  offsides: number;
+  shots: PlayerShots;
+  goals: PlayerGoals;
+  passes: PlayerPasses;
+  tackles: PlayerTackles;
+  duels: PlayerDuels;
+  dribbles: PlayerDribbles;
+  fouls: PlayerFouls;
+  cards: PlayerCard;
+  penalty: PlayerPenalty;
+}
+export interface FixturePlayer {
+  fixture: FixtureData;
+  team: { id: number; name: string; logo: string };
+  statistics: PlayerStatistics;
+}
+export interface PlayerTraits {
+  att: number;
+  dri: number;
+  phy: number;
+  pas: number;
+  sht: number;
+  def_: number;
+  tac: number;
+  due: number;
+}
+export interface PlayerHeatMap {
+  points: number[][];
+}
+export interface ShotPlayer extends Shot {
+  playerName: string;
+  PlayerLogo: string;
+}
+export interface PlayerShotMap {
+  shots: ShotPlayer[];
+  accuracy: number;
+}
+
+export type PlayerInfoResponse = PlayerInfo;
+export type TopScorersResponse = PlayerData[];
+export type TopAssistsResponse = PlayerData[];
+export type PlayerCareerResponse = CareerData[];
+export type PlayerStatsResponse = PlayerData[];
+export type TrophiesResponse = TrophiesTeamData[];
+export type PlayerComparisonsResponse = PlayerData[];
+export type PlayerFixturesResponse = FixturePlayer[];
+export type PlayerTransfersResponse = TransferData[];
+export type PlayerHeatMapResponse = PlayerHeatMap;
+export type PlayerShotMapResponse = PlayerShotMap;
+export type PlayerTraitsResponse = PlayerTraits;
+

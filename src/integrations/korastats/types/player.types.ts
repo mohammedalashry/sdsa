@@ -387,7 +387,7 @@ export interface KorastatsSeasonPlayerTopStats {
 
 // ===== LIST STAT TYPES =====
 
-export enum StatType {
+enum StatType {
   SuccessPasses = "Success Passes",
   TotalPasses = "Total Passes",
   SuccessCrosses = "Success Crosses",

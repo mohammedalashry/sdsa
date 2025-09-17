@@ -1,16 +1,28 @@
 // src/modules/players/players.repository.ts
-// Players repository that extracts data from match comprehensive data
+// Players repository aligned with new PlayerInterface schema
 
 import { Models } from "@/db/mogodb/models";
 import { CacheService } from "@/integrations/korastats/services/cache.service";
 import { ApiError } from "@/core/middleware/error.middleware";
+import { PlayerInterface } from "@/db/mogodb/schemas/player.schema";
 import {
   PlayerInfo,
   PlayerStatistics,
   PlayerData,
-  CoachData,
+  PlayerInfoResponse,
+  TopScorersResponse,
+  TopAssistsResponse,
+  PlayerCareerResponse,
+  PlayerStatsResponse,
+  TrophiesResponse,
+  PlayerComparisonsResponse,
+  PlayerFixturesResponse,
+  PlayerTransfersResponse,
+  PlayerHeatMapResponse,
+  PlayerShotMapResponse,
 } from "@/legacy-types/players.types";
 import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
+import { Team } from "@/legacy-types";
 
 export class PlayersRepository {
   private cacheService: CacheService;
@@ -20,30 +32,42 @@ export class PlayersRepository {
   }
 
   /**
-   * Get player career data from match data
+   * Get player career data from new Player schema
    */
-  async getPlayerCareer(playerId: number): Promise<PlayerStatistics[]> {
+  async getPlayerCareer(playerId: number): Promise<PlayerCareerResponse> {
     try {
       const cacheKey = `player_career_${playerId}`;
 
-      const cached = this.cacheService.get<PlayerStatistics[]>(cacheKey);
+      const cached = this.cacheService.get<PlayerCareerResponse>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // Get player data from match comprehensive data
-      const matches = await Models.Match.find({
-        "playersStats.player.id": playerId,
-      })
-        .sort({ date: -1 })
-        .limit(50);
-
-      if (matches.length === 0) {
-        console.log(`📦 No player data found in matches for player ${playerId}`);
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+      const team = await Models.Team.findOne({
+        korastats_id: player.stats[0].team.id,
+      }).lean();
+      if (!player) {
+        console.log(`📦 No player found for ID ${playerId}`);
         return [];
       }
 
-      const career = await this.mapMatchDataToPlayerCareer(matches, playerId);
+      // Map career data to proper format
+      const career = player.career_summary.careerData.map((careerItem) => ({
+        team: {
+          id: team.korastats_id,
+          name: team.name,
+          code: team.code || null,
+          country: team.country,
+          founded: team.founded || null,
+          national: team.national,
+          logo: team.logo,
+        },
+        season: careerItem.season,
+        goals: careerItem.goals,
+      }));
+
       this.cacheService.set(cacheKey, career, 30 * 60 * 1000); // Cache for 30 minutes
       return career;
     } catch (error) {
@@ -53,29 +77,49 @@ export class PlayersRepository {
   }
 
   /**
-   * Get player comparison stats
+   * Get player comparison stats from new Player schema
    */
-  async getPlayerComparisonStats(playerId: number): Promise<PlayerStatistics[]> {
+  async getPlayerComparisonStats(playerId: number): Promise<PlayerStatsResponse> {
     try {
       const cacheKey = `player_comparison_${playerId}`;
 
-      const cached = this.cacheService.get<PlayerStatistics[]>(cacheKey);
+      const cached = this.cacheService.get<PlayerStatsResponse>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // Get player data from matches
-      const matches = await Models.Match.find({
-        "playersStats.player.id": playerId,
-      })
-        .sort({ date: -1 })
-        .limit(20);
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
 
-      if (matches.length === 0) {
+      if (!player) {
         return [];
       }
 
-      const comparison = await this.mapMatchDataToPlayerCareer(matches, playerId);
+      // Map to PlayerData format for comparison
+      const playerData: PlayerData = {
+        player: {
+          id: player.korastats_id,
+          name: player.name,
+          firstname: player.firstname || null,
+          lastname: player.lastname || null,
+          age: player.age,
+          birth: {
+            date: player.birth.date
+              ? player.birth.date.toISOString().split("T")[0]
+              : null,
+            place: player.birth.place || null,
+            country: player.birth.country || null,
+          },
+          nationality: player.nationality || null,
+          height: player.height?.toString() || null,
+          weight: player.weight?.toString() || null,
+          injured: player.injured,
+          photo: player.photo,
+        },
+        statistics: player.stats,
+      };
+
+      const comparison = [playerData];
       this.cacheService.set(cacheKey, comparison, 30 * 60 * 1000);
       return comparison;
     } catch (error) {
@@ -96,98 +140,36 @@ export class PlayersRepository {
         return cached;
       }
 
-      // Get matches where player participated
+      // Get player from new Player collection to find their teams
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        return [];
+      }
+
+      // Get team IDs from player's statistics
+      const teamIds = player.stats.map((stat) => stat.team.id);
+
+      // Get matches where player's teams participated
       const matches = await Models.Match.find({
-        "playersStats.player.id": playerId,
+        $or: [
+          { "teams.home.id": { $in: teamIds } },
+          { "teams.away.id": { $in: teamIds } },
+        ],
       })
-        .sort({ date: -1 })
-        .limit(50);
-
-      // Get tournament data for all unique tournament IDs
-      const tournamentIds = [...new Set(matches.map((match) => match.tournament_id))];
-      const tournaments = await Models.Tournament.find({
-        korastats_id: { $in: tournamentIds },
-      });
-      const tournamentMap = new Map(tournaments.map((t) => [t.korastats_id, t]));
-
-      // Get country data (Saudi Arabia - ID 160)
-      const { CountryRepository } = await import("../country/country.repository");
-      const countryRepo = new CountryRepository();
-      const countries = await countryRepo.getCountries({});
-      const saudiArabia = countries.find((country) => country.id === 160);
+        .sort({ "fixture.date": -1 })
+        .limit(20)
+        .lean();
 
       const fixtures = matches.map((match) => {
-        const tournament = tournamentMap.get(match.tournament_id);
         return {
-          fixture: {
-            id: match.korastats_id,
-            referee: match.referee?.name || null,
-            timezone: "UTC",
-            date: match.date,
-            timestamp:
-              match.timestamp || Math.floor(new Date(match.date).getTime() / 1000),
-            periods: {
-              first: match.periods?.first || null,
-              second: match.periods?.second || null,
-            },
-            venue: {
-              id: match.venue?.id || null,
-              name: match.venue?.name || null,
-              city: null, // Not available in match schema
-            },
-            status: {
-              long: match.status?.long || "Finished",
-              short: match.status?.short || "FT",
-              elapsed: match.status?.elapsed || null,
-            },
-          },
-          league: {
-            id: tournament?.korastats_id || match.tournament_id || 0,
-            name: tournament?.name || "",
-            country: saudiArabia?.name || "Saudi Arabia",
-            logo: tournament?.logo || "",
-            flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
-            season: parseInt(match.season) || 0,
-            round: match.round?.toString() || "",
-          },
-          teams: {
-            home: {
-              id: match.teams?.home?.id || 0,
-              name: match.teams?.home?.name || "",
-              logo: "", // Will be populated from team schema
-              winner: match.teams?.home?.winner || false,
-            },
-            away: {
-              id: match.teams?.away?.id || 0,
-              name: match.teams?.away?.name || "",
-              logo: "", // Will be populated from team schema
-              winner: match.teams?.away?.winner || false,
-            },
-          },
-          goals: {
-            home: match.goals?.home || null,
-            away: match.goals?.away || null,
-          },
-          score: {
-            halftime: {
-              home: match.score?.halftime?.home || null,
-              away: match.score?.halftime?.away || null,
-            },
-            fulltime: {
-              home: match.score?.fulltime?.home || match.goals?.home || null,
-              away: match.score?.fulltime?.away || match.goals?.away || null,
-            },
-            extratime: {
-              home: match.score?.extratime?.home || null,
-              away: match.score?.extratime?.away || null,
-            },
-            penalty: {
-              home: match.score?.penalty?.home || null,
-              away: match.score?.penalty?.away || null,
-            },
-          },
-          tablePosition: null, // Will be calculated from standings
-          averageTeamRating: null, // Will be calculated from team ratings
+          fixture: match.fixture,
+          league: match.league,
+          teams: match.teams,
+          goals: match.goals,
+          score: match.score,
+          tablePosition: match.tablePosition, // Will be calculated from standings
+          averageTeamRating: match.averageTeamRating, // Will be calculated from team ratings
         };
       });
 
@@ -200,55 +182,41 @@ export class PlayersRepository {
   }
 
   /**
-   * Get player info
+   * Get player info from new Player schema
    */
-  async getPlayerInfo(playerId: number): Promise<PlayerInfo> {
+  async getPlayerInfo(playerId: number): Promise<PlayerInfoResponse> {
     try {
       const cacheKey = `player_info_${playerId}`;
 
-      const cached = this.cacheService.get<PlayerInfo>(cacheKey);
+      const cached = this.cacheService.get<PlayerInfoResponse>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // Get player data from matches
-      const matches = await Models.Match.find({
-        "playersStats.player.id": playerId,
-      })
-        .sort({ date: -1 })
-        .limit(10);
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
 
-      if (matches.length === 0) {
+      if (!player) {
         throw new ApiError(404, "Player not found");
       }
 
-      // Get player data from first match
-      const firstMatch = matches[0];
-      const playerStats = firstMatch.playersStats.find(
-        (p: any) => p.player.id === playerId,
-      );
-
-      if (!playerStats) {
-        throw new ApiError(404, "Player data not found");
-      }
-
-      const playerInfo: PlayerInfo = {
-        id: playerStats.player.id,
-        name: playerStats.player.name,
-        firstname: playerStats.player.name.split(" ")[0] || "",
-        lastname: playerStats.player.name.split(" ").slice(1).join(" ") || "",
-        age: null, // Would need to calculate from birth date
+      // Map PlayerInterface to PlayerInfo response
+      const playerInfo: PlayerInfoResponse = {
+        id: player.korastats_id,
+        name: player.name,
+        firstname: player.firstname || null,
+        lastname: player.lastname || null,
+        age: player.age,
         birth: {
-          date: null,
-          place: null,
-          country: null,
+          date: player.birth.date ? player.birth.date.toISOString().split("T")[0] : null,
+          place: player.birth.place || null,
+          country: player.birth.country || null,
         },
-        nationality: null, // Would need to get from player data
-        height: null,
-        weight: null,
-        injured: false,
-        photo: "", // Would need to get from ImageLoad
-        statistics: await this.mapMatchDataToPlayerCareer(matches, playerId),
+        nationality: player.nationality || null,
+        height: player.height?.toString() || null,
+        weight: player.weight?.toString() || null,
+        injured: player.injured,
+        photo: player.photo,
       };
 
       this.cacheService.set(cacheKey, playerInfo, 30 * 60 * 1000);
@@ -263,192 +231,398 @@ export class PlayersRepository {
   }
 
   /**
-   * Get player heatmap
+   * Get player heatmap from new Player schema
    */
   async getPlayerHeatmap(options: {
     league: number;
     player: number;
     season: number;
-  }): Promise<any[]> {
-    // TODO: Implement player heatmap
-    return [];
-  }
-
-  /**
-   * Get player shotmap
-   */
-  async getPlayerShotmap(playerId: number): Promise<any[]> {
-    // TODO: Implement player shotmap
-    return [];
-  }
-
-  /**
-   * Get top assists
-   */
-  async getTopAssists(options: { league: number; season: number }): Promise<any[]> {
-    // TODO: Implement top assists
-    return [];
-  }
-
-  /**
-   * Get top scorers
-   */
-  async getTopScorers(options: { league: number; season: number }): Promise<any[]> {
-    // TODO: Implement top scorers
-    return [];
-  }
-
-  /**
-   * Get player traits
-   */
-  async getPlayerTraits(playerId: number): Promise<any[]> {
-    // TODO: Implement player traits
-    return [];
-  }
-
-  /**
-   * Get player transfer
-   */
-  async getPlayerTransfer(playerId: number): Promise<any> {
-    // TODO: Implement player transfer
-    return null;
-  }
-
-  /**
-   * Get player trophies
-   */
-  async getPlayerTrophies(playerId: number): Promise<any[]> {
-    // TODO: Implement player trophies
-    return [];
-  }
-
-  /**
-   * Get player statistics
-   */
-  async getPlayerStats(playerId: number): Promise<PlayerStatistics[]> {
+  }): Promise<PlayerHeatMapResponse> {
     try {
-      const cacheKey = `player_stats_${playerId}`;
+      const cacheKey = `player_heatmap_${options.player}_${options.league}_${options.season}`;
 
-      const cached = this.cacheService.get<PlayerStatistics[]>(cacheKey);
+      const cached = this.cacheService.get<PlayerHeatMapResponse>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // Get player data from matches
-      const matches = await Models.Match.find({
-        "playersStats.player.id": playerId,
-      })
-        .sort({ date: -1 })
-        .limit(50);
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: options.player }).lean();
 
-      if (matches.length === 0) {
-        return [];
+      if (!player) {
+        throw new ApiError(404, "Player not found");
       }
 
-      const stats = await this.mapMatchDataToPlayerCareer(matches, playerId);
-      this.cacheService.set(cacheKey, stats, 30 * 60 * 1000);
-      return stats;
+      const heatmap = player.playerHeatMap;
+      this.cacheService.set(cacheKey, heatmap, 30 * 60 * 1000);
+      return heatmap;
     } catch (error) {
-      console.error("Failed to fetch player stats:", error);
+      console.error("Failed to fetch player heatmap:", error);
+      return { points: [] };
+    }
+  }
+
+  /**
+   * Get player shotmap from new Player schema
+   */
+  async getPlayerShotmap(playerId: number): Promise<PlayerShotMapResponse> {
+    try {
+      const cacheKey = `player_shotmap_${playerId}`;
+
+      const cached = this.cacheService.get<PlayerShotMapResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        throw new ApiError(404, "Player not found");
+      }
+
+      const shotmap = player.playerShotMap;
+      this.cacheService.set(cacheKey, shotmap, 30 * 60 * 1000);
+      return shotmap;
+    } catch (error) {
+      console.error("Failed to fetch player shotmap:", error);
+      return { shots: [], accuracy: 0 };
+    }
+  }
+
+  /**
+   * Get top assists from new Player schema
+   */
+  async getTopAssists(options: {
+    league: number;
+    season: number;
+  }): Promise<TopAssistsResponse> {
+    try {
+      const cacheKey = `top_assists_${options.league}_${options.season}`;
+
+      const cached = this.cacheService.get<TopAssistsResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get players with highest assists from new Player collection
+      const players = await Models.Player.find({
+        "stats.league.id": options.league,
+        //status: "active",
+      })
+        .sort({ "stats.goals.assists": -1 })
+        .limit(20)
+        .lean();
+
+      // Map to PlayerData format
+      const topAssists = players.map((player) => ({
+        player: {
+          id: player.korastats_id,
+          name: player.name,
+          firstname: player.firstname || null,
+          lastname: player.lastname || null,
+          age: player.age,
+          birth: {
+            date: player.birth.date
+              ? player.birth.date.toISOString().split("T")[0]
+              : null,
+            place: player.birth.place || null,
+            country: player.birth.country || null,
+          },
+          nationality: player.nationality || null,
+          height: player.height?.toString() || null,
+          weight: player.weight?.toString() || null,
+          injured: player.injured,
+          photo: player.photo,
+        },
+        statistics: player.stats,
+      }));
+
+      this.cacheService.set(cacheKey, topAssists, 30 * 60 * 1000);
+      return topAssists;
+    } catch (error) {
+      console.error("Failed to fetch top assists:", error);
       return [];
     }
   }
 
   /**
-   * Map match data to player career format
+   * Get top scorers from new Player schema
    */
-  private async mapMatchDataToPlayerCareer(
-    matches: any[],
-    playerId: number,
-  ): Promise<PlayerStatistics[]> {
-    const careerMap = new Map<string, any>();
+  async getTopScorers(options: {
+    league: number;
+    season: number;
+  }): Promise<TopScorersResponse> {
+    try {
+      const cacheKey = `top_scorers_${options.league}_${options.season}`;
 
-    matches.forEach((match) => {
-      const playerStats = match.playersStats.find((p: any) => p.player.id === playerId);
-      if (playerStats) {
-        const season = match.season;
-        if (!careerMap.has(season)) {
-          careerMap.set(season, {
-            season: season,
-            team: {
-              id: match.teams.home.id,
-              name: match.teams.home.name,
-            },
-            league: {
-              id: match.league.id,
-              name: match.league.name,
-            },
-            games: {
-              appearences: 0,
-              lineups: 0,
-              minutes: 0,
-              number: playerStats.player.number,
-              position: playerStats.player.statistics.games.position,
-              rating: playerStats.player.statistics.games.rating,
-              captain: playerStats.player.statistics.games.captain,
-            },
-            substitutes: {
-              in: 0,
-              out: 0,
-              bench: 0,
-            },
-            shots: {
-              total: 0,
-              on: 0,
-            },
-            goals: {
-              total: 0,
-              conceded: 0,
-              assists: 0,
-              saves: 0,
-            },
-            passes: {
-              total: 0,
-              key: 0,
-              accuracy: 0,
-            },
-            tackles: {
-              total: 0,
-              blocks: 0,
-              interceptions: 0,
-            },
-            duels: {
-              total: 0,
-              won: 0,
-            },
-            dribbles: {
-              attempts: 0,
-              success: 0,
-              past: 0,
-            },
-            fouls: {
-              drawn: 0,
-              committed: 0,
-            },
-            cards: {
-              yellow: 0,
-              yellowred: 0,
-              red: 0,
-            },
-          });
-        }
-
-        const seasonData = careerMap.get(season);
-        // Aggregate stats
-        seasonData.games.appearences += 1;
-        seasonData.games.minutes += playerStats.player.statistics.games.minutes;
-        seasonData.shots.total += playerStats.player.statistics.shots.total;
-        seasonData.shots.on += playerStats.player.statistics.shots.on;
-        seasonData.goals.total += playerStats.player.statistics.goals.total;
-        seasonData.goals.assists += playerStats.player.statistics.goals.assists;
-        seasonData.passes.total += playerStats.player.statistics.passes.total;
-        seasonData.passes.key += playerStats.player.statistics.passes.key;
-        seasonData.cards.yellow += playerStats.player.statistics.cards.yellow;
-        seasonData.cards.red += playerStats.player.statistics.cards.red;
+      const cached = this.cacheService.get<TopScorersResponse>(cacheKey);
+      if (cached) {
+        return cached;
       }
-    });
 
-    return Array.from(careerMap.values());
+      // Get players with highest goals from new Player collection
+      const players = await Models.Player.find({
+        "stats.league.id": options.league,
+        status: "active",
+      })
+        .sort({ "stats.goals.total": -1 })
+        .limit(20)
+        .lean();
+
+      // Map to PlayerData format
+      const topScorers = players.map((player) => ({
+        player: {
+          id: player.korastats_id,
+          name: player.name,
+          firstname: player.firstname || null,
+          lastname: player.lastname || null,
+          age: player.age,
+          birth: {
+            date: player.birth.date
+              ? player.birth.date.toISOString().split("T")[0]
+              : null,
+            place: player.birth.place || null,
+            country: player.birth.country || null,
+          },
+          nationality: player.nationality || null,
+          height: player.height?.toString() || null,
+          weight: player.weight?.toString() || null,
+          injured: player.injured,
+          photo: player.photo,
+        },
+        statistics: player.stats,
+      }));
+
+      this.cacheService.set(cacheKey, topScorers, 30 * 60 * 1000);
+      return topScorers;
+    } catch (error) {
+      console.error("Failed to fetch top scorers:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get player traits from new Player schema
+   */
+  async getPlayerTraits(playerId: number): Promise<any> {
+    try {
+      const cacheKey = `player_traits_${playerId}`;
+
+      const cached = this.cacheService.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        throw new ApiError(404, "Player not found");
+      }
+
+      const traits = player.playerTraits;
+      this.cacheService.set(cacheKey, traits, 30 * 60 * 1000);
+      return traits;
+    } catch (error) {
+      console.error("Failed to fetch player traits:", error);
+      return {};
+    }
+  }
+
+  /**
+   * Get player transfer history from new Player schema
+   */
+  async getPlayerTransfer(playerId: number): Promise<PlayerTransfersResponse> {
+    try {
+      const cacheKey = `player_transfer_${playerId}`;
+
+      const cached = this.cacheService.get<PlayerTransfersResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        throw new ApiError(404, "Player not found");
+      }
+
+      const team = await this.mapTeam(player.stats[0].team.id);
+
+      // Map to transfer response format
+      const transferData = {
+        player: {
+          player: {
+            id: player.korastats_id,
+            name: player.name,
+            firstname: player.firstname || null,
+            lastname: player.lastname || null,
+            age: player.age,
+            birth: {
+              date: player.birth.date
+                ? player.birth.date.toISOString().split("T")[0]
+                : null,
+              place: player.birth.place || null,
+              country: player.birth.country || null,
+            },
+            nationality: player.nationality || null,
+            height: player.height?.toString() || null,
+            weight: player.weight?.toString() || null,
+            injured: player.injured,
+            photo: player.photo,
+          },
+          statistics: player.stats,
+        },
+        update: new Date().toISOString(),
+        transfers: player.transfers.map((transfer) => ({
+          date: transfer.date,
+          type: transfer.type,
+          teams: {
+            in: {
+              id: transfer.teams.in.id,
+              name: transfer.teams.in.name,
+              code: team.code || null,
+              country: team.country,
+              founded: team.founded || null,
+              national: team.national,
+              logo: transfer.teams.in.logo,
+            },
+            out: {
+              id: transfer.teams.out.id,
+              name: transfer.teams.out.name,
+              code: team.code || null,
+              country: team.country,
+              founded: team.founded || null,
+              national: team.national,
+              logo: transfer.teams.out.logo,
+            },
+          },
+        })),
+      };
+
+      this.cacheService.set(cacheKey, [transferData], 30 * 60 * 1000);
+      return [transferData];
+    } catch (error) {
+      console.error("Failed to fetch player transfer:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get player trophies from new Player schema
+   */
+  async getPlayerTrophies(playerId: number): Promise<TrophiesResponse> {
+    try {
+      const cacheKey = `player_trophies_${playerId}`;
+
+      const cached = this.cacheService.get<TrophiesResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        return [];
+      }
+
+      const team = await this.mapTeam(player.trophies.team_id);
+
+      // Map trophies to response format
+      const trophies = [
+        {
+          league: {
+            id: 0,
+            name: player.trophies.league,
+            type: "League",
+            logo: "",
+          },
+          season: player.trophies.season.toString(),
+          seasonInt: player.trophies.season,
+          team: {
+            id: player.trophies.team_id,
+            name: player.trophies.team_name,
+            code: team.code || null,
+            country: team.country,
+            founded: team.founded || null,
+            national: team.national,
+            logo: team.logo,
+          },
+        },
+      ];
+
+      this.cacheService.set(cacheKey, trophies, 30 * 60 * 1000);
+      return trophies;
+    } catch (error) {
+      console.error("Failed to fetch player trophies:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Get player statistics
+   */
+  async getPlayerStats(playerId: number): Promise<PlayerStatsResponse> {
+    try {
+      const cacheKey = `player_stats_${playerId}`;
+
+      const cached = this.cacheService.get<PlayerStatsResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get player from new Player collection
+      const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
+
+      if (!player) {
+        return [];
+      }
+
+      // Map to PlayerData format
+      const playerData: PlayerData = {
+        player: {
+          id: player.korastats_id,
+          name: player.name,
+          firstname: player.firstname || null,
+          lastname: player.lastname || null,
+          age: player.age,
+          birth: {
+            date: player.birth.date
+              ? player.birth.date.toISOString().split("T")[0]
+              : null,
+            place: player.birth.place || null,
+            country: player.birth.country || null,
+          },
+          nationality: player.nationality || null,
+          height: player.height?.toString() || null,
+          weight: player.weight?.toString() || null,
+          injured: player.injured,
+          photo: player.photo,
+        },
+        statistics: player.stats,
+      };
+
+      this.cacheService.set(cacheKey, [playerData], 30 * 60 * 1000);
+      return [playerData];
+    } catch (error) {
+      console.error("Failed to fetch player stats:", error);
+      return [];
+    }
+  }
+  private async mapTeam(teamId: number): Promise<Team> {
+    const team = await Models.Team.findOne({ korastats_id: teamId }).lean();
+    return {
+      id: team.korastats_id,
+      name: team.name,
+      code: team.code || null,
+      country: team.country,
+      founded: team.founded || null,
+      national: team.national,
+      logo: team.logo,
+    };
   }
 }
 

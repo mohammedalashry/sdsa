@@ -2,9 +2,9 @@
 // Service for storing mapped data in MongoDB with proper error handling
 
 import { Models } from "../db/mogodb/models";
-import { MatchComprehensiveData } from "../mapper/fixtureNew";
+import { FixtureNew } from "../mapper/fixtureNew";
 import { TournamentData } from "../mapper/leagueNew";
-import { IMatch, ITournament } from "../db/mogodb/schemas";
+import { MatchInterface, LeagueInterface } from "../db/mogodb/schemas";
 
 export interface StorageProgress {
   total: number;
@@ -40,7 +40,7 @@ export class MongoStorageService {
   /**
    * Store a single match in MongoDB
    */
-  async storeMatch(matchData: MatchComprehensiveData): Promise<StorageResult> {
+  async storeMatch(matchData): Promise<StorageResult> {
     try {
       console.log(`💾 Storing match ${matchData.korastats_id} in MongoDB`);
 
@@ -50,7 +50,7 @@ export class MongoStorageService {
       });
 
       let operation: "created" | "updated";
-      let storedMatch: IMatch;
+      let storedMatch: MatchInterface;
 
       if (existingMatch) {
         // Update existing match
@@ -62,7 +62,7 @@ export class MongoStorageService {
             syncVersion: existingMatch.syncVersion + 1,
           },
           { new: true },
-        )) as IMatch;
+        )) as MatchInterface;
         operation = "updated";
         console.log(`✅ Updated match ${matchData.korastats_id} in MongoDB`);
       } else {
@@ -72,7 +72,7 @@ export class MongoStorageService {
           createdAt: new Date(),
           updatedAt: new Date(),
           syncVersion: 1,
-        })) as IMatch;
+        })) as MatchInterface;
         operation = "created";
         console.log(`✅ Created match ${matchData.korastats_id} in MongoDB`);
       }
@@ -99,7 +99,7 @@ export class MongoStorageService {
    * Store multiple matches in MongoDB with progress tracking
    */
   async storeMatches(
-    matchesData: MatchComprehensiveData[],
+    matchesData: [],
     onProgress?: (progress: StorageProgress) => void,
   ): Promise<StorageResult[]> {
     this.resetProgress();
@@ -232,16 +232,16 @@ export class MongoStorageService {
       console.log(`💾 Storing tournament ${tournamentData.korastats_id} in MongoDB`);
 
       // Check if tournament already exists
-      const existingTournament = await Models.Tournament.findOne({
+      const existingTournament = await Models.League.findOne({
         korastats_id: tournamentData.korastats_id,
       });
 
       let operation: "created" | "updated";
-      let storedTournament: ITournament;
+      let storedTournament: LeagueInterface;
 
       if (existingTournament) {
         // Update existing tournament
-        storedTournament = (await Models.Tournament.findOneAndUpdate(
+        storedTournament = (await Models.League.findOneAndUpdate(
           { korastats_id: tournamentData.korastats_id },
           {
             ...tournamentData,
@@ -249,17 +249,17 @@ export class MongoStorageService {
             sync_version: existingTournament.sync_version + 1,
           },
           { new: true },
-        )) as ITournament;
+        )) as LeagueInterface;
         operation = "updated";
         console.log(`✅ Updated tournament ${tournamentData.korastats_id} in MongoDB`);
       } else {
         // Create new tournament
-        storedTournament = (await Models.Tournament.create({
+        storedTournament = (await Models.League.create({
           ...tournamentData,
           created_at: new Date(),
           updated_at: new Date(),
           sync_version: 1,
-        })) as ITournament;
+        })) as LeagueInterface;
         operation = "created";
         console.log(`✅ Created tournament ${tournamentData.korastats_id} in MongoDB`);
       }

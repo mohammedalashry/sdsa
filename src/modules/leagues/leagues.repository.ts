@@ -9,8 +9,10 @@ import { ApiError } from "../../core/middleware/error.middleware";
 import {
   LeagueData,
   LeagueHistoricalWinner,
-  LeagueLastFixture,
-} from "../../legacy-types/leagues.types";
+  FixtureData,
+  FixtureDataResponse,
+} from "../../legacy-types";
+import { MatchInterface } from "@/db/mogodb/schemas/match.schema";
 
 export class LeaguesRepository {
   constructor(private readonly cacheService: CacheService) {
@@ -20,20 +22,20 @@ export class LeaguesRepository {
   /**
    * Get leagues by country using MongoDB data
    */
-  async getLeaguesByCountry(country: string): Promise<LeagueData[]> {
-    const cacheKey = this.cacheService.createKey("leagues", "country", country);
+  async getLeagues(): Promise<LeagueData[]> {
+    const cacheKey = this.cacheService.createKey("leagues", "country");
 
     let cachedData = this.cacheService.get<LeagueData[]>(cacheKey);
     if (cachedData) {
-      console.log(`Leagues for ${country} served from cache`);
+      console.log(`Leagues served from cache`);
       return cachedData;
     }
 
     try {
       // Get tournaments from MongoDB
-      const tournaments = await Models.Tournament.find();
+      const tournaments = await Models.League.find();
 
-      console.log(`Found ${tournaments.length} tournaments for ${country}`);
+      console.log(`Found ${tournaments.length} tournaments`);
 
       // Transform to legacy format
       const leagues: LeagueData[] = tournaments.map((tournament) => ({
@@ -45,7 +47,7 @@ export class LeaguesRepository {
         },
         country: {
           name: tournament.country.name,
-          code: this.getCountryCode(tournament.country.name),
+          code: this.getCountryCode("Saudi Arabia"),
           flag: this.getCountryFlag(tournament.country.id),
         },
         seasons: [
@@ -65,7 +67,7 @@ export class LeaguesRepository {
       this.cacheService.set(cacheKey, leagues, 60 * 60 * 1000);
       return leagues;
     } catch (error) {
-      console.error(`Failed to fetch leagues for ${country}:`, error);
+      console.error(`Failed to fetch leagues:`, error);
       return [];
     }
   }
@@ -85,10 +87,10 @@ export class LeaguesRepository {
       console.log(`Getting rounds for league ${league}, season ${season}`);
 
       // Get tournament from MongoDB
-      const tournament = await Models.Tournament.findOne({
+      const tournament = await Models.League.findOne({
         korastats_id: league,
       });
-
+      console.log(`Found ${tournament.rounds} rounds`);
       if (tournament && tournament.rounds) {
         const rounds = tournament.rounds;
         if (rounds.length > 0) {
@@ -101,11 +103,12 @@ export class LeaguesRepository {
       const matches = await Models.Match.find({
         tournament_id: league,
       }).limit(100);
-
+      console.log(`Found ${matches.length} matches`);
       if (matches.length > 0) {
         const rounds = this.extractRoundsFromMatches(matches);
         if (rounds.length > 0) {
           this.cacheService.set(cacheKey, rounds, 30 * 60 * 1000);
+          console.log(`Found ${rounds.length} rounds`);
           return rounds;
         }
       }
@@ -135,29 +138,21 @@ export class LeaguesRepository {
       console.log(`Processing historical winners for league ${league}`);
 
       // Get tournament from MongoDB
-      const tournament = await Models.Tournament.findOne({
+      const standings = await Models.Standings.findOne({
         korastats_id: league,
-      });
+      })
+        .sort({ "standings.rank": 1 })
+        .limit(2);
 
-      if (!tournament) {
-        console.warn(`No tournament found for league ${league}`);
-        return [];
-      }
-
-      // Get team stats for this tournament to find winners
-      const teamStats = await Models.Team.find({
-        tournament_id: league,
-      }).sort({ points: -1, goal_difference: -1 });
-
-      if (teamStats.length < 2) {
-        console.warn(`Not enough teams found for league ${league}`);
+      if (!standings) {
+        console.warn(`No standings found for league ${league}`);
         return [];
       }
 
       // Get team details for winner and runner-up
       const [winnerTeam, runnerUpTeam] = await Promise.all([
-        Models.Team.findOne({ korastats_id: teamStats[0].korastats_id }),
-        Models.Team.findOne({ korastats_id: teamStats[1].korastats_id }),
+        Models.Team.findOne({ korastats_id: standings.standings[0].team.id }),
+        Models.Team.findOne({ korastats_id: standings.standings[1].team.id }),
       ]);
 
       if (!winnerTeam || !runnerUpTeam) {
@@ -167,7 +162,7 @@ export class LeaguesRepository {
 
       const winners: LeagueHistoricalWinner[] = [
         {
-          season: this.extractYearFromSeason(tournament.season),
+          season: this.extractYearFromSeason(standings.season.toString()),
           winner: {
             id: winnerTeam.korastats_id,
             name: winnerTeam.name,
@@ -203,10 +198,10 @@ export class LeaguesRepository {
   /**
    * Get last fixture using MongoDB data
    */
-  async getLastFixture(league: number): Promise<LeagueLastFixture | null> {
+  async getLastFixture(league: number): Promise<FixtureDataResponse> {
     const cacheKey = this.cacheService.createKey("leagues", "last_fixture", league);
 
-    let cachedData = this.cacheService.get<LeagueLastFixture | null>(cacheKey);
+    let cachedData = this.cacheService.get<FixtureDataResponse | null>(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -215,7 +210,7 @@ export class LeaguesRepository {
       console.log(`Getting last fixture for league ${league}`);
 
       // Get tournament from MongoDB
-      const tournament = await Models.Tournament.findOne({
+      const tournament = await Models.League.findOne({
         korastats_id: league,
       });
 
@@ -227,7 +222,7 @@ export class LeaguesRepository {
       // Get last completed match from MongoDB
       const lastMatch = await Models.Match.findOne({
         tournament_id: league,
-        "status.short": { $in: ["FT", "AET", "PEN"] }, // Match finished statuses
+        "fixture.status.short": { $in: ["FT", "AET", "PEN"] }, // Match finished statuses
       }).sort({ date: -1 });
 
       if (!lastMatch) {
@@ -235,82 +230,23 @@ export class LeaguesRepository {
         return null;
       }
 
-      // Get team details for home and away teams
-      const [homeTeam, awayTeam] = await Promise.all([
-        Models.Team.findOne({ korastats_id: lastMatch.teams.home.id }),
-        Models.Team.findOne({ korastats_id: lastMatch.teams.away.id }),
-      ]);
-
-      if (!homeTeam || !awayTeam) {
-        console.warn(`Could not find team details for match ${lastMatch.korastats_id}`);
-        return null;
-      }
-
-      // Map to legacy format
-      const fixture: LeagueLastFixture = {
-        fixture: {
-          id: lastMatch.korastats_id,
-          referee: lastMatch.referee?.name || null,
-          timezone: "UTC",
-          date: lastMatch.date,
-          timestamp: lastMatch.timestamp,
-          periods: { first: null, second: null },
-          venue: {
-            id: lastMatch.venue?.id || null,
-            name: lastMatch.venue?.name || null,
-            city: null,
-          },
-          status: {
-            long: lastMatch.status?.long || "Match Finished",
-            short: lastMatch.status?.short || "FT",
-            elapsed: 90,
-          },
+      const fixture = [
+        {
+          fixture: lastMatch.fixture,
+          league: lastMatch.league,
+          teams: lastMatch.teams,
+          goals: lastMatch.goals,
+          score: lastMatch.score,
+          tablePosition: lastMatch.tablePosition,
+          averageTeamRating: lastMatch.averageTeamRating,
         },
-        league: {
-          id: league,
-          name: tournament.name,
-          country: tournament.country.name,
-          logo: tournament.logo || "",
-          flag: null,
-          season: this.extractYearFromSeason(tournament.season),
-          round: lastMatch.round?.toString() || null,
-        },
-        teams: {
-          home: {
-            id: homeTeam.korastats_id,
-            name: homeTeam.name,
-            logo: homeTeam.logo || "",
-            winner: lastMatch.goals.home > lastMatch.goals.away,
-          },
-          away: {
-            id: awayTeam.korastats_id,
-            name: awayTeam.name,
-            logo: awayTeam.logo || "",
-            winner: lastMatch.goals.away > lastMatch.goals.home,
-          },
-        },
-        averageTeamRating: { home: 0, away: 0 },
-        tablePosition: { home: 0, away: 0 },
-        score: {
-          halftime: { home: 0, away: 0 },
-          fulltime: {
-            home: lastMatch.goals.home,
-            away: lastMatch.goals.away,
-          },
-          extratime: { home: 0, away: 0 },
-          penalty: { home: 0, away: 0 },
-        },
-        goals: {
-          home: lastMatch.goals.home,
-          away: lastMatch.goals.away,
-        },
-      };
+      ];
 
       // Cache for 30 minutes
       this.cacheService.set(cacheKey, fixture, 30 * 60 * 1000);
 
       console.log(
-        `Found last fixture: ${fixture.teams.home.name} vs ${fixture.teams.away.name}`,
+        `Found last fixture: ${fixture[0].teams.home.name} vs ${fixture[0].teams.away.name}`,
       );
       return fixture;
     } catch (error) {
@@ -326,42 +262,17 @@ export class LeaguesRepository {
   /**
    * Extract rounds from match data (most accurate)
    */
-  private extractRoundsFromMatches(matches: any[]): string[] {
+  private extractRoundsFromMatches(matches: MatchInterface[]): string[] {
     const rounds = new Set<string>();
 
     matches.forEach((match) => {
-      if (match.round) {
-        rounds.add("Round " + match.round);
-      } else if (match.matchweek) {
-        rounds.add(`Matchweek ${match.matchweek}`);
-      } else if (match.gameweek) {
-        rounds.add(`Gameweek ${match.gameweek}`);
+      if (match.league.round) {
+        rounds.add("Round " + match.league.round);
       }
     });
 
     const roundArray = Array.from(rounds).sort();
     return roundArray.length > 0 ? roundArray : [];
-  }
-
-  /**
-   * Extract rounds from tournament structure (fallback)
-   */
-  private extractRoundsFromStructure(structure: any): string[] {
-    const rounds: string[] = [];
-
-    if (structure.stages) {
-      structure.stages.forEach((stage: any) => {
-        if (stage.type === "League" && stage.rounds > 1) {
-          for (let i = 1; i <= stage.rounds; i++) {
-            rounds.push(`Round ${i}`);
-          }
-        } else if (stage.stage && stage.stage !== "Main") {
-          rounds.push(stage.stage);
-        }
-      });
-    }
-
-    return rounds.length > 0 ? rounds : ["Regular Season"];
   }
 
   /**

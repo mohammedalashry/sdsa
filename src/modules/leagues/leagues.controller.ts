@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { LeaguesService } from "./leagues.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { League } from "../../legacy-types/leagues.types";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { League } from "../../legacy-types";
+import { FixtureData } from "../../legacy-types";
 
 export class LeaguesController {
   constructor(private readonly leaguesService: LeaguesService) {}
@@ -38,9 +38,7 @@ export class LeaguesController {
   getLastFixture = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { league } = req.query;
 
-    const fixture: FixtureDataResponse = await this.leaguesService.getLastFixture(
-      Number(league),
-    );
+    const fixture = await this.leaguesService.getLastFixture(Number(league));
 
     res.json(fixture);
   });

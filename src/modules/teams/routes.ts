@@ -2,20 +2,15 @@ import { Router } from "express";
 import { TeamsController } from "./teams.controller";
 import { TeamsService } from "@/modules/teams/teams.service";
 import { TeamsRepository } from "./teams.repository";
-import { TeamKorastatsService } from "@/integrations/korastats/services/team.service";
 import { CacheService } from "@/integrations/korastats/services/cache.service";
-import { KorastatsClient } from "@/integrations/korastats/client";
-import { authenticate } from "../../core/middleware/auth.middleware";
 import { validateRequest } from "../../core/middleware/validation.middleware";
 import { teamsValidationSchemas } from "./teams.validator";
 
 const router = Router();
 
 // Dependency injection setup
-const korastatsClient = new KorastatsClient();
-const teamKorastatsService = new TeamKorastatsService(korastatsClient);
 const cacheService = new CacheService();
-const teamsRepository = new TeamsRepository(teamKorastatsService, cacheService);
+const teamsRepository = new TeamsRepository(cacheService);
 const teamsService = new TeamsService(teamsRepository);
 const teamsController = new TeamsController(teamsService);
 
@@ -79,14 +74,11 @@ router.get(
   validateRequest(teamsValidationSchemas.getTeamFormOverTime, "query"),
   teamsController.getTeamFormOverTime,
 );
-
-// GET /api/team/form-overview/ - Get team form overview
 router.get(
   "/form-overview/",
   validateRequest(teamsValidationSchemas.getTeamFormOverview, "query"),
   teamsController.getTeamFormOverview,
 );
-
 // GET /api/team/upcoming-fixture/ - Get upcoming fixture for team
 router.get(
   "/upcoming-fixture/",

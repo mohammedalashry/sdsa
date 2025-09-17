@@ -1,10 +1,7 @@
-// src/db/mogodb/schemas/country.schema.ts
-// Country MongoDB schema for SDSA
-
-import { Schema, Document, Types } from "mongoose";
+import { Schema, Types } from "mongoose";
 
 // Interface for TypeScript
-export interface ICountry extends Document {
+export interface CountryInterface {
   _id: Types.ObjectId;
 
   // Korastats identifiers
@@ -23,7 +20,7 @@ export interface ICountry extends Document {
 }
 
 // MongoDB Schema
-const CountrySchema = new Schema<ICountry>(
+const CountrySchema = new Schema<CountryInterface>(
   {
     korastats_id: {
       type: Number,

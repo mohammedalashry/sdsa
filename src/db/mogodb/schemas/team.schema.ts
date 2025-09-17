@@ -1,19 +1,14 @@
-// src/db/mogodb/schemas/team.schema.ts
-// Team MongoDB schema for SDSA
+import { Schema } from "mongoose";
+import {
+  TeamLineup,
+  GoalsOverTime,
+  FormOverTime,
+  TransferData,
+  TeamStats,
+} from "@/legacy-types/teams.types";
 
-import { Schema, Document, Types } from "mongoose";
-
-export interface LineupPlayer {
-  id: number;
-  name: string;
-  number: number;
-  pos: string;
-  grid: string;
-}
 // Interface for TypeScript
-export interface ITeam extends Document {
-  _id: Types.ObjectId;
-
+export interface TeamInterface {
   // Korastats identifiers
   korastats_id: number;
 
@@ -36,20 +31,11 @@ export interface ITeam extends Document {
   venue: {
     id: number;
     name: string;
+    address: string;
     capacity: number;
     surface: string;
     city?: string;
-    nly;
-    opl;
     image?: string;
-    address?: string;
-  };
-
-  // Current squad (embedded for quick access)
-  lineup: {
-    formation: string;
-    startXI: LineupPlayer[];
-    substitutes: LineupPlayer[];
   };
 
   // Coaches (all coaches, not just current)
@@ -77,63 +63,11 @@ export interface ITeam extends Document {
     goalDifference: number;
     cleanSheetGames: number;
   };
-  stats: {
-    team_attacking: {
-      penalty_goals: string;
-      goals_per_game: number;
-      free_kick_goals: string;
-      left_foot_goals: number;
-      right_foot_goals: number;
-      headed_goals: number;
-      big_chances_per_game: number;
-      big_chances_missed_per_game: number;
-      total_shots_per_game: number;
-      shots_on_target_per_game: number;
-      shots_off_target_per_game: number;
-      blocked_shots_per_game: number;
-      successful_dribbles_per_game: number;
-      corners_per_game: number;
-      free_kicks_per_game: number;
-      hit_woodwork: number;
-      counter_attacks: number;
-    };
-    team_defending: {
-      clean_sheets: number;
-      goals_conceded_per_game: number;
-      tackles_per_game: number;
-      interceptions_per_game: number;
-      clearances_per_game: number;
-      saves_per_game: number;
-      balls_recovered_per_game: number;
-      errors_leading_to_shot: number;
-      errors_leading_to_goal: number;
-      penalties_committed: number;
-      penalty_goals_conceded: number;
-      clearance_off_line: number;
-      last_man_tackle: number;
-    };
-    team_passing: {
-      ball_possession: string;
-      accurate_per_game: string;
-      acc_own_half: string;
-      acc_opposition_half: string;
-      acc_long_balls: string;
-      acc_crosses: string;
-    };
-    team_others: {
-      duels_won_per_game: string;
-      ground_duels_won: string;
-      aerial_duels_won: string;
-      possession_lost_per_game: string;
-      throw_ins_per_game: string;
-      goal_kicks_per_game: string;
-      offsides_per_game: string;
-      fouls_per_game: string;
-      yellow_cards_per_game: string;
-      red_cards: string;
-    };
-  };
-  //
+  lineup: TeamLineup;
+  transfers: TransferData;
+  goalsOverTime: GoalsOverTime;
+  formOverTime: FormOverTime;
+  stats: TeamStats;
   // Sync tracking
   last_synced: Date;
   sync_version: number;
@@ -142,7 +76,7 @@ export interface ITeam extends Document {
 }
 
 // MongoDB Schema
-const TeamSchema = new Schema<ITeam>(
+const TeamSchema = new Schema<TeamInterface>(
   {
     korastats_id: {
       type: Number,
@@ -159,6 +93,7 @@ const TeamSchema = new Schema<ITeam>(
     },
     logo: {
       type: String,
+      required: true,
     },
     founded: {
       type: Number,
@@ -174,80 +109,294 @@ const TeamSchema = new Schema<ITeam>(
     },
 
     stats_summary: {
-      gamesPlayed: { type: Number, default: 0 },
-      wins: { type: Number, default: 0 },
-      draws: { type: Number, default: 0 },
-      loses: { type: Number, default: 0 },
-      goalsScored: { type: Number, default: 0 },
-      goalsConceded: { type: Number, default: 0 },
+      gamesPlayed: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
+      wins: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
+      draws: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
+      loses: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
+      goalsScored: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
+      goalsConceded: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+      },
       goalDifference: { type: Number, default: 0 },
       cleanSheetGames: { type: Number, default: 0 },
     },
     stats: {
+      league: {
+        id: { type: Number, default: null },
+        name: { type: String, default: null },
+        logo: { type: String, default: null },
+        flag: { type: String, default: null },
+        season: { type: Number, default: null },
+        country: { type: String, default: null },
+      },
+      rank: { type: Number, default: 0 },
+      average_team_rating: { type: Number, default: 0 },
+      team: {
+        id: { type: Number, required: true },
+        name: { type: String, required: true },
+        logo: { type: String, required: true },
+      },
+      form: { type: String, default: "" },
       team_attacking: {
-        penalty_goals: { type: String },
-        goals_per_game: { type: Number },
-        free_kick_goals: { type: String },
-        left_foot_goals: { type: Number },
-        right_foot_goals: { type: Number },
-        headed_goals: { type: Number },
-        big_chances_per_game: { type: Number },
-        big_chances_missed_per_game: { type: Number },
-        total_shots_per_game: { type: Number },
-        shots_on_target_per_game: { type: Number },
-        shots_off_target_per_game: { type: Number },
-        blocked_shots_per_game: { type: Number },
-        successful_dribbles_per_game: { type: Number },
-        corners_per_game: { type: Number },
-        free_kicks_per_game: { type: Number },
-        hit_woodwork: { type: Number },
-        counter_attacks: { type: Number },
+        penalty_goals: { type: String, default: "0" },
+        goals_per_game: { type: Number, default: 0 },
+        free_kick_goals: { type: String, default: "0" },
+        left_foot_goals: { type: Number, default: 0 },
+        right_foot_goals: { type: Number, default: 0 },
+        headed_goals: { type: Number, default: 0 },
+        big_chances_per_game: { type: Number, default: 0 },
+        big_chances_missed_per_game: { type: Number, default: 0 },
+        total_shots_per_game: { type: Number, default: 0 },
+        shots_on_target_per_game: { type: Number, default: 0 },
+        shots_off_target_per_game: { type: Number, default: 0 },
+        blocked_shots_per_game: { type: Number, default: 0 },
+        successful_dribbles_per_game: { type: Number, default: 0 },
+        corners_per_game: { type: Number, default: 0 },
+        free_kicks_per_game: { type: Number, default: 0 },
+        hit_woodwork: { type: Number, default: 0 },
+        counter_attacks: { type: Number, default: 0 },
       },
       team_defending: {
-        clean_sheets: { type: Number },
-        goals_conceded_per_game: { type: Number },
-        tackles_per_game: { type: Number },
-        interceptions_per_game: { type: Number },
-        clearances_per_game: { type: Number },
-        saves_per_game: { type: Number },
-        balls_recovered_per_game: { type: Number },
-        errors_leading_to_shot: { type: Number },
-        errors_leading_to_goal: { type: Number },
-        penalties_committed: { type: Number },
-        penalty_goals_conceded: { type: Number },
-        clearance_off_line: { type: Number },
-        last_man_tackle: { type: Number },
+        clean_sheets: { type: Number, default: 0 },
+        goals_conceded_per_game: { type: Number, default: 0 },
+        tackles_per_game: { type: Number, default: 0 },
+        interceptions_per_game: { type: Number, default: 0 },
+        clearances_per_game: { type: Number, default: 0 },
+        saves_per_game: { type: Number, default: 0 },
+        balls_recovered_per_game: { type: Number, default: 0 },
+        errors_leading_to_shot: { type: Number, default: 0 },
+        errors_leading_to_goal: { type: Number, default: 0 },
+        penalties_committed: { type: Number, default: 0 },
+        penalty_goals_conceded: { type: Number, default: 0 },
+        clearance_off_line: { type: Number, default: 0 },
+        last_man_tackle: { type: Number, default: 0 },
       },
       team_passing: {
-        ball_possession: { type: String },
-        accurate_per_game: { type: String },
-        acc_own_half: { type: String },
-        acc_opposition_half: { type: String },
-        acc_long_balls: { type: String },
-        acc_crosses: { type: String },
+        ball_possession: { type: String, default: "0%" },
+        accurate_per_game: { type: String, default: "0" },
+        acc_own_half: { type: String, default: "0%" },
+        acc_opposition_half: { type: String, default: "0%" },
+        acc_long_balls: { type: String, default: "0%" },
+        acc_crosses: { type: String, default: "0%" },
       },
       team_others: {
-        duels_won_per_game: { type: String },
-        ground_duels_won: { type: String },
-        aerial_duels_won: { type: String },
-        possession_lost_per_game: { type: String },
-        throw_ins_per_game: { type: String },
+        duels_won_per_game: { type: String, default: "0" },
+        ground_duels_won: { type: String, default: "0%" },
+        aerial_duels_won: { type: String, default: "0%" },
+        possession_lost_per_game: { type: String, default: "0" },
+        throw_ins_per_game: { type: String, default: "0" },
+      },
+      clean_sheet: {
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
+        total: { type: Number, default: 0 },
+      },
+      goals: {
+        for_: {
+          total: {
+            home: { type: Number, default: 0 },
+            away: { type: Number, default: 0 },
+            total: { type: Number, default: 0 },
+          },
+          average: {
+            home: { type: Number, default: 0 },
+            away: { type: Number, default: 0 },
+            total: { type: Number, default: 0 },
+          },
+        },
+        against: {
+          total: {
+            home: { type: Number, default: 0 },
+            away: { type: Number, default: 0 },
+            total: { type: Number, default: 0 },
+          },
+          average: {
+            home: { type: Number, default: 0 },
+            away: { type: Number, default: 0 },
+            total: { type: Number, default: 0 },
+          },
+        },
+      },
+      biggest: {
+        streak: {
+          wins: { type: Number, default: 0 },
+          draws: { type: Number, default: 0 },
+          loses: { type: Number, default: 0 },
+        },
+      },
+      fixtures: {
+        played: {
+          home: { type: Number, default: 0 },
+          away: { type: Number, default: 0 },
+          total: { type: Number, default: 0 },
+        },
+        wins: {
+          home: { type: Number, default: 0 },
+          away: { type: Number, default: 0 },
+          total: { type: Number, default: 0 },
+        },
+        draws: {
+          home: { type: Number, default: 0 },
+          away: { type: Number, default: 0 },
+          total: { type: Number, default: 0 },
+        },
+        loses: {
+          home: { type: Number, default: 0 },
+          away: { type: Number, default: 0 },
+          total: { type: Number, default: 0 },
+        },
       },
     },
     venue: {
-      id: { type: Number },
-      name: { type: String },
-      capacity: { type: Number },
-      surface: { type: String },
-      city: { type: String },
-      image: { type: String },
-      address: { type: String },
+      id: { type: Number, required: true },
+      name: { type: String, required: true },
+      address: { type: String, required: true },
+      capacity: { type: Number, required: true },
+      surface: { type: String, required: true },
+      city: { type: String, required: false },
+      image: { type: String, required: false },
     },
+
+    // Lineup data
     lineup: {
-      formation: { type: String },
-      startXI: { type: Array<LineupPlayer> },
-      substitutes: { type: Array<LineupPlayer> },
+      formation: { type: String, required: true },
+      coach: {
+        id: { type: Number, required: true },
+        name: { type: String, required: true },
+        photo: { type: String, required: true },
+      },
+      team: {
+        id: { type: Number, required: true },
+        name: { type: String, required: true },
+        logo: { type: String, required: true },
+        winner: { type: Boolean, default: null },
+      },
+      startXI: [
+        {
+          player: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            photo: { type: String, required: true },
+            number: { type: Number, required: true },
+            pos: { type: String, required: true },
+            grid: { type: String, required: true },
+            rating: { type: String, required: true },
+          },
+        },
+      ],
+      substitutes: [
+        {
+          player: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            photo: { type: String, required: true },
+            number: { type: Number, required: true },
+            pos: { type: String, required: true },
+            grid: { type: String, required: true },
+            rating: { type: String, required: true },
+          },
+        },
+      ],
     },
+
+    // Transfers data
+    transfers: {
+      player: {
+        id: { type: Number, required: true },
+        name: { type: String, required: true },
+      },
+      update: { type: String, required: true },
+      transfers: [
+        {
+          date: { type: String, required: true },
+          type: { type: String, default: null },
+          teams: {
+            in: {
+              id: { type: Number, required: true },
+              name: { type: String, required: true },
+              logo: { type: String, required: true },
+            },
+            out: {
+              id: { type: Number, required: true },
+              name: { type: String, required: true },
+              logo: { type: String, required: true },
+            },
+          },
+        },
+      ],
+    },
+
+    // Goals over time data
+    goalsOverTime: [
+      {
+        date: { type: String, required: true },
+        timestamp: { type: Number, required: true },
+        goalsScored: {
+          totalShots: { type: Number, required: true },
+          totalGoals: { type: Number, required: true },
+          team: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            logo: { type: String, required: true },
+            winner: { type: Boolean, default: null },
+          },
+        },
+        goalsConceded: {
+          totalShots: { type: Number, required: true },
+          totalGoals: { type: Number, required: true },
+          team: {
+            id: { type: Number, required: true },
+            name: { type: String, required: true },
+            logo: { type: String, required: true },
+            winner: { type: Boolean, default: null },
+          },
+        },
+        opponentTeam: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          logo: { type: String, required: true },
+          winner: { type: Boolean, default: null },
+        },
+      },
+    ],
+
+    // Form over time data
+    formOverTime: [
+      {
+        date: { type: String, required: true },
+        timestamp: { type: Number, required: true },
+        currentPossession: { type: Number, required: true },
+        opponentPossession: { type: Number, required: true },
+        opponentTeam: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          logo: { type: String, required: true },
+          winner: { type: Boolean, default: null },
+        },
+        currentTeam: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          logo: { type: String, required: true },
+          winner: { type: Boolean, default: null },
+        },
+      },
+    ],
     coaches: [
       {
         id: { type: Number, required: true },
@@ -309,11 +458,17 @@ const TeamSchema = new Schema<ITeam>(
 );
 
 // Indexes for performance
+TeamSchema.index({ korastats_id: 1 });
 TeamSchema.index({ name: 1 });
 TeamSchema.index({ country: 1 });
 TeamSchema.index({ "venue.id": 1 });
 TeamSchema.index({ "coaches.id": 1 });
 TeamSchema.index({ national: 1 });
+TeamSchema.index({ rank: 1 });
+TeamSchema.index({ "stats.league.id": 1 });
+TeamSchema.index({ "stats.rank": 1 });
+TeamSchema.index({ "lineup.team.id": 1 });
+TeamSchema.index({ "transfers.player.id": 1 });
 
 export default TeamSchema;
 

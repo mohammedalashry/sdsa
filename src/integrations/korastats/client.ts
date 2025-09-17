@@ -84,7 +84,7 @@ export class KorastatsClient {
           ...params,
         },
       });
-      console.log("data", data, "params", data.params);
+      //console.log("data", data, "params", data.params);
       return data;
     } catch (error) {
       console.error(`Korastats ${endpoint} request failed:`, error);

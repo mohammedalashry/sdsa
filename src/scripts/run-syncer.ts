@@ -11,6 +11,9 @@
  *   npm run sync:matches    - Sync matches
  *   npm run sync:teams      - Sync teams
  *   npm run sync:players    - Sync players
+ *   npm run sync:coaches    - Sync coaches
+ *   npm run sync:referees   - Sync referees
+ *   npm run sync:standings  - Sync standings
  *   npm run sync:all        - Sync all modules
  */
 
@@ -59,8 +62,26 @@ async function main() {
 
       case "players":
         console.log("🏃 Syncing Players...");
-        const playerResult = await syncer.syncEntityDataComprehensive();
+        const playerResult = await syncer.syncPlayersComprehensive();
         console.log("✅ Players sync completed:", playerResult);
+        break;
+
+      case "coaches":
+        console.log("👔 Syncing Coaches...");
+        const coachResult = await syncer.syncCoachesComprehensive();
+        console.log("✅ Coaches sync completed:", coachResult);
+        break;
+
+      case "referees":
+        console.log("🏁 Syncing Referees...");
+        const refereeResult = await syncer.syncRefereesComprehensive();
+        console.log("✅ Referees sync completed:", refereeResult);
+        break;
+
+      case "standings":
+        console.log("🏆 Syncing Standings...");
+        const standingsResult = await syncer.syncStandings();
+        console.log("✅ Standings sync completed:", standingsResult);
         break;
 
       case "all":
@@ -70,17 +91,29 @@ async function main() {
         const leagues = await syncer.syncTournamentsComprehensive();
         console.log("✅ Leagues:", leagues);
 
-        console.log("2️⃣ Syncing Matches...");
-        const matches = await syncer.syncMatchesComprehensive();
-        console.log("✅ Matches:", matches);
+        console.log("2️⃣ Syncing Standings...");
+        const standings = await syncer.syncStandings();
+        console.log("✅ Standings:", standings);
 
         console.log("3️⃣ Syncing Teams...");
         const teams = await syncer.syncTeamsComprehensive();
         console.log("✅ Teams:", teams);
 
-        console.log("4️⃣ Syncing Players...");
-        const players = await syncer.syncEntityDataComprehensive();
+        console.log("4️⃣ Syncing Matches...");
+        const matches = await syncer.syncMatchesComprehensive();
+        console.log("✅ Matches:", matches);
+
+        console.log("5️⃣ Syncing Players...");
+        const players = await syncer.syncPlayersComprehensive();
         console.log("✅ Players:", players);
+
+        console.log("6️⃣ Syncing Coaches...");
+        const coaches = await syncer.syncCoachesComprehensive();
+        console.log("✅ Coaches:", coaches);
+
+        console.log("7️⃣ Syncing Referees...");
+        const referees = await syncer.syncRefereesComprehensive();
+        console.log("✅ Referees:", referees);
 
         console.log("🎉 All modules synced successfully!");
         break;
@@ -97,19 +130,25 @@ async function main() {
 
 Available commands:
   leagues [limit]    - Sync leagues/tournaments from KoraStats
-  matches [limit]    - Sync matches from KoraStats  
+  standings [limit]  - Sync league standings from KoraStats
   teams [limit]      - Sync teams from KoraStats
+  matches [limit]    - Sync matches from KoraStats  
   players [limit]    - Sync players from KoraStats
+  coaches [limit]    - Sync coaches from KoraStats
+  referees [limit]   - Sync referees from KoraStats
   all               - Sync all modules in sequence
   status            - Check sync status
 
 Examples:
   npm run sync:leagues
+  npm run sync:standings
+  npm run sync:teams
   npm run sync:matches
+  npm run sync:players
+  npm run sync:coaches
+  npm run sync:referees
   npm run sync:matches 5        # Sync with limit of 5 matches
   npm run sync:leagues 3        # Sync with limit of 3 tournaments
-  npm run sync:teams
-  npm run sync:players
   npm run sync:all
 
 Note: Make sure your KoraStats API key is configured in .env

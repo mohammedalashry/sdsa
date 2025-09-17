@@ -1,6 +1,6 @@
 import { TeamData, Team, TeamVenue, TeamInfo } from "@/legacy-types/teams.types";
-import { CoachData } from "@/legacy-types/players.types";
-import { TransferData } from "@/legacy-types/transfers.types";
+import { CoachData } from "@/legacy-types/coach.types";
+import { TransferData } from "@/legacy-types/teams.types";
 import {
   KorastatsTeamInfoResponse,
   KorastatsTournamentTeamStatsResponse,

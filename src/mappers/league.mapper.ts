@@ -3,7 +3,6 @@ import {
   LeagueData,
   LeagueSeason,
   LeagueHistoricalWinner,
-  LeagueLastFixture,
 } from "../legacy-types/leagues.types";
 import {
   KorastatsTournament,

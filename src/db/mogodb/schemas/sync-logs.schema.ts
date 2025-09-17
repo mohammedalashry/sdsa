@@ -1,6 +1,3 @@
-// src/db/mogodb/schemas/sync-logs.schema.ts
-// Sync Logs MongoDB schema for SDSA
-
 import { Schema, Document, Types } from "mongoose";
 
 // Interface for TypeScript

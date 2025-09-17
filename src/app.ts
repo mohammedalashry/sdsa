@@ -23,6 +23,7 @@ import standingsRoutes from "./modules/standings/routes";
 import countriesRoutes from "./modules/country/routes";
 import coachRoutes from "./modules/coach/routes";
 import refereeRoutes from "./modules/referee/routes";
+
 // Existing routes (keep your current auth)
 import authRoutes from "./modules/auth/auth.router";
 
@@ -100,7 +101,7 @@ router.use("/players", playersRoutes); // Future modules
 router.use("/fixture", fixturesRoutes);
 router.use("/profile", profileRoutes); // Profile module
 router.use("/standings", standingsRoutes); // Standings module
-router.use("/countries", countriesRoutes); // Countries module
+router.use("/country", countriesRoutes); // Countries module
 router.use("/coach", coachRoutes); // Coach module
 router.use("/referee", refereeRoutes); // Referee module
 // 404 handler

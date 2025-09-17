@@ -22,6 +22,9 @@
     "sync:matches": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts matches",
     "sync:teams": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts teams",
     "sync:players": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts players",
+    "sync:coaches": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts coaches",
+    "sync:referees": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts referees",
+    "sync:standings": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts standings",
     "sync:all": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts all",
     "sync:status": "ts-node --require tsconfig-paths/register src/scripts/run-syncer.ts status",
     "test:matches": "ts-node --require tsconfig-paths/register src/scripts/test-matches-limit.ts",
@@ -77,3 +80,4 @@
     "schema": "./src/db/prismadb/prisma/schema.prisma"
   }
 }
+

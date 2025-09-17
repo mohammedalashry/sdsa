@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { RefereeService } from "./referee.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { FixtureData, FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { RefereeMatchStatsResponse } from "@/legacy-types/referee.types";
 
 export class RefereeController {
   constructor(private readonly refereeService: RefereeService) {}
@@ -40,12 +41,9 @@ export class RefereeController {
    * Get referee career statistics
    */
   getCareerStats = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { referee, season } = req.query;
+    const { referee } = req.query;
 
-    const stats = await this.refereeService.getCareerStats({
-      referee: Number(referee),
-      season: Number(season),
-    });
+    const stats = await this.refereeService.getRefereeCareer(Number(referee));
 
     res.json(stats);
   });
@@ -55,12 +53,13 @@ export class RefereeController {
    * Get referee fixtures
    */
   getRefereeFixtures = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { league, referee, season } = req.query;
+    const { league, referee } = req.query;
 
-    const fixtures: FixtureDataResponse = await this.refereeService.getRefereeFixtures({
-      referee: Number(referee),
-      league: Number(league),
-    });
+    const fixtures: RefereeMatchStatsResponse =
+      await this.refereeService.getRefereeFixtures({
+        referee: Number(referee),
+        league: Number(league),
+      });
 
     res.json(fixtures);
   });
@@ -84,7 +83,7 @@ export class RefereeController {
   getRefereeLastMatch = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { referee } = req.query;
 
-    const match: FixtureDataResponse = await this.refereeService.getRefereeLastMatch(
+    const match: FixtureData = await this.refereeService.getRefereeLastMatch(
       Number(referee),
     );
 

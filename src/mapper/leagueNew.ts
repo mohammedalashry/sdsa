@@ -1,4 +1,4 @@
-import { TournamentInterface } from "@/db/mogodb/schemas/tournament.schema";
+import { LeagueInterface } from "@/db/mogodb/schemas/league.schema";
 import {
   KorastatsTournament,
   KorastatsTournamentStructure,
@@ -8,7 +8,7 @@ import { LeagueLogoService } from "@/integrations/korastats/services/league-logo
 import { KorastatsStatType } from "@/modules/players";
 import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
 // Create a plain object type for mapping (without Mongoose Document properties)
-export type TournamentData = TournamentInterface;
+export type TournamentData = LeagueInterface;
 
 export class LeagueNew {
   leagueLogoService: LeagueLogoService;
@@ -51,11 +51,13 @@ export class LeagueNew {
       name: leagueLogoInfo?.name || tournamentList.tournament, // Use real name from LeagueLogoService
       season: tournamentList.season,
       logo: leagueLogoInfo?.logo || "", // Use real logo from LeagueLogoService
-
+      type: "league",
       // Tournament metadata
       country: {
         id: tournamentList.organizer?.country?.id || 0,
         name: tournamentList.organizer?.country?.name || "Saudi Arabia",
+        code: "SA",
+        flag: "https://upload.wikimedia.org/wikipedia/commons/5/5c/Flag_of_Saudi_Arabia.svg",
       },
       organizer: {
         id: tournamentList.organizer?.id || 0,
@@ -68,7 +70,7 @@ export class LeagueNew {
         min_age: tournamentList.ageGroup?.age?.min || null,
         max_age: tournamentList.ageGroup?.age?.max || null,
       },
-      gender: tournamentStructure?.gender || "male",
+      gender: this.normalizeGender(tournamentStructure?.gender || "male"),
 
       // Tournament structure - calculated from match list
       rounds: rounds,
@@ -322,5 +324,29 @@ export class LeagueNew {
   /**
    * Legacy method for backward compatibility
    */
+
+  /**
+   * Normalize gender value to match schema enum
+   */
+  private normalizeGender(gender: string): "male" | "female" | "mixed" {
+    const normalizedGender = gender.toLowerCase().trim();
+
+    switch (normalizedGender) {
+      case "male":
+      case "men":
+      case "m":
+        return "male";
+      case "female":
+      case "women":
+      case "f":
+        return "female";
+      case "mixed":
+      case "both":
+      case "co-ed":
+        return "mixed";
+      default:
+        return "male"; // Default to male for unknown values
+    }
+  }
 }
 

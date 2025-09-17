@@ -1,5 +1,3 @@
-// src/legacy-types/standings.types.ts
-
 export interface StandingsTeam {
   id: number;
   name: string;

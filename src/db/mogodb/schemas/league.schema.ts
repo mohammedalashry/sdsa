@@ -1,17 +1,17 @@
-// src/db/mogodb/schemas/tournament.schema.ts
-// Tournament MongoDB schema for SDSA
-
-import { Schema, Document, Types } from "mongoose";
-export interface TournamentInterface {
+import { Schema } from "mongoose";
+export interface LeagueInterface {
   korastats_id: number;
   name: string;
   season: string;
+  type: string;
   logo: string;
 
   // Tournament metadata
   country: {
     id: number;
     name: string;
+    code: string;
+    flag: string;
   };
   organizer: {
     id: number;
@@ -33,75 +33,6 @@ export interface TournamentInterface {
 
   // Tournament winners
 
-  top_scorers: [
-    {
-      player: {
-        id: number;
-        name: string;
-      };
-    },
-  ];
-  top_assisters: [
-    {
-      player: {
-        id: number;
-        name: string;
-      };
-    },
-  ];
-  // Metadata
-  start_date: Date;
-  end_date: Date;
-  status: "active" | "completed" | "upcoming";
-
-  // Sync tracking
-  last_synced: Date;
-  sync_version: number;
-  created_at: Date;
-  updated_at: Date;
-}
-// Interface for TypeScript
-export interface ITournament extends Document {
-  _id: Types.ObjectId;
-
-  // Korastats identifiers
-  korastats_id: number;
-  name: string;
-  season: string;
-  logo: string;
-
-  // Tournament metadata
-  country: {
-    id: number;
-    name: string;
-  };
-  organizer: {
-    id: number;
-    name: string;
-    abbrev: string;
-  };
-  age_group: {
-    id: number;
-    name: string;
-    min_age?: number;
-    max_age?: number;
-  };
-  gender: string;
-
-  // Tournament structure (embedded for fast access)
-
-  rounds: string[]; // Array of round names like ["Round 1", "Round 2", etc.]
-  rounds_count: number;
-
-  // Tournament winners
-  winner: {
-    id: number | null;
-    name: string | null;
-  };
-  runner_up: {
-    id: number | null;
-    name: string | null;
-  };
   top_scorers: [
     {
       player: {
@@ -131,7 +62,7 @@ export interface ITournament extends Document {
 }
 
 // MongoDB Schema
-const TournamentSchema = new Schema<ITournament>(
+const LeagueSchema = new Schema<LeagueInterface>(
   {
     korastats_id: {
       type: Number,
@@ -177,7 +108,22 @@ const TournamentSchema = new Schema<ITournament>(
       type: Number,
       required: true,
     },
-
+    top_assisters: [
+      {
+        player: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+        },
+      },
+    ],
+    top_scorers: [
+      {
+        player: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+        },
+      },
+    ],
     start_date: {
       type: Date,
       required: true,
@@ -211,15 +157,15 @@ const TournamentSchema = new Schema<ITournament>(
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
-    collection: "tournaments",
+    collection: "leagues",
   },
 );
 
 // Indexes for performance
-TournamentSchema.index({ name: 1, season: 1 });
-TournamentSchema.index({ country: 1, gender: 1 });
-TournamentSchema.index({ start_date: 1, end_date: 1 });
-TournamentSchema.index({ status: 1, start_date: 1 });
+LeagueSchema.index({ name: 1, season: 1 });
+LeagueSchema.index({ country: 1, gender: 1 });
+LeagueSchema.index({ start_date: 1, end_date: 1 });
+LeagueSchema.index({ status: 1, start_date: 1 });
 
-export default TournamentSchema;
+export default LeagueSchema;
 

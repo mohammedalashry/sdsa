@@ -70,11 +70,11 @@ export class TournamentDataService {
         { name: "MatchList", response: matchListResponse },
         { name: "ListStatTypes", response: listStatTypesResponse },
       ];
-
+      //console.log("matchListResponse", matchListResponse);
       const failedData = requiredData.filter(
         (item) => item.response.status === "rejected" || !item.response.value?.data,
       );
-
+      console.log("failedData", failedData);  
       if (failedData.length > 0) {
         const errorMessage = `Failed to collect: ${failedData.map((item) => item.name).join(", ")}`;
         console.error(`❌ ${errorMessage} for tournament ${tournamentId}`);

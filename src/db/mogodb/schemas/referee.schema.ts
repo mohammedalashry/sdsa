@@ -1,37 +1,30 @@
-// src/db/mogodb/schemas/referee.schema.ts
-// Referee MongoDB schema for SDSA
-
-import { Schema, Document, Types } from "mongoose";
+import { Schema } from "mongoose";
 
 // Interface for TypeScript
-export interface IReferee extends Document {
-  _id: Types.ObjectId;
-
+export interface RefereeInterface {
   // Korastats identifiers
   korastats_id: number;
 
   // Personal info
   name: string;
-  nickname?: string;
-  firstname?: string;
-  lastname?: string;
-  country: string;
-  birthDate: Date;
+  country: {
+    name: string;
+    code: string;
+    flag: string;
+  };
+  birthDate: string;
   age?: number;
   photo?: string;
   matches: number;
-  // Referee info
 
   // Career stats (denormalized)
-  career_stats: [
-    {
-      league: string;
-      total_matches: number;
-      total_yellow_cards: number;
-      total_red_cards: number;
-      total_penalties: number;
-    },
-  ];
+  career_stats: Array<{
+    league: string;
+    appearances: number;
+    yellow_cards: number;
+    red_cards: number;
+    penalties: number;
+  }>;
 
   // Status
   status: "active" | "inactive" | "retired";
@@ -44,7 +37,7 @@ export interface IReferee extends Document {
 }
 
 // MongoDB Schema
-const RefereeSchema = new Schema<IReferee>(
+const RefereeSchema = new Schema<RefereeInterface>(
   {
     korastats_id: {
       type: Number,
@@ -55,32 +48,32 @@ const RefereeSchema = new Schema<IReferee>(
       type: String,
       required: true,
     },
-    nickname: {
-      type: String,
-    },
-    firstname: {
-      type: String,
-    },
-    lastname: {
-      type: String,
-    },
     country: {
+      name: { type: String, required: true },
+      code: { type: String, required: true },
+      flag: { type: String, required: true },
+    },
+    birthDate: {
       type: String,
-      required: true,
     },
     age: {
       type: Number,
     },
     photo: {
       type: String,
+      required: true,
+    },
+    matches: {
+      type: Number,
     },
 
     career_stats: [
       {
-        total_matches: { type: Number, default: 0 },
-        total_yellow_cards: { type: Number, default: 0 },
-        total_red_cards: { type: Number, default: 0 },
-        total_penalties: { type: Number, default: 0 },
+        league: { type: String, required: true },
+        appearances: { type: Number, default: 0 },
+        yellow_cards: { type: Number, default: 0 },
+        red_cards: { type: Number, default: 0 },
+        penalties: { type: Number, default: 0 },
       },
     ],
 

@@ -148,11 +148,14 @@ export class EntityDataService {
       console.log("👤 Starting players data sync...");
 
       // Get all unique player IDs from matches
-      const matches = await Models.Match.find({}, { "playersStats.player.id": 1 });
+      const matches = await Models.MatchDetails.find(
+        {},
+        { "playerStatsData.player.id": 1 },
+      );
       const playerIds = new Set<number>();
 
       matches.forEach((match) => {
-        match.playersStats?.forEach((playerStat: any) => {
+        match.playerStatsData?.forEach((playerStat: any) => {
           if (playerStat.player?.id) {
             playerIds.add(playerStat.player.id);
           }
@@ -289,7 +292,7 @@ export class EntityDataService {
       console.log("👨‍💼 Starting coaches data sync...");
 
       // Get all unique coach IDs from TournamentCoachesList
-      const tournaments = await Models.Tournament.find({}, { korastats_id: 1 });
+      const tournaments = await Models.League.find({}, { korastats_id: 1 });
       const coachIds = new Set<number>();
 
       // Get coaches from all tournaments
@@ -442,11 +445,11 @@ export class EntityDataService {
       const matches = await Models.Match.find({}, { "referee.id": 1 });
       const refereeIds = new Set<number>();
 
-      matches.forEach((match) => {
-        if (match.referee?.id) {
-          refereeIds.add(match.referee.id);
-        }
-      });
+      // matches.forEach((match) => {
+      //   if (match.referee?.id) {
+      //     refereeIds.add(match.referee.id);
+      //   }
+      // });
 
       let uniqueRefereeIds = Array.from(refereeIds);
 

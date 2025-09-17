@@ -59,3 +59,4 @@ async function fixTournamentIds() {
 // Run the fix
 fixTournamentIds();
 
+

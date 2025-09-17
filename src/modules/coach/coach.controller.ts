@@ -1,7 +1,16 @@
 import { Request, Response } from "express";
 import { CoachService } from "./coach.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { CoachData } from "../../legacy-types/players.types";
+import {
+  CoachDataResponse,
+  CoachInfoResponse,
+  CoachCareerResponse,
+  CoachCareerStatsResponse,
+  CoachTrophiesResponse,
+  CoachMatchStatsResponse,
+  CoachPerformanceResponse,
+  CoachData,
+} from "../../legacy-types/coach.types";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
 export class CoachController {
@@ -14,7 +23,7 @@ export class CoachController {
   getAllCoaches = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { league, season } = req.query;
 
-    const coaches: CoachData[] = await this.coachService.getCoaches({
+    const coaches: CoachDataResponse = await this.coachService.getCoaches({
       league: Number(league),
       season: Number(season),
     });
@@ -80,7 +89,9 @@ export class CoachController {
   getCoachInfo = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const coachInfo: CoachData = await this.coachService.getCoachInfo(Number(coach));
+    const coachInfo: CoachInfoResponse = await this.coachService.getCoachInfo(
+      Number(coach),
+    );
 
     res.json(coachInfo);
   });

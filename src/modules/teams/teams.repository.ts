@@ -1,38 +1,45 @@
-import { TeamKorastatsService } from "@/integrations/korastats/services/team.service";
 import { CacheService } from "@/integrations/korastats/services/cache.service";
-import { TeamDataResponse, TeamInfo } from "@/legacy-types/teams.types";
+import {
+  TeamsResponse,
+  TeamInfo,
+  TeamStatsResponse,
+  GoalsOverTimeResponse,
+  FormOverTimeResponse,
+  TeamLineupResponse,
+  PositionOverTimeResponse,
+  TeamComparisonStatsResponse,
+  TeamSquadResponse,
+} from "@/legacy-types/teams.types";
 import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
 import { ApiError } from "@/core/middleware/error.middleware";
 import { Models } from "@/db/mogodb/models";
+import { TeamInterface } from "@/db/mogodb/schemas/team.schema";
 
 export class TeamsRepository {
-  constructor(
-    private readonly korastatsTeamService: TeamKorastatsService,
-    private readonly cacheService: CacheService,
-  ) {}
+  constructor(private readonly cacheService: CacheService) {}
 
-  async getTeamsList(league: number, season: string): Promise<TeamDataResponse> {
+  async getTeamsList(league: number, season: string): Promise<TeamsResponse> {
     const cacheKey = this.cacheService.createKey("teams", "list", league, season);
 
     // Try cache first
-    let cachedData = this.cacheService.get<TeamDataResponse>(cacheKey);
+    let cachedData = this.cacheService.get<TeamsResponse>(cacheKey);
     if (cachedData) {
       console.log("Teams list served from cache");
       return cachedData;
     }
 
     try {
-      // Try to get teams from MongoDB first
+      // Get teams from new Team schema
       const mongoTeams = await Models.Team.find({
-        // Add any filters based on league/season if needed
-        status: "active",
-      }).limit(50); // Limit for performance
+        // Filter by league if possible (would need league mapping)
+        // For now, get all active teams
+      }).limit(50);
 
       if (mongoTeams.length > 0) {
         console.log(`📦 Found ${mongoTeams.length} teams in MongoDB`);
 
-        // Transform MongoDB teams to legacy format
-        const teams = mongoTeams.map((team) => ({
+        // Transform new Team schema to legacy format
+        const teams = mongoTeams.map((team: TeamInterface) => ({
           team: {
             id: team.korastats_id,
             name: team.name,
@@ -42,28 +49,18 @@ export class TeamsRepository {
             national: team.national || false,
             logo: team.logo || "",
           },
-          venue: team.venue
-            ? {
-                id: team.venue.id,
-                name: team.venue.name,
-                address: team.venue.address || null,
-                city: team.venue.city || "",
-                capacity: team.venue.capacity || null,
-                surface: team.venue.surface || null,
-                image: team.venue.image || null,
-              }
-            : {
-                id: null,
-                name: null,
-                address: null,
-                city: null,
-                capacity: null,
-                surface: null,
-                image: null,
-              },
+          venue: {
+            id: team.venue?.id || null,
+            name: team.venue?.name || null,
+            address: team.venue?.address || null,
+            city: team.venue?.city || null,
+            capacity: team.venue?.capacity || null,
+            surface: team.venue?.surface || null,
+            image: team.venue?.image || null,
+          },
         }));
 
-        const response: TeamDataResponse = teams;
+        const response: TeamsResponse = teams;
 
         // Cache the result
         this.cacheService.set(cacheKey, response);
@@ -90,13 +87,13 @@ export class TeamsRepository {
     }
 
     try {
-      // Try to get team from MongoDB first
+      // Get team from new Team schema
       const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
 
       if (mongoTeam) {
         console.log(`📦 Found team ${teamId} in MongoDB`);
 
-        // Transform MongoDB team to legacy format
+        // Transform new Team schema to legacy TeamInfo format
         const teamInfo: TeamInfo = {
           team: {
             id: mongoTeam.korastats_id,
@@ -107,35 +104,24 @@ export class TeamsRepository {
             national: mongoTeam.national || false,
             logo: mongoTeam.logo || "",
           },
-          venue: mongoTeam.venue
-            ? {
-                id: mongoTeam.venue.id,
-                name: mongoTeam.venue.name,
-                address: mongoTeam.venue.address || null,
-                city: mongoTeam.venue.city || "",
-                capacity: mongoTeam.venue.capacity || null,
-                surface: mongoTeam.venue.surface || null,
-                image: mongoTeam.venue.image || null,
-              }
-            : {
-                id: null,
-                name: null,
-                address: null,
-                city: null,
-                capacity: null,
-                surface: null,
-
-                image: null,
-              },
+          venue: {
+            id: mongoTeam.venue?.id || null,
+            name: mongoTeam.venue?.name || null,
+            address: mongoTeam.venue?.address || null,
+            city: mongoTeam.venue?.city || null,
+            capacity: mongoTeam.venue?.capacity || null,
+            surface: mongoTeam.venue?.surface || null,
+            image: mongoTeam.venue?.image || null,
+          },
           coach:
             mongoTeam.coaches && mongoTeam.coaches.length > 0
-              ? [
-                  {
-                    id: mongoTeam.coaches[0].id,
-                    name: mongoTeam.coaches[0].name,
-                    firstname: mongoTeam.coaches[0].name?.split(" ")[0] || null,
-                    lastname:
-                      mongoTeam.coaches[0].name?.split(" ").slice(1).join(" ") || null,
+              ? mongoTeam.coaches
+                  .filter((coach) => coach.current)
+                  .map((coach) => ({
+                    id: coach.id,
+                    name: coach.name,
+                    firstname: coach.name?.split(" ")[0] || null,
+                    lastname: coach.name?.split(" ").slice(1).join(" ") || null,
                     age: null,
                     birth: {
                       date: null,
@@ -156,15 +142,14 @@ export class TeamsRepository {
                       logo: mongoTeam.logo || "",
                     },
                     career: [],
-                  },
-                ]
+                  }))
               : [],
-          transfers: [], // Ignoring transfers as requested
+          transfers: mongoTeam.transfers ? [mongoTeam.transfers] : [],
           totalPlayers: mongoTeam.totalPlayers || 0,
           foreignPlayers: mongoTeam.foreignPlayers || 0,
           averagePlayerAge: mongoTeam.averagePlayerAge || 0,
           clubMarketValue: mongoTeam.clubMarketValue || null,
-          currentLeagues: [], // Will be populated from tournament data
+          currentLeagues: [], // Would be populated from tournament data
           trophies:
             mongoTeam.trophies?.map((trophy) => ({
               league: trophy.league,
@@ -185,7 +170,11 @@ export class TeamsRepository {
     }
   }
 
-  async getTeamStats(teamId: number, league: number, season: string): Promise<any> {
+  async getTeamStats(
+    teamId: number,
+    league: number,
+    season: string,
+  ): Promise<TeamStatsResponse> {
     const cacheKey = this.cacheService.createKey(
       "teams",
       "stats",
@@ -195,131 +184,34 @@ export class TeamsRepository {
     );
 
     // Try cache first
-    let cachedData = this.cacheService.get<any>(cacheKey);
+    let cachedData = this.cacheService.get<TeamStatsResponse>(cacheKey);
     if (cachedData) {
       console.log("Team stats served from cache");
       return cachedData;
     }
 
     try {
-      // Try to get team stats from MongoDB first
-      const mongoTeamStats = await Models.Team.findOne({
-        korastats_id: teamId,
-      });
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
 
-      if (mongoTeamStats) {
+      if (mongoTeam) {
         console.log(`📦 Found team stats for team ${teamId} in MongoDB`);
 
-        // Get team info
-        const team = await Models.Team.findOne({ korastats_id: teamId });
-        const tournament = await Models.Tournament.findOne({ korastats_id: league });
-
-        const stats = {
-          team: {
-            id: teamId,
-            name: team?.name || "Unknown Team",
-          },
-          season: parseInt(season),
-          stats: mongoTeamStats.stats || {
-            matches_played: 0,
-            wins: 0,
-            draws: 0,
-            losses: 0,
-            goals_for: 0,
-            goals_against: 0,
-            goal_difference: 0,
-            points: 0,
-            position: 0,
-          },
-          form: {
-            recent_results: [],
-            form_string: "-----",
-            points_from_last_5: 0,
-          },
-          goals: {
-            total_for: 0,
-            total_against: 0,
-            home_for: 0,
-            home_against: 0,
-            away_for: 0,
-            away_against: 0,
-          },
-          cards: {
-            total_yellow: 0,
-            total_red: 0,
-            home_yellow: 0,
-            home_red: 0,
-            away_yellow: 0,
-            away_red: 0,
-          },
-          recent_matches: [],
-        };
+        // Transform new Team schema stats to legacy format
+        const stats: TeamStatsResponse = mongoTeam.stats;
 
         // Cache the result
         this.cacheService.set(cacheKey, stats);
         return stats;
       }
 
-      // If not in MongoDB, return default stats
-      console.log(
-        "Team stats not found in MongoDB for team",
-        teamId,
-        "league",
-        league,
-        "season",
-        season,
-      );
-      const defaultStats = {
-        team: {
-          id: teamId,
-          name: "Unknown Team",
-        },
-        season: parseInt(season),
-        stats: {
-          matches_played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_difference: 0,
-          points: 0,
-          position: 0,
-        },
-        form: {
-          recent_results: [],
-          form_string: "-----",
-          points_from_last_5: 0,
-        },
-        goals: {
-          total_for: 0,
-          total_against: 0,
-          home_for: 0,
-          home_against: 0,
-          away_for: 0,
-          away_against: 0,
-        },
-        cards: {
-          total_yellow: 0,
-          total_red: 0,
-          home_yellow: 0,
-          home_red: 0,
-          away_yellow: 0,
-          away_red: 0,
-        },
-        recent_matches: [],
-      };
-
-      // Cache the result
-      this.cacheService.set(cacheKey, defaultStats);
-      return defaultStats;
+      // If not in MongoDB, throw error
+      throw new ApiError(404, "Team stats not found");
     } catch (error) {
       console.error("Failed to fetch team stats:", error);
       throw new ApiError(500, "Failed to fetch team statistics");
     }
   }
-
-  // ========== NEW REPOSITORY METHODS FOR ALL ENDPOINTS ==========
 
   async getAvailableSeasons(teamId: number): Promise<number[]> {
     try {
@@ -336,8 +228,8 @@ export class TeamsRepository {
       });
 
       const seasonNumbers = seasons
-        .map((season) => parseInt(season))
-        .filter((year) => year >= 2000);
+        .map((season: unknown) => parseInt(season as string))
+        .filter((year) => year >= 2000 && !isNaN(year));
       seasonNumbers.sort((a, b) => b - a); // Most recent first
 
       this.cacheService.set(cacheKey, seasonNumbers, 60 * 60 * 1000); // Cache for 1 hour
@@ -351,162 +243,58 @@ export class TeamsRepository {
   async getTeamComparisonStats(
     season: number,
     teamId: number,
-  ): Promise<{
-    team: { id: number; name: string };
-    season: number;
-    stats: any;
-    form: any;
-    goals: any;
-    cards: any;
-  }> {
+  ): Promise<TeamComparisonStatsResponse> {
     try {
       const cacheKey = `team_comparison_stats_${season}_${teamId}`;
 
-      const cached = this.cacheService.get<{
-        team: { id: number; name: string };
-        season: number;
-        stats: any;
-        form: any;
-        goals: any;
-        cards: any;
-      }>(cacheKey);
+      const cached = this.cacheService.get<TeamComparisonStatsResponse>(cacheKey);
       if (cached) {
         return cached;
       }
 
-      // Get team stats from MongoDB
-      const teamStats = await Models.Team.findOne({
-        team_id: teamId,
-        season: season.toString(),
-      });
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
 
-      if (!teamStats) {
-        // Return default stats if not found
-        return {
-          team: {
-            id: teamId,
-            name: "Unknown Team",
-          },
-          season: season,
-          stats: {
-            matches_played: 0,
-            wins: 0,
-            draws: 0,
-            losses: 0,
-            goals_for: 0,
-            goals_against: 0,
-            goal_difference: 0,
-            points: 0,
-            position: 0,
-          },
-          form: {
-            recent_results: [],
-            form_string: "",
-            points_from_last_5: 0,
-          },
-          goals: {
-            total_for: 0,
-            total_against: 0,
-            home_for: 0,
-            home_against: 0,
-            away_for: 0,
-            away_against: 0,
-          },
-          cards: {
-            total_yellow: 0,
-            total_red: 0,
-            home_yellow: 0,
-            home_red: 0,
-            away_yellow: 0,
-            away_red: 0,
-          },
-        };
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
       }
 
-      const result = {
+      // Extract comparison stats from team's stats_summary
+      const result: TeamComparisonStatsResponse = {
+        league: mongoTeam.stats?.league || null,
         team: {
           id: teamId,
-          name: "Unknown Team",
+          name: mongoTeam.name,
+          code: mongoTeam.code || "",
+          country: mongoTeam.country,
+          founded: mongoTeam.founded || null,
+          national: mongoTeam.national || false,
+          logo: mongoTeam.logo || "",
         },
-        season: season,
-        stats: teamStats.stats || {
-          matches_played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_difference: 0,
-          points: 0,
-          position: 0,
-        },
-        form: {
-          recent_results: [],
-          form_string: "",
-          points_from_last_5: 0,
-        },
-        goals: {
-          total_for: 0,
-          total_against: 0,
-          home_for: 0,
-          home_against: 0,
-          away_for: 0,
-          away_against: 0,
-        },
-        cards: {
-          total_yellow: 0,
-          total_red: 0,
-          home_yellow: 0,
-          home_red: 0,
-          away_yellow: 0,
-          away_red: 0,
-        },
+        averageAge: mongoTeam.averagePlayerAge || 0,
+        nationalTeamPlayers: mongoTeam.totalPlayers - mongoTeam.foreignPlayers,
+        foreigners: mongoTeam.foreignPlayers || 0,
+        gamesPlayed:
+          mongoTeam.stats_summary.gamesPlayed.home +
+          mongoTeam.stats_summary.gamesPlayed.away,
+        wins: mongoTeam.stats_summary.wins.home + mongoTeam.stats_summary.wins.away,
+        draws: mongoTeam.stats_summary.draws.home + mongoTeam.stats_summary.draws.away,
+        loses: mongoTeam.stats_summary.loses.home + mongoTeam.stats_summary.loses.away,
+        goalsScored:
+          mongoTeam.stats_summary.goalsScored.home +
+          mongoTeam.stats_summary.goalsScored.away,
+        goalsConceded:
+          mongoTeam.stats_summary.goalsConceded.home +
+          mongoTeam.stats_summary.goalsConceded.away,
+        goalDifference: mongoTeam.stats_summary.goalDifference,
+        cleanSheetGames: mongoTeam.stats_summary.cleanSheetGames,
       };
 
       this.cacheService.set(cacheKey, result, 30 * 60 * 1000); // Cache for 30 minutes
       return result;
     } catch (error) {
       console.error("Failed to fetch team comparison stats:", error);
-      // Return default stats if error occurs
-      return {
-        team: {
-          id: teamId,
-          name: "Unknown Team",
-        },
-        season: season,
-        stats: {
-          matches_played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_difference: 0,
-          points: 0,
-          position: 0,
-        },
-        form: {
-          recent_results: [],
-          form_string: "",
-          points_from_last_5: 0,
-        },
-        goals: {
-          total_for: 0,
-          total_against: 0,
-          home_for: 0,
-          home_against: 0,
-          away_for: 0,
-          away_against: 0,
-        },
-        cards: {
-          total_yellow: 0,
-          total_red: 0,
-          home_yellow: 0,
-          home_red: 0,
-          away_yellow: 0,
-          away_red: 0,
-        },
-      };
+      throw new ApiError(500, "Failed to fetch team comparison stats");
     }
   }
 
@@ -523,65 +311,56 @@ export class TeamsRepository {
         return cached;
       }
 
-      // Get team fixtures from MongoDB
+      // Get team fixtures from MongoDB matches
       const matches = await Models.Match.find({
         $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
         tournament_id: league,
         season: season,
-      }).sort({ date: -1 });
+      }).sort({ "fixture.date": -1 });
 
-      // Get tournament data
-      const tournament = await Models.Tournament.findOne({ korastats_id: league });
-
-      // Get country data (Saudi Arabia - ID 160)
-      const { CountryRepository } = await import("../country/country.repository");
-      const countryRepo = new CountryRepository();
-      const countries = await countryRepo.getCountries({});
-      const saudiArabia = countries.find((country) => country.id === 160);
-
+      // Transform matches to legacy fixture format
       const fixtures = matches.map((match) => ({
         fixture: {
           id: match.korastats_id,
-          referee: match.referee?.name || null,
-          timezone: "UTC",
-          date: match.date,
-          timestamp: match.timestamp,
+          referee: match.fixture?.referee || null,
+          timezone: match.fixture?.timezone || "UTC",
+          date: match.fixture?.date,
+          timestamp: match.fixture?.timestamp,
           periods: {
-            first: match.periods?.first || null,
-            second: match.periods?.second || null,
+            first: match.fixture?.periods?.first || null,
+            second: match.fixture?.periods?.second || null,
           },
           venue: {
-            id: match.venue?.id || null,
-            name: match.venue?.name || null,
-            city: null, // Not available in match schema
+            id: match.fixture?.venue?.id || null,
+            name: match.fixture?.venue?.name || null,
+            city: match.fixture?.venue?.city || null,
           },
           status: {
-            long: match.status?.long || "Finished",
-            short: match.status?.short || "FT",
-            elapsed: match.status?.elapsed || null,
+            long: match.fixture?.status?.long || "Finished",
+            short: match.fixture?.status?.short || "FT",
+            elapsed: match.fixture?.status?.elapsed || null,
           },
         },
         league: {
-          id: tournament?.korastats_id || match.tournament_id || 0,
-          name: tournament?.name || "",
-          country: saudiArabia?.name || "Saudi Arabia",
-          logo: tournament?.logo || "",
-          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
-
-          season: parseInt(match.season) || 0,
-          round: match.round?.toString() || "",
+          id: match.league?.id || league,
+          name: match.league?.name || "",
+          country: match.league?.country || "Saudi Arabia",
+          logo: match.league?.logo || "",
+          flag: match.league?.flag || "https://media.api-sports.io/flags/sa.svg",
+          season: parseInt(season),
+          round: match.league?.round || "",
         },
         teams: {
           home: {
             id: match.teams?.home?.id || 0,
             name: match.teams?.home?.name || "",
-            logo: "", // Will be populated from team schema
+            logo: match.teams?.home?.logo || "",
             winner: match.teams?.home?.winner || match.goals?.home > match.goals?.away,
           },
           away: {
             id: match.teams?.away?.id || 0,
             name: match.teams?.away?.name || "",
-            logo: "", // Will be populated from team schema
+            logo: match.teams?.away?.logo || "",
             winner: match.teams?.away?.winner || match.goals?.away > match.goals?.home,
           },
         },
@@ -607,8 +386,8 @@ export class TeamsRepository {
             away: match.score?.penalty?.away || null,
           },
         },
-        tablePosition: null, // Will be calculated from standings
-        averageTeamRating: null, // Will be calculated from player ratings
+        tablePosition: match.tablePosition || null,
+        averageTeamRating: match.averageTeamRating || null,
       }));
 
       const response: FixtureDataResponse = fixtures;
@@ -621,7 +400,296 @@ export class TeamsRepository {
     }
   }
 
-  async followTeam(teamId: number): Promise<any> {
+  async getTeamGoalsOverTime(
+    league: number,
+    season: number,
+    teamId: number,
+  ): Promise<GoalsOverTimeResponse> {
+    try {
+      const cacheKey = `team_goals_over_time_${league}_${season}_${teamId}`;
+
+      const cached = this.cacheService.get<GoalsOverTimeResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
+      }
+
+      // Return goals over time data from team schema
+      const response: GoalsOverTimeResponse = {
+        pagingInfo: {
+          page: 1,
+          pageSize: 10,
+          total: 1,
+        },
+        data: mongoTeam.goalsOverTime,
+      };
+
+      this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch team goals over time:", error);
+      throw new ApiError(500, "Failed to fetch team goals over time");
+    }
+  }
+
+  async getTeamFormOverTime(
+    league: number,
+    season: number,
+    teamId: number,
+  ): Promise<FormOverTimeResponse> {
+    try {
+      const cacheKey = `team_form_over_time_${league}_${season}_${teamId}`;
+
+      const cached = this.cacheService.get<FormOverTimeResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
+      }
+
+      // Return form over time data from team schema
+      const response: FormOverTimeResponse = {
+        pagingInfo: {
+          page: 1,
+          pageSize: 10,
+          total: 1,
+        },
+        data: mongoTeam.formOverTime,
+      };
+
+      this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch team form over time:", error);
+      throw new ApiError(500, "Failed to fetch team form over time");
+    }
+  }
+
+  async getTeamLineup(
+    league: number,
+    season: number,
+    teamId: number,
+  ): Promise<TeamLineupResponse> {
+    try {
+      const cacheKey = `team_lineup_${league}_${season}_${teamId}`;
+
+      const cached = this.cacheService.get<TeamLineupResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
+      }
+
+      // Return lineup data from team schema
+      const response: TeamLineupResponse = [mongoTeam.lineup];
+
+      this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch team lineup:", error);
+      throw new ApiError(500, "Failed to fetch team lineup");
+    }
+  }
+
+  async getTeamPositionOverTime(
+    league: number,
+    season: number,
+    teamId: number,
+  ): Promise<PositionOverTimeResponse> {
+    try {
+      const cacheKey = `team_position_over_time_${league}_${season}_${teamId}`;
+
+      const cached = this.cacheService.get<PositionOverTimeResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get team's current ranking and generate position over time
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
+      }
+
+      // Generate position over time based on current rank
+      // In a full implementation, this would track actual position changes
+      const currentRank = mongoTeam.rank || 10;
+      const positions = [];
+
+      for (let i = 1; i <= 10; i++) {
+        // Simulate position changes over time
+        const variation = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+        const position = Math.max(1, Math.min(20, currentRank + variation));
+        positions.push({
+          date: new Date(Date.now() - (10 - i) * 7 * 24 * 60 * 60 * 1000).toISOString(),
+          position,
+        });
+      }
+
+      const response: PositionOverTimeResponse = { positions };
+
+      this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch team position over time:", error);
+      throw new ApiError(500, "Failed to fetch team position over time");
+    }
+  }
+
+  async getTeamSquad(teamId: number): Promise<TeamSquadResponse> {
+    try {
+      const cacheKey = `team_squad_${teamId}`;
+
+      const cached = this.cacheService.get<TeamSquadResponse>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Get team from new Team schema
+      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+
+      if (!mongoTeam) {
+        throw new ApiError(404, "Team not found");
+      }
+
+      // Extract squad from lineup and create proper TeamSquad structure
+      const players = [];
+
+      if (mongoTeam.lineup?.startXI) {
+        players.push(
+          ...mongoTeam.lineup.startXI.map((player) => ({
+            id: player.player.id,
+            name: player.player.name,
+            photo: player.player.photo,
+            number: player.player.number,
+            pos: player.player.pos,
+            // Add other PlayerData properties with defaults
+            age: null,
+            birth: {
+              date: null,
+              place: null,
+              country: "",
+            },
+            nationality: "",
+            height: null,
+            weight: null,
+            injured: false,
+            team: {
+              id: mongoTeam.korastats_id,
+              name: mongoTeam.name,
+              code: mongoTeam.code || "",
+              country: mongoTeam.country,
+              founded: mongoTeam.founded || null,
+              national: mongoTeam.national || false,
+              logo: mongoTeam.logo || "",
+            },
+            statistics: [],
+          })),
+        );
+      }
+
+      if (mongoTeam.lineup?.substitutes) {
+        players.push(
+          ...mongoTeam.lineup.substitutes.map((player) => ({
+            id: player.player.id,
+            name: player.player.name,
+            photo: player.player.photo,
+            number: player.player.number,
+            pos: player.player.pos,
+            // Add other PlayerData properties with defaults
+            age: null,
+            birth: {
+              date: null,
+              place: null,
+              country: "",
+            },
+            nationality: "",
+            height: null,
+            weight: null,
+            injured: false,
+            team: {
+              id: mongoTeam.korastats_id,
+              name: mongoTeam.name,
+              code: mongoTeam.code || "",
+              country: mongoTeam.country,
+              founded: mongoTeam.founded || null,
+              national: mongoTeam.national || false,
+              logo: mongoTeam.logo || "",
+            },
+            statistics: [],
+          })),
+        );
+      }
+
+      // Get coach data
+      const coach =
+        mongoTeam.coaches && mongoTeam.coaches.length > 0
+          ? mongoTeam.coaches
+              .filter((c) => c.current)
+              .map((c) => ({
+                id: c.id,
+                name: c.name,
+                firstname: c.name?.split(" ")[0] || null,
+                lastname: c.name?.split(" ").slice(1).join(" ") || null,
+                age: null,
+                birth: {
+                  date: null,
+                  place: null,
+                  country: "",
+                },
+                nationality: "",
+                height: null,
+                weight: null,
+                photo: "",
+                team: {
+                  id: mongoTeam.korastats_id,
+                  name: mongoTeam.name,
+                  code: mongoTeam.code || "",
+                  country: mongoTeam.country,
+                  founded: mongoTeam.founded || null,
+                  national: mongoTeam.national || false,
+                  logo: mongoTeam.logo || "",
+                },
+                career: [],
+              }))
+          : [];
+
+      const response: TeamSquadResponse = {
+        players,
+        coach,
+      };
+
+      this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch team squad:", error);
+      throw new ApiError(500, "Failed to fetch team squad");
+    }
+  }
+
+  // ===================================================================
+  // TEAM FOLLOWING METHODS (User-specific, would integrate with auth)
+  // ===================================================================
+
+  async followTeam(
+    teamId: number,
+  ): Promise<{ success: boolean; message: string; team_id: number }> {
     // This would typically interact with a user preferences database
     // For now, return a success response
     return {
@@ -637,7 +705,9 @@ export class TeamsRepository {
     return false;
   }
 
-  async unfollowTeam(teamId: number): Promise<any> {
+  async unfollowTeam(
+    teamId: number,
+  ): Promise<{ success: boolean; message: string; team_id: number }> {
     // This would typically interact with a user preferences database
     // For now, return a success response
     return {
@@ -647,211 +717,9 @@ export class TeamsRepository {
     };
   }
 
-  async getTeamFormOverTime(
-    league: number,
-    season: number,
-    teamId: number,
-    page: number,
-    pageSize: number,
-  ): Promise<{
-    team_id: number;
-    season: number;
-    form: Array<{
-      match_id: number;
-      date: Date;
-      opponent: string;
-      result: string;
-      score: string;
-    }>;
-    pagination: {
-      page: number;
-      pageSize: number;
-      total: number;
-    };
-  }> {
-    try {
-      const cacheKey = `team_form_over_time_${league}_${season}_${teamId}_${page}_${pageSize}`;
-
-      const cached = this.cacheService.get<{
-        team_id: number;
-        season: number;
-        form: {
-          match_id: number;
-          date: Date;
-          opponent: string;
-          result: string;
-          score: string;
-        }[];
-        pagination: { page: number; pageSize: number; total: number };
-      }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Get team matches and calculate form over time
-      const matches = await Models.Match.find({
-        $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
-        tournament_id: league,
-        season: season.toString(),
-      })
-        .sort({ date: -1 })
-        .skip((page - 1) * pageSize)
-        .limit(pageSize);
-
-      const formData = matches.map((match) => {
-        const isHome = match.teams.home.id === teamId;
-        const teamScore = isHome ? match.goals.home : match.goals.away;
-        const opponentScore = isHome ? match.goals.away : match.goals.home;
-
-        let result = "D"; // Draw
-        if (teamScore > opponentScore)
-          result = "W"; // Win
-        else if (teamScore < opponentScore) result = "L"; // Loss
-
-        return {
-          match_id: match.korastats_id,
-          date: new Date(match.date),
-          opponent: isHome ? match.teams.away.name : match.teams.home.name,
-          result: result,
-          score: `${teamScore}-${opponentScore}`,
-        };
-      });
-
-      const result = {
-        team_id: teamId,
-        season: season,
-        form: formData,
-        pagination: {
-          page: page,
-          pageSize: pageSize,
-          total: matches.length,
-        },
-      };
-
-      this.cacheService.set(cacheKey, result, 15 * 60 * 1000); // Cache for 15 minutes
-      return result;
-    } catch (error) {
-      console.error("Failed to fetch team form over time:", error);
-      // Return default form over time if error occurs
-      return {
-        team_id: teamId,
-        season: season,
-        form: [],
-        pagination: {
-          page: page,
-          pageSize: pageSize,
-          total: 0,
-        },
-      };
-    }
-  }
-
-  async getTeamFormOverview(
-    league: number,
-    season: number,
-    teamId: number,
-  ): Promise<{
-    team_id: number;
-    season: number;
-    form: any;
-    stats: any;
-    recent_matches: any[];
-  }> {
-    try {
-      const cacheKey = `team_form_overview_${league}_${season}_${teamId}`;
-
-      const cached = this.cacheService.get<{
-        team_id: number;
-        season: number;
-        form: any;
-        stats: any;
-        recent_matches: any[];
-      }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Get team stats from MongoDB
-      const teamStats = await Models.Team.findOne({
-        team_id: teamId,
-        season: season.toString(),
-      });
-
-      if (!teamStats) {
-        // Return default form overview if not found
-        return {
-          team_id: teamId,
-          season: season,
-          form: {
-            recent_results: [],
-            form_string: "",
-            points_from_last_5: 0,
-          },
-          stats: {
-            matches_played: 0,
-            wins: 0,
-            draws: 0,
-            losses: 0,
-            goals_for: 0,
-            goals_against: 0,
-            goal_difference: 0,
-            points: 0,
-            position: 0,
-          },
-          recent_matches: [],
-        };
-      }
-
-      const result = {
-        team_id: teamId,
-        season: season,
-        form: {
-          recent_results: [],
-          form_string: "",
-          points_from_last_5: 0,
-        },
-        stats: teamStats.stats || {
-          matches_played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_difference: 0,
-          points: 0,
-          position: 0,
-        },
-        recent_matches: [],
-      };
-
-      this.cacheService.set(cacheKey, result, 30 * 60 * 1000); // Cache for 30 minutes
-      return result;
-    } catch (error) {
-      console.error("Failed to fetch team form overview:", error);
-      // Return default form overview if error occurs
-      return {
-        team_id: teamId,
-        season: season,
-        form: {
-          recent_results: [],
-          form_string: "",
-          points_from_last_5: 0,
-        },
-        stats: {
-          matches_played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals_for: 0,
-          goals_against: 0,
-          goal_difference: 0,
-          points: 0,
-          position: 0,
-        },
-        recent_matches: [],
-      };
-    }
-  }
+  // ===================================================================
+  // CONVENIENCE METHODS FOR RECENT/UPCOMING FIXTURES
+  // ===================================================================
 
   async getUpcomingFixture(teamId: number): Promise<FixtureDataResponse> {
     try {
@@ -865,64 +733,53 @@ export class TeamsRepository {
       // Get next upcoming match for the team
       const upcomingMatch = await Models.Match.findOne({
         $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
-        date: { $gt: new Date() },
-        "status.name": { $in: ["Scheduled", "Not Started"] },
-      }).sort({ date: 1 });
+        "fixture.date": { $gt: new Date() },
+        "fixture.status.short": { $in: ["NS", "TBD"] },
+      }).sort({ "fixture.date": 1 });
 
       if (!upcomingMatch) {
         return [];
       }
 
-      // Get tournament data
-      const tournament = await Models.Tournament.findOne({
-        korastats_id: upcomingMatch.tournament_id,
-      });
-
-      // Get country data (Saudi Arabia - ID 160)
-      const { CountryRepository } = await import("../country/country.repository");
-      const countryRepo = new CountryRepository();
-      const countries = await countryRepo.getCountries({});
-      const saudiArabia = countries.find((country) => country.id === 160);
-
       const fixture = {
         fixture: {
           id: upcomingMatch.korastats_id,
-          referee: upcomingMatch.referee.name,
-          timezone: "UTC",
-          date: upcomingMatch.date,
-          timestamp: upcomingMatch.timestamp,
+          referee: upcomingMatch.fixture?.referee || null,
+          timezone: upcomingMatch.fixture?.timezone || "UTC",
+          date: upcomingMatch.fixture?.date,
+          timestamp: upcomingMatch.fixture?.timestamp,
           periods: { first: null, second: null },
           venue: {
-            id: upcomingMatch.venue.id,
-            name: upcomingMatch.venue.name,
-            city: "",
+            id: upcomingMatch.fixture?.venue?.id || null,
+            name: upcomingMatch.fixture?.venue?.name || null,
+            city: upcomingMatch.fixture?.venue?.city || null,
           },
           status: {
-            long: upcomingMatch.status.long,
-            short: upcomingMatch.status.short,
+            long: upcomingMatch.fixture?.status?.long || "Not Started",
+            short: upcomingMatch.fixture?.status?.short || "NS",
             elapsed: null,
           },
         },
         league: {
-          id: tournament?.korastats_id || upcomingMatch.tournament_id,
-          name: tournament?.name || "",
-          country: saudiArabia?.name || "Saudi Arabia",
-          logo: tournament?.logo || "",
-          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
-          season: parseInt(upcomingMatch.season),
-          round: upcomingMatch.round.toString(),
+          id: upcomingMatch.league?.id || upcomingMatch.tournament_id,
+          name: upcomingMatch.league?.name || "",
+          country: upcomingMatch.league?.country || "Saudi Arabia",
+          logo: upcomingMatch.league?.logo || "",
+          flag: upcomingMatch.league?.flag || "https://media.api-sports.io/flags/sa.svg",
+          season: upcomingMatch.league?.season || new Date().getFullYear(),
+          round: upcomingMatch.league?.round || "",
         },
         teams: {
           home: {
-            id: upcomingMatch.teams.home.id,
-            name: upcomingMatch.teams.home.name,
-            logo: "",
+            id: upcomingMatch.teams?.home?.id || 0,
+            name: upcomingMatch.teams?.home?.name || "",
+            logo: upcomingMatch.teams?.home?.logo || "",
             winner: null,
           },
           away: {
-            id: upcomingMatch.teams.away.id,
-            name: upcomingMatch.teams.away.name,
-            logo: "",
+            id: upcomingMatch.teams?.away?.id || 0,
+            name: upcomingMatch.teams?.away?.name || "",
+            logo: upcomingMatch.teams?.away?.logo || "",
             winner: null,
           },
         },
@@ -943,58 +800,7 @@ export class TeamsRepository {
       return response;
     } catch (error) {
       console.error("Failed to fetch upcoming fixture:", error);
-      // Return empty array if error occurs
       return [];
-    }
-  }
-
-  async getTeamPositionOverTime(
-    league: number,
-    season: number,
-    teamId: number,
-  ): Promise<{
-    team_id: number;
-    season: number;
-    positions: Array<{
-      matchday: number;
-      position: number;
-    }>;
-  }> {
-    try {
-      const cacheKey = `team_position_over_time_${league}_${season}_${teamId}`;
-
-      const cached = this.cacheService.get<{
-        team_id: number;
-        season: number;
-        positions: { matchday: number; position: number }[];
-      }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // This would typically calculate position changes over time
-      // For now, return a mock response
-      const result = {
-        team_id: teamId,
-        season: season,
-        positions: [
-          { matchday: 1, position: 5 },
-          { matchday: 2, position: 3 },
-          { matchday: 3, position: 2 },
-          { matchday: 4, position: 1 },
-        ],
-      };
-
-      this.cacheService.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
-      return result;
-    } catch (error) {
-      console.error("Failed to fetch team position over time:", error);
-      // Return default position over time if error occurs
-      return {
-        team_id: teamId,
-        season: season,
-        positions: [],
-      };
     }
   }
 
@@ -1010,85 +816,87 @@ export class TeamsRepository {
       // Get last completed match for the team
       const lastMatch = await Models.Match.findOne({
         $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
-        date: { $lt: new Date() },
-        "status.name": "Finished",
-      }).sort({ date: -1 });
+        "fixture.date": { $lt: new Date() },
+        "fixture.status.short": "FT",
+      }).sort({ "fixture.date": -1 });
 
       if (!lastMatch) {
         return [];
       }
 
-      // Get tournament data
-      const tournament = await Models.Tournament.findOne({
-        korastats_id: lastMatch.tournament_id,
-      });
-
-      // Get country data (Saudi Arabia - ID 160)
-      const { CountryRepository } = await import("../country/country.repository");
-      const countryRepo = new CountryRepository();
-      const countries = await countryRepo.getCountries({});
-      const saudiArabia = countries.find((country) => country.id === 160);
-
       const fixture = {
         fixture: {
           id: lastMatch.korastats_id,
-          referee: lastMatch.referee.name,
-          timezone: "UTC",
-          date: lastMatch.date,
-          timestamp: lastMatch.timestamp,
+          referee: lastMatch.fixture?.referee || null,
+          timezone: lastMatch.fixture?.timezone || "UTC",
+          date: lastMatch.fixture?.date,
+          timestamp: lastMatch.fixture?.timestamp,
           periods: {
-            first: lastMatch.periods?.first || null,
-            second: lastMatch.periods?.second || null,
+            first: lastMatch.fixture?.periods?.first || null,
+            second: lastMatch.fixture?.periods?.second || null,
           },
           venue: {
-            id: lastMatch.venue.id,
-            name: lastMatch.venue.name,
-            city: "",
+            id: lastMatch.fixture?.venue?.id || null,
+            name: lastMatch.fixture?.venue?.name || null,
+            city: lastMatch.fixture?.venue?.city || null,
           },
           status: {
-            long: lastMatch.status.long,
-            short: lastMatch.status.short,
-            elapsed: null,
+            long: lastMatch.fixture?.status?.long || "Match Finished",
+            short: lastMatch.fixture?.status?.short || "FT",
+            elapsed: 90,
           },
         },
         league: {
-          id: tournament?.korastats_id || lastMatch.tournament_id,
-          name: tournament?.name || "",
-          country: saudiArabia?.name || "Saudi Arabia",
-          logo: tournament?.logo || "",
-          flag: saudiArabia?.flag || "https://media.api-sports.io/flags/sa.svg",
-          season: parseInt(lastMatch.season),
-          round: lastMatch.round.toString(),
+          id: lastMatch.league?.id || lastMatch.tournament_id,
+          name: lastMatch.league?.name || "",
+          country: lastMatch.league?.country || "Saudi Arabia",
+          logo: lastMatch.league?.logo || "",
+          flag: lastMatch.league?.flag || "https://media.api-sports.io/flags/sa.svg",
+          season: lastMatch.league?.season || new Date().getFullYear(),
+          round: lastMatch.league?.round || "",
         },
         teams: {
           home: {
-            id: lastMatch.teams.home.id,
-            name: lastMatch.teams.home.name,
-            logo: "",
-            winner: lastMatch.goals.home > lastMatch.goals.away,
+            id: lastMatch.teams?.home?.id || 0,
+            name: lastMatch.teams?.home?.name || "",
+            logo: lastMatch.teams?.home?.logo || "",
+            winner:
+              lastMatch.teams?.home?.winner ||
+              lastMatch.goals?.home > lastMatch.goals?.away,
           },
           away: {
-            id: lastMatch.teams.away.id,
-            name: lastMatch.teams.away.name,
-            logo: "",
-            winner: lastMatch.goals.away > lastMatch.goals.home,
+            id: lastMatch.teams?.away?.id || 0,
+            name: lastMatch.teams?.away?.name || "",
+            logo: lastMatch.teams?.away?.logo || "",
+            winner:
+              lastMatch.teams?.away?.winner ||
+              lastMatch.goals?.away > lastMatch.goals?.home,
           },
         },
         goals: {
-          home: lastMatch.goals.home,
-          away: lastMatch.goals.away,
+          home: lastMatch.goals?.home || 0,
+          away: lastMatch.goals?.away || 0,
         },
         score: {
-          halftime: { home: null, away: null },
-          fulltime: {
-            home: lastMatch.goals.home,
-            away: lastMatch.goals.away,
+          halftime: {
+            home: lastMatch.score?.halftime?.home || null,
+            away: lastMatch.score?.halftime?.away || null,
           },
-          extratime: { home: null, away: null },
-          penalty: { home: null, away: null },
+          fulltime: {
+            home: lastMatch.score?.fulltime?.home || lastMatch.goals?.home || 0,
+            away: lastMatch.score?.fulltime?.away || lastMatch.goals?.away || 0,
+          },
+          extratime: {
+            home: lastMatch.score?.extratime?.home || null,
+            away: lastMatch.score?.extratime?.away || null,
+          },
+          penalty: {
+            home: lastMatch.score?.penalty?.home || null,
+            away: lastMatch.score?.penalty?.away || null,
+          },
         },
-        tablePosition: null, // Will be calculated from standings
-        averageTeamRating: null, // Will be calculated from player ratings
+        tablePosition: lastMatch.tablePosition || null,
+        averageTeamRating: lastMatch.averageTeamRating || null,
       };
 
       const response: FixtureDataResponse = [fixture];
@@ -1097,186 +905,41 @@ export class TeamsRepository {
       return response;
     } catch (error) {
       console.error("Failed to fetch last fixture:", error);
-      // Return empty array if error occurs
       return [];
     }
   }
-
-  async getTeamGoalsOverTime(
-    league: number,
-    season: number,
-    teamId: number,
-  ): Promise<{
-    team_id: number;
-    season: number;
-    goals_over_time: Array<{
-      matchday: number;
-      date: Date;
-      goals_for: number;
-      goals_against: number;
-      goal_difference: number;
-    }>;
-  }> {
+  async getTeamFormOverview(teamId: number): Promise<FixtureDataResponse> {
     try {
-      const cacheKey = `team_goals_over_time_${league}_${season}_${teamId}`;
+      const cacheKey = `team_form_overview_${teamId}`;
 
-      const cached = this.cacheService.get<{
-        team_id: number;
-        season: number;
-        goals_over_time: {
-          matchday: number;
-          date: Date;
-          goals_for: number;
-          goals_against: number;
-          goal_difference: number;
-        }[];
-      }>(cacheKey);
+      const cached = this.cacheService.get<FixtureDataResponse>(cacheKey);
       if (cached) {
         return cached;
       }
-
-      // Get team matches and calculate goals over time
+      //get last 2 matches
       const matches = await Models.Match.find({
         $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
-        tournament_id: league,
-        season: season.toString(),
-      }).sort({ date: 1 });
+        "fixture.date": { $lt: new Date() },
+        "fixture.status.short": "FT",
+      })
+        .sort({ "fixture.date": -1 })
+        .limit(2);
 
-      const goalsData = matches.map((match, index) => {
-        const isHome = match.teams.home.id === teamId;
-        const teamGoals = isHome ? match.goals.home : match.goals.away;
-        const opponentGoals = isHome ? match.goals.away : match.goals.home;
+      const response: FixtureDataResponse = matches.map((match) => ({
+        fixture: match.fixture,
+        league: match.league,
+        teams: match.teams,
+        goals: match.goals,
+        score: match.score,
+        tablePosition: match.tablePosition || null,
+        averageTeamRating: match.averageTeamRating || null,
+      }));
 
-        return {
-          matchday: index + 1,
-          date: new Date(match.date),
-          goals_for: teamGoals,
-          goals_against: opponentGoals,
-          goal_difference: teamGoals - opponentGoals,
-        };
-      });
-
-      const result = {
-        team_id: teamId,
-        season: season,
-        goals_over_time: goalsData,
-      };
-
-      this.cacheService.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
-      return result;
+      this.cacheService.set(cacheKey, response, 5 * 60 * 1000); // Cache for 5 minutes
+      return response;
     } catch (error) {
-      console.error("Failed to fetch team goals over time:", error);
-      // Return default goals over time if error occurs
-      return {
-        team_id: teamId,
-        season: season,
-        goals_over_time: [],
-      };
-    }
-  }
-
-  async getTeamSquad(teamId: number): Promise<{
-    team_id: number;
-    squad: Array<{
-      player_id: number;
-      player_name: string;
-      jersey_number: number;
-      position: string;
-      joined_date: Date | null;
-    }>;
-  }> {
-    try {
-      const cacheKey = `team_squad_${teamId}`;
-
-      const cached = this.cacheService.get<{
-        team_id: number;
-        squad: {
-          player_id: number;
-          player_name: string;
-          jersey_number: number;
-          position: string;
-          joined_date: Date;
-        }[];
-      }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Get team from MongoDB
-      const team = await Models.Team.findOne({ korastats_id: teamId });
-
-      if (!team || !team.lineup) {
-        return {
-          team_id: teamId,
-          squad: [],
-        };
-      }
-
-      const result = {
-        team_id: teamId,
-        squad: team.lineup.startXI.map((player) => ({
-          player_id: player.id,
-          player_name: player.name,
-          jersey_number: player.number,
-          position: player.pos,
-          joined_date: null,
-        })),
-      };
-
-      this.cacheService.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
-      return result;
-    } catch (error) {
-      console.error("Failed to fetch team squad:", error);
-      // Return default squad if error occurs
-      return {
-        team_id: teamId,
-        squad: [],
-      };
-    }
-  }
-
-  async getTeamLineup(
-    league: number,
-    season: number,
-    teamId: number,
-  ): Promise<{
-    team_id: number;
-    season: number;
-    lineup: any;
-  }> {
-    try {
-      const cacheKey = `team_lineup_${league}_${season}_${teamId}`;
-
-      const cached = this.cacheService.get<{
-        team_id: number;
-        season: number;
-        lineup: any;
-      }>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // This would typically fetch lineup data from MongoDB or Korastats
-      // For now, return a mock response
-      const result = {
-        team_id: teamId,
-        season: season,
-        lineup: {
-          formation: "4-3-3",
-          players: [],
-        },
-      };
-
-      this.cacheService.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
-      return result;
-    } catch (error) {
-      console.error("Failed to fetch team lineup:", error);
-      // Return default lineup if error occurs
-      return {
-        team_id: teamId,
-        season: season,
-        lineup: null,
-      };
+      console.error("Failed to fetch team form overview:", error);
+      return [];
     }
   }
 }

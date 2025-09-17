@@ -1,18 +1,12 @@
-// src/db/mogodb/schemas/coach.schema.ts
-// Coach MongoDB schema for SDSA
-
-import { Schema, Document, Types } from "mongoose";
+import { Schema } from "mongoose";
 
 // Interface for TypeScript
-export interface ICoach extends Document {
-  _id: Types.ObjectId;
-
+export interface CoachInterface {
   // Korastats identifiers
   korastats_id: number;
 
   // Personal info
   name: string;
-  nickname?: string;
   firstname: string;
   lastname: string;
   age: number;
@@ -25,25 +19,27 @@ export interface ICoach extends Document {
   height: number;
   weight: number;
   photo: string;
-  prefferedFormation: string;
+  prefferedFormation: string | null;
   // Career history (embedded for quick access)
   career_history: Array<{
     team_id: number;
     team_name: string;
+    team_logo: string;
     start_date: Date;
     end_date?: Date;
     is_current: boolean;
   }>;
 
   // Coaching stats summary (denormalized)
-  stats: {
-    total_matches: number;
-    total_wins: number;
-    total_draws: number;
-    total_losses: number;
+  stats: Array<{
+    league: any;
+    matches: number;
+    wins: number;
+    draws: number;
+    loses: number;
     points: number;
     points_per_game: number;
-  };
+  }>;
 
   // Trophies and achievements
   trophies: Array<{
@@ -54,6 +50,11 @@ export interface ICoach extends Document {
     team_name: string;
     league: string;
   }>;
+  coachPerformance: {
+    winPercentage: number;
+    drawPercentage: number;
+    losePercentage: number;
+  };
 
   // Status
   status: "active" | "inactive" | "retired";
@@ -66,7 +67,7 @@ export interface ICoach extends Document {
 }
 
 // MongoDB Schema
-const CoachSchema = new Schema<ICoach>(
+const CoachSchema = new Schema<CoachInterface>(
   {
     korastats_id: {
       type: Number,
@@ -77,9 +78,7 @@ const CoachSchema = new Schema<ICoach>(
       type: String,
       required: true,
     },
-    nickname: {
-      type: String,
-    },
+
     firstname: {
       type: String,
     },
@@ -107,23 +106,31 @@ const CoachSchema = new Schema<ICoach>(
     photo: {
       type: String,
     },
+    prefferedFormation: {
+      type: String,
+      default: null,
+    },
     career_history: [
       {
         team_id: { type: Number, required: true },
         team_name: { type: String, required: true },
+        team_logo: { type: String, required: true },
         start_date: { type: Date, required: true },
         end_date: { type: Date },
         is_current: { type: Boolean, default: false },
       },
     ],
-    stats: {
-      total_matches: { type: Number, default: 0 },
-      total_wins: { type: Number, default: 0 },
-      total_draws: { type: Number, default: 0 },
-      total_losses: { type: Number, default: 0 },
-      points: { type: Number, default: 0 },
-      points_per_game: { type: Number, default: 0 },
-    },
+    stats: [
+      {
+        league: { type: String, required: true },
+        matches: { type: Number, default: 0 },
+        wins: { type: Number, default: 0 },
+        draws: { type: Number, default: 0 },
+        loses: { type: Number, default: 0 },
+        points: { type: Number, default: 0 },
+        points_per_game: { type: Number, default: 0 },
+      },
+    ],
     trophies: [
       {
         id: { type: Number, required: true },
@@ -134,6 +141,11 @@ const CoachSchema = new Schema<ICoach>(
         league: { type: String, required: true },
       },
     ],
+    coachPerformance: {
+      winPercentage: { type: Number, default: 0 },
+      drawPercentage: { type: Number, default: 0 },
+      losePercentage: { type: Number, default: 0 },
+    },
     status: {
       type: String,
       required: true,

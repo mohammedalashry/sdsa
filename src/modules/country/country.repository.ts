@@ -81,19 +81,5 @@ export class CountryRepository {
       return [];
     }
   }
-
-  // ========== HELPER METHODS ==========
-
-  /**
-   * Map MongoDB country to CountryData format
-   */
-  private mapCountryToCountryData(country: any): CountryData {
-    return {
-      id: country.korastats_id,
-      name: country.name,
-      code: country.code || null,
-      flag: country.flag_url || null,
-    };
-  }
 }
 

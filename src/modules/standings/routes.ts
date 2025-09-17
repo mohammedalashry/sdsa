@@ -22,11 +22,5 @@ router.get(
   standingsController.retrieve,
 );
 
-// POST /api/standings/sync - Manually sync team rankings with Korastats
-router.post(
-  "/sync",
-  standingsController.syncTeamRankings,
-);
-
 export default router;
 

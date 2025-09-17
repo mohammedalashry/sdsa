@@ -1,6 +1,4 @@
-//========================= FIXTURE TYPES ==============================
-// For GET /fixture/?league=X&season=Y endpoint
-// Base fixture information
+import { TeamAttacking, TeamPasses, TeamDefending, TeamOther } from "./team-stats.types";
 export interface Fixture {
   id: number;
   referee: string | null;
@@ -22,7 +20,23 @@ export interface Fixture {
     elapsed: number | null; // Minutes elapsed
   };
 }
-
+export type StatType =
+  | "Shots on Goal"
+  | "Shots off Goal"
+  | "Total Shots"
+  | "Blocked Shots"
+  | "Shots insidebox"
+  | "Shots outsidebox"
+  | "Fouls"
+  | "Corner Kicks"
+  | "Offsides"
+  | "Ball Possession"
+  | "Yellow Cards"
+  | "Red Cards"
+  | "Goalkeeper Saves"
+  | "Total passes"
+  | "Passes accurate"
+  | "Passes %";
 // League information within fixture
 export interface FixtureLeague {
   id: number;
@@ -136,6 +150,8 @@ export interface LineupData {
       id: number;
       name: string;
       number: number;
+      photo: string;
+      rating: string | null;
       pos: string;
       grid: string;
     };
@@ -145,6 +161,8 @@ export interface LineupData {
       id: number;
       name: string;
       number: number;
+      photo: string;
+      rating: string | null;
       pos: string;
       grid: string | null;
     };
@@ -245,6 +263,7 @@ export interface FixturePlayerStatsData {
       cards: {
         yellow: number | null;
         red: number | null;
+        yellowred: number | null;
       };
       penalty: {
         won: number | null;
@@ -256,7 +275,6 @@ export interface FixturePlayerStatsData {
     }>;
   }>;
 }
-
 // Team statistics for fixture
 export interface FixtureStatsData {
   team: {
@@ -265,11 +283,15 @@ export interface FixtureStatsData {
     logo: string;
   };
   statistics: Array<{
-    type: string; // "Shots on Goal", "Shots off Goal", "Total Shots", etc.
+    type: StatType; // "Shots on Goal", "Shots off Goal", "Total Shots", etc.
     value: number | string | null;
   }>;
 }
-
+export interface TeamHomeAwayStats {
+  home: number;
+  away: number;
+  total: number;
+}
 // Team stats data (season performance)
 export interface TeamStatsData {
   league: {
@@ -287,39 +309,25 @@ export interface TeamStatsData {
   };
   form: string;
   fixtures: {
-    played: { home: number; away: number; total: number };
-    wins: { home: number; away: number; total: number };
-    draws: { home: number; away: number; total: number };
-    loses: { home: number; away: number; total: number };
+    played: TeamHomeAwayStats;
+    wins: TeamHomeAwayStats;
+    draws: TeamHomeAwayStats;
+    loses: TeamHomeAwayStats;
   };
   goals: {
-    for: { total: { home: number; away: number; total: number } };
-    against: { total: { home: number; away: number; total: number } };
+    for_: { total: TeamHomeAwayStats; average: TeamHomeAwayStats };
+    against: { total: TeamHomeAwayStats; average: TeamHomeAwayStats };
   };
   biggest: {
     streak: { wins: number; draws: number; loses: number };
-    wins: { home: string; away: string };
-    loses: { home: string; away: string };
-    goals: {
-      for: { home: number; away: number };
-      against: { home: number; away: number };
-    };
   };
-  clean_sheet: { home: number; away: number; total: number };
-  failed_to_score: { home: number; away: number; total: number };
-  penalty: {
-    scored: { total: number; percentage: string };
-    missed: { total: number; percentage: string };
-    total: number;
-  };
-  lineups: Array<{
-    formation: string;
-    played: number;
-  }>;
-  cards: {
-    yellow: Record<string, { total: number | null; percentage: string | null }>;
-    red: Record<string, { total: number | null; percentage: string | null }>;
-  };
+  clean_sheet: TeamHomeAwayStats;
+  teamAttacking: TeamAttacking;
+  teamPasses: TeamPasses;
+  teamDefending: TeamDefending;
+  teamOther: TeamOther;
+  average_team_rating: number;
+  rank: number;
 }
 
 // Complete detailed fixture response
@@ -337,10 +345,21 @@ export interface FixtureDetailed {
 // ===== PREDICTION AND COMPARISON TYPES =====
 
 export interface ComparisonData {
-  type: string;
-  name: string;
-  home: string;
-  away: string;
+  team: {
+    id: number;
+    name: string;
+    logo: string;
+    code: string;
+    country: string;
+    founded: number;
+    national: boolean;
+  };
+  clean_sheet: number;
+  form: number;
+  win_streak: number;
+  goals_scored: number;
+  goals_conceded: number;
+  consistency: number;
 }
 
 export interface PredictionsData {
@@ -361,23 +380,6 @@ export interface PredictionsData {
     draw: string;
     away: string;
   };
-}
-
-export interface Predictions {
-  predictions: PredictionsData;
-  league: {
-    id: number;
-    name: string;
-    country: string;
-    logo: string;
-    flag: string;
-    season: number;
-  };
-  teams: {
-    home: FixtureTeam;
-    away: FixtureTeam;
-  };
-  comparison: ComparisonData[];
 }
 
 // ===== MOMENTUM AND ANALYSIS TYPES =====
@@ -415,18 +417,20 @@ export interface FixtureTeamHeatmap {
 // Shot map data
 export interface Shot {
   id: number;
-  minute: number;
-  player: {
-    id: number;
-    name: string;
-  };
-  coordinates: {
-    x: number;
-    y: number;
-  };
-  bodyPart: string; // "Right Foot", "Left Foot", "Head", etc.
-  shotType: string; // "Goal", "Saved", "Blocked", "Off Target", etc.
-  situation: string; // "Regular Play", "Set Piece", "Counter Attack", etc.
+  playerId: number;
+  time: string;
+  zone: string;
+  outcome: string;
+  x: number;
+  y: number;
+  isBlocked: boolean;
+  isOnTarget: boolean;
+  blockedX: number;
+  blockedY: number;
+  goalCrossedY: number;
+  goalCrossedZ: number;
+  shotType: string;
+  situation: string;
 }
 
 export interface TeamShotmapData {
@@ -474,7 +478,7 @@ export interface FixtureTopPerformers {
 export type FixtureDataResponse = FixtureData[];
 export type FixtureDetailedResponse = FixtureDetailed;
 export type FixtureComparisonResponse = ComparisonData[];
-export type FixturePredictionsResponse = Predictions;
+export type FixturePredictionsResponse = PredictionsData;
 export type FixtureMomentumResponse = MomentumResponse;
 export type FixtureHighlightsResponse = MatchHighlights;
 export type FixtureHeatmapResponse = FixtureTeamHeatmap[];

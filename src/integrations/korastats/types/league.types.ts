@@ -269,14 +269,16 @@ interface KorastatsMatchListItem {
 
 // Standings Response (TournamentGroupStandings)
 export interface KorastatsStanding {
+  teamID: number;
   team: string;
   rank: number;
   points: number;
-  won: { total: number };
-  draw: { total: number };
-  lost: { total: number };
-  scored: { total: number };
-  conceded: { total: number };
+  played: { total: number; home: number; away: number };
+  won: { total: number; home: number; away: number };
+  draw: { total: number; home: number; away: number };
+  lost: { total: number; home: number; away: number };
+  scored: { total: number; home: number; away: number };
+  conceded: { total: number; home: number; away: number };
 }
 
 export interface KorastatsStandingsData {

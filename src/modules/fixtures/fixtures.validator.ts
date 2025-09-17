@@ -1,7 +1,5 @@
-// src/modules/fixtures/validators/fixtures.validator.ts
 import Joi from "joi";
 
-// Based on Excel sheet parameters
 export const fixturesValidationSchemas = {
   // GET /api/fixture/ - date (query), league (query), round (query), season (query)
   getFixtures: Joi.object({
@@ -10,11 +8,7 @@ export const fixturesValidationSchemas = {
       .optional(),
     league: Joi.number().integer().positive().required(),
     round: Joi.string().optional(),
-    season: Joi.number()
-      .integer()
-      .min(2000)
-      .max(new Date().getFullYear() + 2)
-      .optional(),
+    season: Joi.optional(), //FOR FRONTEND
   }),
 
   // GET /api/fixture/comparison/ - fixture (query)
@@ -51,16 +45,15 @@ export const fixturesValidationSchemas = {
   getFixturePrediction: Joi.object({
     fixture: Joi.number().integer().positive().required(),
   }),
-
   // GET /api/fixture/results/ - league (query), round (query), season (query)
   getFixtureResults: Joi.object({
     league: Joi.number().integer().positive().required(),
-    round: Joi.string().required(),
+    round: Joi.string().optional(), //FOR FRONTEND
     season: Joi.number()
       .integer()
       .min(2000)
       .max(new Date().getFullYear() + 2)
-      .required(),
+      .optional(), //FOR FRONTEND
   }),
 
   // GET /api/fixture/shotmap/ - fixture (query)
@@ -80,7 +73,7 @@ export const fixturesValidationSchemas = {
       .integer()
       .min(2000)
       .max(new Date().getFullYear() + 2)
-      .required(),
+      .optional(), //FOR FRONTEND
   }),
 
   // GET /api/fixture/:id - id (params)

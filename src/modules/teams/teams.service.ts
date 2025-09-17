@@ -1,12 +1,22 @@
 import { TeamsRepository } from "@/modules/teams/teams.repository";
-import { TeamDataResponse, TeamInfo } from "@/legacy-types/teams.types";
+import {
+  TeamsResponse,
+  TeamInfo,
+  TeamComparisonStatsResponse,
+  TeamStatsResponse,
+  GoalsOverTimeResponse,
+  FormOverTimeResponse,
+  TeamLineupResponse,
+  PositionOverTimeResponse,
+  TeamSquadResponse,
+} from "@/legacy-types/teams.types";
 import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
 import { ApiError } from "@/core/middleware/error.middleware";
 
 export class TeamsService {
   constructor(private readonly repository: TeamsRepository) {}
 
-  async getTeams(options: { league: number; season: number }): Promise<TeamDataResponse> {
+  async getTeams(options: { league: number; season: number }): Promise<TeamsResponse> {
     try {
       // Business logic: validate league and season
       if (!options.league || !options.season) {
@@ -46,14 +56,10 @@ export class TeamsService {
     }
   }
 
-  async getTeamComparisonStats(options: { season: number; team: number }): Promise<{
-    team: { id: number; name: string };
+  async getTeamComparisonStats(options: {
     season: number;
-    stats: any;
-    form: any;
-    goals: any;
-    cards: any;
-  }> {
+    team: number;
+  }): Promise<TeamComparisonStatsResponse> {
     try {
       if (!options.season || !options.team) {
         throw new ApiError(400, "Season and team are required");
@@ -133,26 +139,9 @@ export class TeamsService {
 
   async getTeamFormOverTime(options: {
     league: number;
-    page: number;
-    pageSize: number;
     season: number;
     team: number;
-  }): Promise<{
-    team_id: number;
-    season: number;
-    form: Array<{
-      match_id: number;
-      date: Date;
-      opponent: string;
-      result: string;
-      score: string;
-    }>;
-    pagination: {
-      page: number;
-      pageSize: number;
-      total: number;
-    };
-  }> {
+  }): Promise<FormOverTimeResponse> {
     try {
       if (!options.league || !options.season || !options.team) {
         throw new ApiError(400, "League, season, and team are required");
@@ -162,41 +151,11 @@ export class TeamsService {
         options.league,
         options.season,
         options.team,
-        options.page,
-        options.pageSize,
       );
     } catch (error) {
       if (error instanceof ApiError) throw error;
       console.error("Team form over time service error:", error);
       throw new ApiError(500, "Failed to fetch team form over time");
-    }
-  }
-
-  async getTeamFormOverview(options: {
-    league: number;
-    season: number;
-    team: number;
-  }): Promise<{
-    team_id: number;
-    season: number;
-    form: any;
-    stats: any;
-    recent_matches: any[];
-  }> {
-    try {
-      if (!options.league || !options.season || !options.team) {
-        throw new ApiError(400, "League, season, and team are required");
-      }
-
-      return await this.repository.getTeamFormOverview(
-        options.league,
-        options.season,
-        options.team,
-      );
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      console.error("Team form overview service error:", error);
-      throw new ApiError(500, "Failed to fetch team form overview");
     }
   }
 
@@ -214,14 +173,11 @@ export class TeamsService {
     }
   }
 
-  async getTeamStats(options: { league: number; season: number; team: number }): Promise<{
-    team_id: number;
+  async getTeamStats(options: {
+    league: number;
     season: number;
-    stats: any;
-    form: any;
-    goals: any;
-    cards: any;
-  }> {
+    team: number;
+  }): Promise<TeamStatsResponse> {
     try {
       if (!options.league || !options.season || !options.team) {
         throw new ApiError(400, "League, season, and team are required");
@@ -239,16 +195,7 @@ export class TeamsService {
     }
   }
 
-  async getTeamSquad(teamId: number): Promise<{
-    team_id: number;
-    squad: Array<{
-      player_id: number;
-      player_name: string;
-      jersey_number: number;
-      position: string;
-      joined_date: Date | null;
-    }>;
-  }> {
+  async getTeamSquad(teamId: number): Promise<TeamSquadResponse> {
     try {
       if (!teamId || teamId <= 0) {
         throw new ApiError(400, "Valid team ID is required");
@@ -266,14 +213,7 @@ export class TeamsService {
     league: number;
     season: number;
     team: number;
-  }): Promise<{
-    team_id: number;
-    season: number;
-    positions: Array<{
-      matchday: number;
-      position: number;
-    }>;
-  }> {
+  }): Promise<PositionOverTimeResponse> {
     try {
       if (!options.league || !options.season || !options.team) {
         throw new ApiError(400, "League, season, and team are required");
@@ -323,17 +263,7 @@ export class TeamsService {
     league: number;
     season: number;
     team: number;
-  }): Promise<{
-    team_id: number;
-    season: number;
-    goals_over_time: Array<{
-      matchday: number;
-      date: Date;
-      goals_for: number;
-      goals_against: number;
-      goal_difference: number;
-    }>;
-  }> {
+  }): Promise<GoalsOverTimeResponse> {
     try {
       if (!options.league || !options.season || !options.team) {
         throw new ApiError(400, "League, season, and team are required");
@@ -355,11 +285,7 @@ export class TeamsService {
     league: number;
     season: number;
     team: number;
-  }): Promise<{
-    team_id: number;
-    season: number;
-    lineup: any; // This would need proper typing based on lineup structure
-  }> {
+  }): Promise<TeamLineupResponse> {
     try {
       if (!options.league || !options.season || !options.team) {
         throw new ApiError(400, "League, season, and team are required");
@@ -374,6 +300,18 @@ export class TeamsService {
       if (error instanceof ApiError) throw error;
       console.error("Team lineup service error:", error);
       throw new ApiError(500, "Failed to fetch team lineup");
+    }
+  }
+  async getTeamFormOverview(options: { team: number }) {
+    try {
+      if (!options.team) {
+        throw new ApiError(400, "League, season, and team are required");
+      }
+      return await this.repository.getTeamFormOverview(options.team);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      console.error("Team form overview service error:", error);
+      throw new ApiError(500, "Failed to fetch team form overview");
     }
   }
 }

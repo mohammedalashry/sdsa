@@ -2,7 +2,16 @@
 import { Models } from "../../db/mogodb/models";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
 import { ApiError } from "../../core/middleware/error.middleware";
-import { CoachData } from "../../legacy-types/players.types";
+import {
+  CoachData,
+  CoachDataResponse,
+  CoachCareerStatsResponse,
+  CoachInfoResponse,
+  CoachCareerResponse,
+  CoachTrophiesResponse,
+  CoachMatchStatsResponse,
+  CoachPerformanceResponse,
+} from "../../legacy-types/coach.types";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
 export class CoachRepository {
@@ -15,11 +24,14 @@ export class CoachRepository {
   /**
    * GET /api/coach/ - Get coaches
    */
-  async getCoaches(options: { league: number; season: number }): Promise<CoachData[]> {
+  async getCoaches(options: {
+    league: number;
+    season: number;
+  }): Promise<CoachDataResponse> {
     try {
       const cacheKey = `coaches_${options.league}_${options.season}`;
 
-      const cached = this.cacheService.get<CoachData[]>(cacheKey);
+      const cached = this.cacheService.get<CoachDataResponse>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -134,7 +146,7 @@ export class CoachRepository {
   }
 
   /**
-   * GET /api/coach/statistics/ - Get coach statistics
+   * GET /api/coach/career_stats/ - Get coach statistics
    */
   async getCoachStatistics(options: {
     coach: number;
@@ -158,30 +170,6 @@ export class CoachRepository {
     } catch (error) {
       console.error("Failed to fetch coach statistics:", error);
       return {};
-    }
-  }
-
-  /**
-   * GET /api/coach/transfer/ - Get coach transfers
-   */
-  async getCoachTransfers(coachId: number): Promise<any[]> {
-    try {
-      const cacheKey = `coach_transfers_${coachId}`;
-
-      const cached = this.cacheService.get<any[]>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // This would typically involve transfer history
-      // For now, return empty array
-      const transfers: any[] = [];
-
-      this.cacheService.set(cacheKey, transfers, 60 * 60 * 1000); // Cache for 1 hour
-      return transfers;
-    } catch (error) {
-      console.error("Failed to fetch coach transfers:", error);
-      return [];
     }
   }
 
@@ -229,19 +217,14 @@ export class CoachRepository {
       nationality: coach.nationality?.name || null,
       height: null, // Not available for coaches
       weight: null, // Not available for coaches
-      photo: coach.image_url || "",
+      photo: coach.photo || "",
       team: {
         id: coach.career_history?.find((team) => team.is_current)?.team_id || 0,
         name:
           coach.career_history?.find((team) => team.is_current)?.team_name ||
           "Unknown Team",
-        code: null,
-        country: "",
-        founded: null,
-        national: false,
-        logo: "",
+        logo: coach.career_history?.find((team) => team.is_current)?.team_logo || "",
       },
-      career: [], // Would need to fetch from career history
     };
   }
 
@@ -371,19 +354,22 @@ export class CoachRepository {
         throw new ApiError(404, "Coach not found");
       }
 
+      // Aggregate stats from all leagues
+      const totalMatches = coach.stats.reduce((sum, stat) => sum + stat.matches, 0);
+      const totalWins = coach.stats.reduce((sum, stat) => sum + stat.wins, 0);
+      const totalDraws = coach.stats.reduce((sum, stat) => sum + stat.draws, 0);
+      const totalLoses = coach.stats.reduce((sum, stat) => sum + stat.loses, 0);
+
       const stats = {
-        total_matches: coach.stats?.total_matches || 0,
-        total_wins: coach.stats?.total_wins || 0,
-        total_draws: coach.stats?.total_draws || 0,
-        total_losses: coach.stats?.total_losses || 0,
-        win_percentage:
-          coach.stats?.total_matches > 0
-            ? (coach.stats.total_wins / coach.stats.total_matches) * 100
-            : 0,
-        current_team_matches: 0, // Will be calculated from matches
-        current_team_wins: 0, // Will be calculated from matches
-        current_team_draws: 0, // Will be calculated from matches
-        current_team_losses: 0, // Will be calculated from matches
+        total_matches: totalMatches,
+        total_wins: totalWins,
+        total_draws: totalDraws,
+        total_losses: totalLoses,
+        win_percentage: totalMatches > 0 ? (totalWins / totalMatches) * 100 : 0,
+        current_team_matches: totalMatches,
+        current_team_wins: totalWins,
+        current_team_draws: totalDraws,
+        current_team_losses: totalLoses,
       };
 
       this.cacheService.set(cacheKey, stats, 30 * 60 * 1000); // Cache for 30 minutes
@@ -603,7 +589,7 @@ export class CoachRepository {
         form: form.padEnd(5, "-"),
         recent_matches: recentMatches.map((match) => ({
           id: match.korastats_id,
-          date: match.date,
+          date: match.fixture?.date || new Date().toISOString(),
           home_team: match.teams?.home?.name,
           away_team: match.teams?.away?.name,
           score: `${match.goals?.home || 0}-${match.goals?.away || 0}`,

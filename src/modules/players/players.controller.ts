@@ -14,9 +14,7 @@ export class PlayersController {
   getPlayerCareer = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.query;
 
-    const career: PlayerStatistics[] = await this.playersService.getPlayerCareer(
-      Number(id),
-    );
+    const career = await this.playersService.getPlayerCareer(Number(id));
 
     res.json(career);
   });
@@ -97,7 +95,7 @@ export class PlayersController {
   getPlayerStats = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { id, league, season } = req.query;
 
-    const stats: PlayerStatistics[] = await this.playersService.getPlayerStats({
+    const stats = await this.playersService.getPlayerStats({
       id: Number(id),
       league: Number(league),
       season: Number(season),

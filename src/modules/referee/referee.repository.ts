@@ -1,9 +1,17 @@
 // src/modules/referee/referee.repository.ts
-import { Models } from "../../db/mogodb/models";
+import { MatchDetailsInterface, MatchInterface, Models } from "../../db/mogodb/models";
 import { CacheService } from "../../integrations/korastats/services/cache.service";
 import { ApiError } from "../../core/middleware/error.middleware";
+import {
+  RefereeResponse,
+  RefereeInfoResponse,
+  RefereeMatchStatsResponse,
+  RefereeCareerStats,
+  RefereeCareerStatsResponse,
+} from "../../legacy-types/referee.types";
+import { FixtureData, FixtureDataResponse } from "../../legacy-types/fixtures.types";
 import { RefereeData } from "./referee.service";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { log } from "console";
 
 export class RefereeRepository {
   private cacheService: CacheService;
@@ -15,11 +23,14 @@ export class RefereeRepository {
   /**
    * GET /api/referee/ - Get referees
    */
-  async getReferees(options: { league: number; season: number }): Promise<RefereeData[]> {
+  async getReferees(options: {
+    league: number;
+    season?: number;
+  }): Promise<RefereeResponse> {
     try {
       const cacheKey = `referees_${options.league}_${options.season}`;
 
-      const cached = this.cacheService.get<RefereeData[]>(cacheKey);
+      const cached = this.cacheService.get<RefereeResponse>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -36,8 +47,11 @@ export class RefereeRepository {
         const refereeData = mongoReferees.map((referee) => ({
           id: referee.korastats_id,
           name: referee.name,
-          nationality: referee.country,
-          photo: referee.photo || null,
+          image: referee.photo || "",
+          country: referee.country,
+          bithDate: referee.birthDate,
+          age: referee.age || 0,
+          matches: referee.matches,
         }));
 
         this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
@@ -58,7 +72,7 @@ export class RefereeRepository {
   /**
    * GET /api/referee/available-seasons/ - Get available seasons
    */
-  async getAvailableSeasons(refereeId: number): Promise<number[]> {
+  async getAvailableSeasons(refereeId: number): Promise<any[]> {
     try {
       const cacheKey = `referee_seasons_${refereeId}`;
 
@@ -66,16 +80,42 @@ export class RefereeRepository {
       if (cached) {
         return cached;
       }
-
+      const referee = await Models.Referee.findOne({
+        korastats_id: refereeId,
+      });
       // Get seasons from matches where referee participated
-      const matches = await Models.Match.find({
-        "officials.referee.id": refereeId,
-      }).distinct("season");
+      const seasons = await Models.Match.find({
+        "fixture.referee": referee.name,
+      }).distinct("league.season");
 
-      const seasons = matches.map((season) => parseInt(season)).sort((a, b) => b - a);
+      const league = await Models.League.findOne({});
 
-      this.cacheService.set(cacheKey, seasons, 60 * 60 * 1000); // Cache for 1 hour
-      return seasons;
+      const result = [
+        {
+          league: {
+            id: league.korastats_id,
+            name: league.name,
+            logo: league.logo,
+            type: "League",
+          },
+          seasons:
+            seasons.length > 0
+              ? seasons.map((year) => ({
+                  year: year,
+                  start_date: new Date(year, 6, 1),
+                  end_date: new Date(year + 1, 6, 1),
+                }))
+              : [
+                  {
+                    year: 2024,
+                    start_date: new Date(2024, 6, 1),
+                    end_date: new Date(2025, 6, 1),
+                  },
+                ],
+        },
+      ];
+      this.cacheService.set(cacheKey, result, 60 * 60 * 1000); // Cache for 1 hour
+      return result;
     } catch (error) {
       console.error("Failed to fetch referee seasons:", error);
       return [];
@@ -83,13 +123,13 @@ export class RefereeRepository {
   }
 
   /**
-   * GET /api/referee/career/ - Get referee career
+   * GET /api/referee/career-stats/ - Get referee career stats
    */
-  async getRefereeCareer(refereeId: number): Promise<RefereeData[]> {
+  async getRefereeCareer(refereeId: number): Promise<RefereeCareerStatsResponse> {
     try {
       const cacheKey = `referee_career_${refereeId}`;
 
-      const cached = this.cacheService.get<RefereeData[]>(cacheKey);
+      const cached = this.cacheService.get<RefereeCareerStatsResponse>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -100,14 +140,7 @@ export class RefereeRepository {
       });
 
       if (referee) {
-        const refereeData: RefereeData[] = [
-          {
-            id: referee.korastats_id,
-            name: referee.name,
-            nationality: referee.country,
-            photo: referee.photo || null,
-          },
-        ];
+        const refereeData = referee.career_stats;
 
         this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
         return refereeData;
@@ -127,24 +160,33 @@ export class RefereeRepository {
   async getRefereeFixtures(options: {
     referee: number;
     league: number;
-  }): Promise<FixtureDataResponse> {
+  }): Promise<RefereeMatchStatsResponse> {
     try {
       const cacheKey = `referee_fixtures_${options.referee}_${options.league}`;
 
-      const cached = this.cacheService.get<FixtureDataResponse>(cacheKey);
+      const cached = this.cacheService.get<RefereeMatchStatsResponse>(cacheKey);
       if (cached) {
         return cached;
       }
-
+      const referee = await Models.Referee.findOne({
+        korastats_id: options.referee,
+      });
       // Get matches where referee officiated
       const matches = await Models.Match.find({
         tournament_id: options.league,
-        "officials.referee.id": options.referee,
+        "fixture.referee": referee.name,
       })
         .sort({ date: -1 })
-        .limit(50);
-
-      const fixtures = this.mapMatchesToFixtureData(matches);
+        .limit(20);
+      const matchDetails = await Models.MatchDetails.find({
+        tournament_id: options.league,
+        "fixture.referee": referee.name,
+      });
+      const fixtures = matches.map((match) => ({
+        yellow_cards: this.calculateYellowCards(matchDetails),
+        red_cards: this.calculateRedCards(matchDetails),
+        fixture_data: this.mapMatchesToFixtureData(match),
+      }));
 
       this.cacheService.set(cacheKey, fixtures, 15 * 60 * 1000); // Cache for 15 minutes
       return fixtures;
@@ -157,11 +199,11 @@ export class RefereeRepository {
   /**
    * GET /api/referee/info/ - Get referee info
    */
-  async getRefereeInfo(refereeId: number): Promise<RefereeData> {
+  async getRefereeInfo(refereeId: number): Promise<RefereeInfoResponse> {
     try {
       const cacheKey = `referee_info_${refereeId}`;
 
-      const cached = this.cacheService.get<RefereeData>(cacheKey);
+      const cached = this.cacheService.get<RefereeInfoResponse>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -175,11 +217,14 @@ export class RefereeRepository {
         throw new ApiError(404, "Referee not found");
       }
 
-      const refereeData: RefereeData = {
+      const refereeData: RefereeInfoResponse = {
         id: referee.korastats_id,
         name: referee.name,
-        nationality: referee.country,
-        photo: null, // Would need to add photo field to schema
+        image: referee.photo || null,
+        country: referee.country,
+        bithDate: referee.birthDate,
+        age: referee.age || 0,
+        matches: referee.matches,
       };
 
       this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
@@ -189,221 +234,58 @@ export class RefereeRepository {
       throw new ApiError(500, "Failed to fetch referee info");
     }
   }
-
-  /**
-   * GET /api/referee/statistics/ - Get referee statistics
-   */
-  async getRefereeStatistics(options: {
-    referee: number;
-    league: number;
-    season: number;
-  }): Promise<any> {
+  async getRefereeLastMatch(refereeId: number): Promise<FixtureData> {
     try {
-      const cacheKey = `referee_statistics_${options.referee}_${options.league}_${options.season}`;
+      const cacheKey = `referee_last_match_${refereeId}`;
 
-      const cached = this.cacheService.get<any>(cacheKey);
+      const cached = this.cacheService.get<FixtureData>(cacheKey);
       if (cached) {
         return cached;
       }
-
-      // Get referee statistics from matches
-      const matches = await Models.Match.find({
-        tournament_id: options.league,
-        season: options.season.toString(),
-        "officials.referee.id": options.referee,
-      });
-
-      // Calculate statistics from match events
-      let yellowCards = 0;
-      let redCards = 0;
-      let penalties = 0;
-
-      matches.forEach((match) => {
-        if (match.events && Array.isArray(match.events)) {
-          match.events.forEach((event) => {
-            // Count yellow cards
-            if (event.type === "Card" && event.detail === "Yellow Card") {
-              yellowCards++;
-            }
-            // Count red cards
-            else if (event.type === "Card" && event.detail === "Red Card") {
-              redCards++;
-            }
-            // Count penalties
-            else if (event.type === "Goal" && event.detail === "Penalty") {
-              penalties++;
-            }
-          });
-        }
-      });
-
-      const statistics = {
-        total_matches: matches.length,
-        yellow_cards: yellowCards,
-        red_cards: redCards,
-        penalties: penalties,
-        average_cards_per_match:
-          matches.length > 0 ? (yellowCards + redCards) / matches.length : 0,
-        average_penalties_per_match: matches.length > 0 ? penalties / matches.length : 0,
-      };
-
-      this.cacheService.set(cacheKey, statistics, 60 * 60 * 1000); // Cache for 1 hour
-      return statistics;
-    } catch (error) {
-      console.error("Failed to fetch referee statistics:", error);
-      return {};
-    }
-  }
-
-  /**
-   * GET /api/referee/career-stats/ - Get referee career statistics from database
-   */
-  async getRefereeCareerStats(refereeId: number): Promise<any> {
-    try {
-      const cacheKey = `referee_career_stats_${refereeId}`;
-
-      const cached = this.cacheService.get<any>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // Get referee from MongoDB
       const referee = await Models.Referee.findOne({
         korastats_id: refereeId,
       });
-
-      if (!referee) {
-        throw new ApiError(404, "Referee not found");
-      }
-
-      const careerStats = {
-        total_matches: referee.career_stats?.[0]?.total_matches || 0,
-        total_yellow_cards: referee.career_stats?.[0]?.total_yellow_cards || 0,
-        total_red_cards: referee.career_stats?.[0]?.total_red_cards || 0,
-        total_penalties: referee.career_stats?.[0]?.total_penalties || 0,
-        average_cards_per_match:
-          referee.career_stats?.[0]?.total_matches > 0
-            ? (referee.career_stats[0].total_yellow_cards +
-                referee.career_stats[0].total_red_cards) /
-              referee.career_stats[0].total_matches
-            : 0,
-        current_season_matches: referee.career_stats?.[0]?.total_matches || 0,
-        current_season_yellow_cards: referee.career_stats?.[0]?.total_yellow_cards || 0,
-        current_season_red_cards: referee.career_stats?.[0]?.total_red_cards || 0,
-        current_season_penalties: referee.career_stats?.[0]?.total_penalties || 0,
-      };
-
-      this.cacheService.set(cacheKey, careerStats, 30 * 60 * 1000); // Cache for 30 minutes
-      return careerStats;
+      const match = await Models.Match.findOne({
+        "fixture.referee": referee.name,
+      })
+        .sort({ date: -1 })
+        .limit(1);
+      console.log("🔍 Match:", match);
+      return this.mapMatchesToFixtureData(match);
     } catch (error) {
-      console.error("Failed to fetch referee career stats:", error);
-      return {};
+      console.error("Failed to fetch referee last match:", error);
+      return null;
     }
   }
-
-  /**
-   * GET /api/referee/transfer/ - Get referee transfers
-   */
-  async getRefereeTransfers(refereeId: number): Promise<any[]> {
-    try {
-      const cacheKey = `referee_transfers_${refereeId}`;
-
-      const cached = this.cacheService.get<any[]>(cacheKey);
-      if (cached) {
-        return cached;
-      }
-
-      // This would typically involve transfer history
-      // For now, return empty array
-      const transfers: any[] = [];
-
-      this.cacheService.set(cacheKey, transfers, 60 * 60 * 1000); // Cache for 1 hour
-      return transfers;
-    } catch (error) {
-      console.error("Failed to fetch referee transfers:", error);
-      return [];
-    }
-  }
-
-  // ========== HELPER METHODS ==========
-
-  /**
-   * Map MongoDB referee to RefereeData format
-   */
-  private mapRefereeToRefereeData(referee: any): RefereeData {
-    return {
-      id: referee.korastats_id,
-      name: referee.name,
-      nationality: referee.nationality?.name || null,
-      photo: referee.image_url || null,
-    };
-  }
-
   /**
    * Map MongoDB matches to FixtureData format
    */
-  private mapMatchesToFixtureData(matches: any[]): FixtureDataResponse {
-    return matches.map((match) => ({
-      fixture: {
-        id: match.korastats_id,
-        referee: match.officials?.referee?.name || null,
-        timezone: "UTC",
-        date: match.date.toISOString(),
-        timestamp: Math.floor(match.date.getTime() / 1000),
-        periods: {
-          first: null,
-          second: null,
-        },
-        venue: {
-          id: match.venue?.id || null,
-          name: match.venue?.name || null,
-          city: match.venue?.city || null,
-        },
-        status: {
-          long: match.status?.name || "Unknown",
-          short: match.status?.short || "UNK",
-          elapsed: null,
-        },
-      },
-      league: {
-        id: match.tournament_id,
-        name: "League Name", // Would need to fetch from tournament
-        country: "",
-        logo: "",
-        flag: null,
-        season: parseInt(match.season),
-        round: match.round?.toString() || "",
-      },
-      teams: {
-        home: {
-          id: match.teams?.home?.id || 0,
-          name: match.teams?.home?.name || "Home Team",
-          logo: "",
-          winner: match.teams?.home?.score > match.teams?.away?.score,
-        },
-        away: {
-          id: match.teams?.away?.id || 0,
-          name: match.teams?.away?.name || "Away Team",
-          logo: "",
-          winner: match.teams?.away?.score > match.teams?.home?.score,
-        },
-      },
-      goals: {
-        home: match.teams?.home?.score || 0,
-        away: match.teams?.away?.score || 0,
-      },
-      score: {
-        halftime: { home: null, away: null },
-        fulltime: {
-          home: match.teams?.home?.score || 0,
-          away: match.teams?.away?.score || 0,
-        },
-        extratime: { home: null, away: null },
-        penalty: { home: null, away: null },
-      },
-      tablePosition: match.table_position || null,
-      averageTeamRating: match.average_team_rating || null,
-    }));
+  private mapMatchesToFixtureData(match: MatchInterface): FixtureData {
+    return {
+      fixture: match.fixture,
+      league: match.league,
+      teams: match.teams,
+      goals: match.goals,
+      score: match.score,
+      tablePosition: match.tablePosition || null,
+      averageTeamRating: match.averageTeamRating || null,
+    };
+  }
+
+  calculateYellowCards(matches: MatchDetailsInterface[]): number {
+    return matches.reduce(
+      (acc, match) =>
+        acc + match.timelineData.filter((event) => event.type === "yellow_card").length,
+      0,
+    );
+  }
+
+  calculateRedCards(matches: MatchDetailsInterface[]): number {
+    return matches.reduce(
+      (acc, match) =>
+        acc + match.timelineData.filter((event) => event.type === "red_card").length,
+      0,
+    );
   }
 }
 

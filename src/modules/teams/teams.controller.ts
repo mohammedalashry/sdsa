@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { TeamsService } from "./teams.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { TeamDataResponse, TeamInfo } from "../../legacy-types/teams.types";
+import { TeamsResponse, TeamInfo } from "../../legacy-types/teams.types";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
 export class TeamsController {
@@ -14,7 +14,7 @@ export class TeamsController {
   getTeams = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { league, season } = req.query;
 
-    const teams: TeamDataResponse = await this.teamsService.getTeams({
+    const teams: TeamsResponse = await this.teamsService.getTeams({
       league: Number(league),
       season: Number(season),
     });
@@ -112,29 +112,12 @@ export class TeamsController {
 
     const formData = await this.teamsService.getTeamFormOverTime({
       league: Number(league),
-      page: Number(page),
-      pageSize: Number(pageSize),
+
       season: Number(season),
       team: Number(team),
     });
 
     res.json(formData);
-  });
-
-  /**
-   * GET /api/team/form-overview/
-   * Get team form overview
-   */
-  getTeamFormOverview = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { league, season, team } = req.query;
-
-    const formOverview = await this.teamsService.getTeamFormOverview({
-      league: Number(league),
-      season: Number(season),
-      team: Number(team),
-    });
-
-    res.json(formOverview);
   });
 
   /**
@@ -255,6 +238,15 @@ export class TeamsController {
     });
 
     res.json(lineup);
+  });
+  getTeamFormOverview = catchAsync(async (req: Request, res: Response): Promise<void> => {
+    const { team } = req.query;
+
+    const formOverview = await this.teamsService.getTeamFormOverview({
+      team: Number(team),
+    });
+
+    res.json(formOverview);
   });
 }
 
