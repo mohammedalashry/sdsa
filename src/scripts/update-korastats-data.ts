@@ -1,4 +1,4 @@
-import { SyncerService, SyncOptions } from "../syncer/syncer.service";
+import { SyncerService, SyncOptions } from "../syncer/syncer-clean.service";
 
 async function main() {
   const syncer = new SyncerService();
@@ -28,7 +28,7 @@ async function main() {
     };
 
     // Run incremental sync
-    const progress = await syncer.incrementalSync(syncOptions);
+    const progress = await syncer.fullSync(syncOptions);
 
     console.log("🎉 Incremental update completed!");
     console.log(`📊 Update Summary:`);

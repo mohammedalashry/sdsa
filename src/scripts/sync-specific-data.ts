@@ -1,4 +1,4 @@
-import { SyncerService, SyncOptions } from "../syncer/syncer.service";
+import { SyncerService, SyncOptions } from "../syncer/syncer-clean.service";
 
 async function main() {
   const syncer = new SyncerService();

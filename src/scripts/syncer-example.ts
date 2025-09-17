@@ -4,7 +4,7 @@
  * This file shows different ways to use the syncer service
  */
 
-import { SyncerService } from "../syncer/syncer.service";
+import { SyncerService } from "../syncer/syncer-clean.service";
 import { connectToDatabase } from "../db/mogodb/connection";
 
 async function exampleUsage() {
@@ -20,7 +20,7 @@ async function exampleUsage() {
 
     // 3. Example 1: Sync only leagues
     console.log("\n📋 Example 1: Sync Leagues Only");
-    const leagueResult = await syncer.syncLeaguesComprehensive();
+    const leagueResult = await syncer.syncTournamentsComprehensive();
     console.log("Leagues synced:", leagueResult);
 
     // 4. Example 2: Sync matches for a specific tournament

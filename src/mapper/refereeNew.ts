@@ -52,7 +52,7 @@ export class RefereeNew {
       country: countryInfo,
       birthDate: entityReferee.dob,
       age: parseInt(entityReferee.age) || this.calculateAge(entityReferee.dob),
-      image: refereePhoto,
+      photo: refereePhoto,
       matches: totalMatches,
 
       // === CAREER STATISTICS ===
