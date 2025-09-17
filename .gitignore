@@ -16,3 +16,4 @@ Dockerfile
 .dockerignore
 docker-compose.yml
 docs
+*.test
