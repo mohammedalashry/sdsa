@@ -3,8 +3,9 @@ import jwt, { SignOptions } from "jsonwebtoken";
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
 
-const REFRESH_EXPIRES_IN: string | number = (process.env.REFRESH_TOKEN_TTL ??
-  "7d") as string;
+const REFRESH_EXPIRES_IN: string | number = (process.env.REFRESH_TOKEN_TTL ?? 604800) as
+  | string
+  | number;
 
 export async function signAccessToken(payload: object) {
   return new Promise<string>((resolve, reject) =>
