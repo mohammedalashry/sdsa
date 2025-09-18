@@ -45,36 +45,41 @@ export const loginUser = async (
   headers: { "user-agent": string | undefined },
   data: ILoginUser,
 ) => {
-  const { password } = data;
-  let email = data.email;
-  if (!email || !password) {
-    throw new AppError("Email and password are required.", 400);
+  try {
+    const { password } = data;
+    let email = data.email;
+    if (!email || !password) {
+      throw new AppError("Email and password are required.", 400);
+    }
+    email = email.toLowerCase();
+    const user = await prismaService.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, password: true, role: true },
+    });
+
+    if (!user) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    const isPasswordValid = verifyDjangoPBKDF2(password, user.password as string);
+    if (!isPasswordValid) {
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    const { access, refresh } = await issueTokens(user, {
+      ip,
+      userAgent: headers["user-agent"] as string,
+    });
+    console.log("access and refress", access, refresh);
+    return {
+      refresh,
+      access,
+      role: user.role,
+    };
+  } catch (error: any) {
+    console.error("Login error:", error);
+    throw new AppError("Login error", 500);
   }
-  email = email.toLowerCase();
-  const user = await prismaService.user.findUnique({
-    where: { email },
-    select: { id: true, email: true, password: true, role: true },
-  });
-
-  if (!user) {
-    throw new AppError("Invalid email or password", 401);
-  }
-
-  const isPasswordValid = verifyDjangoPBKDF2(password, user.password as string);
-  if (!isPasswordValid) {
-    throw new AppError("Invalid email or password", 401);
-  }
-
-  const { access, refresh } = await issueTokens(user, {
-    ip,
-    userAgent: headers["user-agent"] as string,
-  });
-
-  return {
-    refresh,
-    access,
-    role: user.role,
-  };
 };
 
 export const userForgotPasswordEmail = async (email: string) => {
