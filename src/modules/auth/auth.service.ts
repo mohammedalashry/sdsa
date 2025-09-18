@@ -65,7 +65,7 @@ export const loginUser = async (
     if (!isPasswordValid) {
       throw new AppError("Invalid email or password", 401);
     }
-
+    console.log("user", user);
     const { access, refresh } = await issueTokens(user, {
       ip,
       userAgent: headers["user-agent"] as string,

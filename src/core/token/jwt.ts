@@ -21,13 +21,16 @@ export async function signAccessToken(payload: object) {
 }
 
 export async function signRefreshToken(payload: object) {
+  console.log("payload", payload);
+  console.log("REFRESH_SECRET", REFRESH_SECRET);
+  console.log("REFRESH_EXPIRES_IN", REFRESH_EXPIRES_IN);
   return new Promise<string>((resolve, reject) =>
     jwt.sign(
       payload,
       REFRESH_SECRET,
       {
         algorithm: "HS256",
-        expiresIn: REFRESH_EXPIRES_IN,
+        expiresIn: 60 * 60 * 24 * 7,
       } as SignOptions,
       (err, t) => (err || !t ? reject(err) : resolve(t)),
     ),
