@@ -23,7 +23,7 @@ import { MatchInterface } from "@/db/mogodb/schemas/match.schema";
 export interface GetFixturesOptions {
   league?: number;
   season?: number;
-  round?: string;
+  round?: number;
   date?: string;
   status?: string;
   limit?: number;
@@ -54,24 +54,22 @@ export class FixturesRepository {
       if (options.league) {
         query.tournament_id = options.league;
       }
-      //mongodb stored round as string and it does not retrieve it amatches
-      // if (options.round) {
-      //   query["league.round"] = options.round;
-      // }
+      if (options.season) {
+        query["league.season"] = options.season;
+      }
+      if (options.round) {
+        query["league.round"] = options.round.toString();
+      }
       console.log("🔍 Options:", options);
       console.log("🔍 Query:", query);
 
-      /*FOR FRONTEND
       if (options.date) {
         const startDate = new Date(options.date);
-        const endDate = new Date(Date.now());
-        endDate.setDate(endDate.getDate() + 10);
         query["fixture.date"] = {
           $gte: startDate.toISOString(),
-          $lt: endDate.toISOString(),
         };
       }
-      */
+
       if (options.status) {
         query["fixture.status.short"] = options.status;
       }
@@ -112,8 +110,8 @@ export class FixturesRepository {
     try {
       const query: any = {
         tournament_id: options.league,
-        //"fixture.status.short": { $in: ["NS", "TBD"] },//FOR FRONTEND
-        //"fixture.timestamp": { $gte: Math.floor(Date.now() / 1000) }, //FOR FRONTEND
+        "fixture.status.short": { $in: ["NS", "TBD"] },
+        "fixture.date": { $gte: new Date().toISOString() },
       };
 
       if (options.season) {
@@ -160,7 +158,7 @@ export class FixturesRepository {
 
       const matches = await Models.Match.find(query)
         .sort({ "fixture.timestamp": -1 })
-        .limit(50)
+        .limit(10)
         .lean();
 
       return matches.map((match) => ({
@@ -184,17 +182,14 @@ export class FixturesRepository {
   async getLiveFixtures(league: number): Promise<FixtureDataResponse> {
     try {
       const query: any = {
-        // "fixture.status.short": "LIVE", //FOR FRONTEND
+        "fixture.status.short": "LIVE",
       };
 
       if (league) {
         query.tournament_id = league;
       }
 
-      const matches = await Models.Match.find(query)
-        .sort({ "averageTeamRating.away": -1 }) //FOR FRONTEND changed from timestamp to averageTeamRating
-        .limit(5)
-        .lean();
+      const matches = await Models.Match.find(query).limit(10).lean();
 
       return matches.map((match) => ({
         fixture: match.fixture,
@@ -217,9 +212,8 @@ export class FixturesRepository {
   async getLandingLiveFixtures(): Promise<FixtureDataResponse> {
     try {
       const matches = await Models.Match.find({
-        //"fixture.status.short": { $in: ["LIVE", "HT"] }, //FOR FRONTEND
+        "fixture.status.short": { $in: ["LIVE", "HT"] },
       })
-        .sort({ "tablePosition.home": -1 }) //FOR FRONTEND changed from timestamp
         .limit(10)
         .lean();
 
@@ -257,7 +251,6 @@ export class FixturesRepository {
 
       // Get detailed match data
       const matchDetails = await Models.MatchDetails.findOne({ korastats_id: id }).lean();
-      const mappedStatsData = await this.mapStatsData(matchDetails.statisticsData);
 
       // Get team stats for both teams from Team schema
       const teamStatsData = await this.getTeamStatsForMatch(match);
@@ -266,7 +259,6 @@ export class FixturesRepository {
       const headToHeadData = await this.getHeadToHeadMatches(
         match.teams?.home?.id,
         match.teams?.away?.id,
-        match.korastats_id,
       );
       // Return exact FixtureDetailed format - schemas already match
       const response: FixtureDetailedResponse = {
@@ -285,7 +277,7 @@ export class FixturesRepository {
         lineupsData: matchDetails?.lineupsData || [],
         injuriesData: matchDetails?.injuriesData || [],
         playerStatsData: matchDetails?.playerStatsData || [],
-        statisticsData: mappedStatsData || [],
+        statisticsData: matchDetails?.statisticsData || [],
 
         // Head-to-head and team stats
         headToHeadData,
@@ -338,12 +330,16 @@ export class FixturesRepository {
             founded: homeTeam.founded || 0,
             national: homeTeam.national || false,
           },
-          clean_sheet: homeTeam.stats?.clean_sheet?.total || 0,
-          form: this.calculateFormScore(homeTeam.stats?.form || ""),
-          win_streak: homeTeam.stats?.biggest?.streak?.wins || 0,
-          goals_scored: homeTeam.stats?.goals?.for_?.total?.total || 0,
-          goals_conceded: homeTeam.stats?.goals?.against?.total?.total || 0,
-          consistency: this.calculateConsistency(homeTeam.stats),
+          clean_sheet: homeTeam.stats_summary?.cleanSheetGames || 0,
+          form: this.calculateFormScore(homeTeam.tournament_stats?.[0]?.form || ""),
+          win_streak: homeTeam.tournament_stats?.[0]?.biggest?.streak?.wins || 0,
+          goals_scored:
+            (homeTeam.stats_summary?.goalsScored?.home || 0) +
+            (homeTeam.stats_summary?.goalsScored?.away || 0),
+          goals_conceded:
+            (homeTeam.stats_summary?.goalsConceded?.home || 0) +
+            (homeTeam.stats_summary?.goalsConceded?.away || 0),
+          consistency: this.calculateConsistencyFromSummary(homeTeam.stats_summary),
         });
       }
 
@@ -358,12 +354,16 @@ export class FixturesRepository {
             founded: awayTeam.founded || 0,
             national: awayTeam.national || false,
           },
-          clean_sheet: awayTeam.stats?.clean_sheet?.total || 0,
-          form: this.calculateFormScore(awayTeam.stats?.form || ""),
-          win_streak: awayTeam.stats?.biggest?.streak?.wins || 0,
-          goals_scored: awayTeam.stats?.goals?.for_?.total?.total || 0,
-          goals_conceded: awayTeam.stats?.goals?.against?.total?.total || 0,
-          consistency: this.calculateConsistency(awayTeam.stats),
+          clean_sheet: awayTeam.stats_summary?.cleanSheetGames || 0,
+          form: this.calculateFormScore(awayTeam.tournament_stats?.[0]?.form || ""),
+          win_streak: awayTeam.tournament_stats?.[0]?.biggest?.streak?.wins || 0,
+          goals_scored:
+            (awayTeam.stats_summary?.goalsScored?.home || 0) +
+            (awayTeam.stats_summary?.goalsScored?.away || 0),
+          goals_conceded:
+            (awayTeam.stats_summary?.goalsConceded?.home || 0) +
+            (awayTeam.stats_summary?.goalsConceded?.away || 0),
+          consistency: this.calculateConsistencyFromSummary(awayTeam.stats_summary),
         });
       }
 
@@ -496,68 +496,7 @@ export class FixturesRepository {
   // ===================================================================
   // HELPER METHODS
   // ===================================================================
-  private mapStatsData(statsData: any[]): FixtureStatsData[] {
-    if (!statsData || !Array.isArray(statsData)) {
-      return [];
-    }
 
-    return statsData.map((teamStats) => {
-      // Keep the team property unchanged
-      const mappedStats = {
-        team: teamStats.team,
-        statistics: [],
-      };
-
-      // Create a mapping from database stat types to StatType
-      const statTypeMapping: Record<string, string> = {
-        // Goals and Shots
-        Goals: "Shots on Goal",
-        Shots: "Total Shots",
-        "Shots on Target": "Shots on Goal",
-
-        // Passes
-        Passes: "Total passes",
-        "Pass Success": "Passes accurate",
-        "Pass Accuracy": "Passes %",
-
-        // Direct matches
-        "Yellow Cards": "Yellow Cards",
-        "Red Cards": "Red Cards",
-        Fouls: "Fouls",
-        Offsides: "Offsides",
-
-        // Other mappings
-        Corners: "Corner Kicks",
-        Saves: "Goalkeeper Saves",
-        "Possession %": "Ball Possession",
-
-        // Additional possible mappings based on your data
-        "Goals Conceded": "Shots off Goal", // Approximate mapping
-        Blocks: "Blocked Shots",
-      };
-
-      // Map each statistic
-      if (teamStats.statistics && Array.isArray(teamStats.statistics)) {
-        mappedStats.statistics = teamStats.statistics
-          .map((stat) => {
-            const mappedType = statTypeMapping[stat.type];
-
-            // Only include statistics that have a valid mapping to StatType
-            if (mappedType) {
-              return {
-                type: mappedType as StatType,
-                value: stat.value,
-              };
-            }
-
-            return null;
-          })
-          .filter((stat) => stat !== null); // Remove null entries
-      }
-
-      return mappedStats;
-    });
-  }
   private generateShotmapData(id: number): FixtureShotmapResponse {
     const shotmapsData: FixtureShotmapResponse = [];
     const homeShotmaps = this.createRandomShotmapSimilarToResponse();
@@ -658,44 +597,91 @@ export class FixturesRepository {
         name: team.name,
         logo: team.logo,
       },
-      form: team.stats?.form || "",
-      fixtures: team.stats?.fixtures || {
-        played: { home: 0, away: 0, total: 0 },
-        wins: { home: 0, away: 0, total: 0 },
-        draws: { home: 0, away: 0, total: 0 },
-        loses: { home: 0, away: 0, total: 0 },
-      },
-      goals: team.stats?.goals || {
-        for_: {
-          total: { home: 0, away: 0, total: 0 },
-          average: { home: 0, away: 0, total: 0 },
-        },
-        against: {
-          total: { home: 0, away: 0, total: 0 },
-          average: { home: 0, away: 0, total: 0 },
-        },
-      },
-      biggest: team.stats?.biggest || {
+      form: team.tournament_stats?.[0]?.form || "",
+      fixtures: team.stats_summary
+        ? {
+            played: {
+              home: team.stats_summary.gamesPlayed.home,
+              away: team.stats_summary.gamesPlayed.away,
+              total:
+                team.stats_summary.gamesPlayed.home + team.stats_summary.gamesPlayed.away,
+            },
+            wins: {
+              home: team.stats_summary.wins.home,
+              away: team.stats_summary.wins.away,
+              total: team.stats_summary.wins.home + team.stats_summary.wins.away,
+            },
+            draws: {
+              home: team.stats_summary.draws.home,
+              away: team.stats_summary.draws.away,
+              total: team.stats_summary.draws.home + team.stats_summary.draws.away,
+            },
+            loses: {
+              home: team.stats_summary.loses.home,
+              away: team.stats_summary.loses.away,
+              total: team.stats_summary.loses.home + team.stats_summary.loses.away,
+            },
+          }
+        : {
+            played: { home: 0, away: 0, total: 0 },
+            wins: { home: 0, away: 0, total: 0 },
+            draws: { home: 0, away: 0, total: 0 },
+            loses: { home: 0, away: 0, total: 0 },
+          },
+      goals: team.stats_summary
+        ? {
+            for_: {
+              total: {
+                home: team.stats_summary.goalsScored.home,
+                away: team.stats_summary.goalsScored.away,
+                total:
+                  team.stats_summary.goalsScored.home +
+                  team.stats_summary.goalsScored.away,
+              },
+              average: { home: 0, away: 0, total: 0 },
+            },
+            against: {
+              total: {
+                home: team.stats_summary.goalsConceded.home,
+                away: team.stats_summary.goalsConceded.away,
+                total:
+                  team.stats_summary.goalsConceded.home +
+                  team.stats_summary.goalsConceded.away,
+              },
+              average: { home: 0, away: 0, total: 0 },
+            },
+          }
+        : {
+            for_: {
+              total: { home: 0, away: 0, total: 0 },
+              average: { home: 0, away: 0, total: 0 },
+            },
+            against: {
+              total: { home: 0, away: 0, total: 0 },
+              average: { home: 0, away: 0, total: 0 },
+            },
+          },
+      biggest: team.tournament_stats?.[0]?.biggest || {
         streak: { wins: 0, draws: 0, loses: 0 },
       },
-      clean_sheet: team.stats?.clean_sheet || { home: 0, away: 0, total: 0 },
-      teamAttacking: team.stats?.team_attacking || {},
-      teamPasses: team.stats?.team_passing || {},
-      teamDefending: team.stats?.team_defending || {},
-      teamOther: team.stats?.team_others || {},
-      average_team_rating: team.stats?.average_team_rating || 0,
-      rank: team.stats?.rank || 0,
+      clean_sheet: {
+        home: 0,
+        away: 0,
+        total: team.stats_summary?.cleanSheetGames || 0,
+      },
+      teamAttacking: team.tournament_stats?.[0]?.team_attacking || {},
+      teamPasses: team.tournament_stats?.[0]?.team_passing || {},
+      teamDefending: team.tournament_stats?.[0]?.team_defending || {},
+      teamOther: team.tournament_stats?.[0]?.team_others || {},
+      average_team_rating: team.tournament_stats?.[0]?.average_team_rating || 0,
+      rank: team.tournament_stats?.[0]?.rank || 0,
     };
   }
 
   /**
    * Get head-to-head matches between two teams
    */
-  private async getHeadToHeadMatches(
-    homeTeamId: number,
-    awayTeamId: number,
-    currentMatchId: number,
-  ) {
+  private async getHeadToHeadMatches(homeTeamId: number, awayTeamId: number) {
     try {
       if (!homeTeamId || !awayTeamId) {
         return [];
@@ -703,19 +689,14 @@ export class FixturesRepository {
 
       // Find matches between these teams
       const headToHeadMatches = await Models.Match.find({
-        $and: [
-          { korastats_id: { $ne: currentMatchId } },
+        $or: [
           {
-            $or: [
-              {
-                "teams.home.id": homeTeamId,
-                "teams.away.id": awayTeamId,
-              },
-              {
-                "teams.home.id": awayTeamId,
-                "teams.away.id": homeTeamId,
-              },
-            ],
+            "teams.home.id": homeTeamId,
+            "teams.away.id": awayTeamId,
+          },
+          {
+            "teams.home.id": awayTeamId,
+            "teams.away.id": homeTeamId,
           },
         ],
       })
@@ -747,6 +728,24 @@ export class FixturesRepository {
       else if (char === "D") score += 1;
     }
     return score;
+  }
+
+  /**
+   * Calculate consistency score from team stats summary
+   */
+  private calculateConsistencyFromSummary(statsSummary: any): number {
+    if (!statsSummary) {
+      return 0;
+    }
+
+    const totalGames =
+      (statsSummary.gamesPlayed?.home || 0) + (statsSummary.gamesPlayed?.away || 0);
+    if (totalGames === 0) return 0;
+
+    const wins = (statsSummary.wins?.home || 0) + (statsSummary.wins?.away || 0);
+    const draws = (statsSummary.draws?.home || 0) + (statsSummary.draws?.away || 0);
+
+    return Math.round(((wins + draws * 0.5) / totalGames) * 100);
   }
 
   private calculateConsistency(stats: any): number {

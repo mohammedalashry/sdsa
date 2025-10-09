@@ -5,7 +5,7 @@ import {
 } from "@/integrations/korastats/types/league.types";
 import { KorastatsMatchListItem } from "@/integrations/korastats/types/fixture.types";
 import { LeagueLogoService } from "@/integrations/korastats/services/league-logo.service";
-import { KorastatsStatType } from "@/modules/players";
+import { KorastatsSeasonPlayerTopStats, KorastatsStatType } from "@/modules/players";
 import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
 // Create a plain object type for mapping (without Mongoose Document properties)
 export type TournamentData = LeagueInterface;
@@ -24,7 +24,6 @@ export class LeagueNew {
   async tournamentMapper(
     tournamentList: KorastatsTournament,
     matchList: KorastatsMatchListItem[],
-    listStatTypes: KorastatsStatType[],
     tournamentStructure: KorastatsTournamentStructure,
   ): Promise<TournamentData> {
     // Get league logo and real name from LeagueLogoService
@@ -33,23 +32,20 @@ export class LeagueNew {
     // Calculate rounds from match list
     const rounds = this.calculateRoundsFromMatchList(matchList);
 
-    // Determine tournament status based on dates
-    const status = this.determineTournamentStatus(
-      tournamentList.startDate,
-      tournamentList.endDate,
-    );
-
-    // Extract top performers using stat types and season top stats
-    const topPerformers = await this.extractTopPerformers(
-      listStatTypes,
-      tournamentStructure,
-    );
-
     const result: TournamentData = {
       // Korastats identifiers
-      korastats_id: tournamentList.id,
+      korastats_id: leagueLogoInfo?.id || tournamentList.id,
       name: leagueLogoInfo?.name || tournamentList.tournament, // Use real name from LeagueLogoService
-      season: tournamentList.season,
+      seasons: [
+        {
+          year: this.extractYearFromSeason(tournamentList.season),
+          start: tournamentList.startDate,
+          end: tournamentList.endDate,
+          current: this.isCurrentSeason(tournamentList.startDate, tournamentList.endDate),
+          rounds: rounds,
+          rounds_count: rounds.length,
+        },
+      ],
       logo: leagueLogoInfo?.logo || "", // Use real logo from LeagueLogoService
       type: "league",
       // Tournament metadata
@@ -72,21 +68,9 @@ export class LeagueNew {
       },
       gender: this.normalizeGender(tournamentStructure?.gender || "male"),
 
-      // Tournament structure - calculated from match list
+      // Tournament structure - keep union at league level for backward compatibility
       rounds: rounds,
       rounds_count: rounds.length,
-
-      // Tournament winners (would need additional data)
-
-      top_scorers: topPerformers.topScorers as [{ player: { id: number; name: string } }],
-      top_assisters: topPerformers.topAssisters as [
-        { player: { id: number; name: string } },
-      ],
-
-      // Metadata
-      start_date: new Date(tournamentList.startDate),
-      end_date: new Date(tournamentList.endDate),
-      status: status,
 
       // Sync tracking
       last_synced: new Date(),
@@ -153,6 +137,17 @@ export class LeagueNew {
     return `Round ${roundNum}`;
   }
 
+  private extractYearFromSeason(season: string): number {
+    const match = season.match(/(\d{4})/);
+    return match ? parseInt(match[1], 10) : new Date().getFullYear();
+  }
+
+  private isCurrentSeason(startDate: string, endDate: string): boolean {
+    const now = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return now >= start && now <= end;
+  }
   /**
    * Extract round number for sorting
    */
@@ -185,83 +180,66 @@ export class LeagueNew {
    * Extract top performers from tournament data
    */
   private async extractTopPerformers(
-    listStatTypes: KorastatsStatType[],
-    tournamentStructure: KorastatsTournamentStructure,
+    topAssistersData: any[] = [],
+    topScorersData: any[] = [],
   ): Promise<{
     topScorers: Array<{ player: { id: number; name: string } }>;
     topAssisters: Array<{ player: { id: number; name: string } }>;
   }> {
     try {
-      // Find the correct stat IDs for goals and assists
-      const goalsStat = this.findStatType(listStatTypes, [
-        "goals",
-        "goal",
-        "scored",
-        "scoring",
-      ]);
-      const assistsStat = this.findStatType(listStatTypes, [
-        "assist",
-        "assists",
-        "assisting",
-      ]);
+      console.log(
+        "🔍 Debug topScorersData:",
+        JSON.stringify(topScorersData.slice(0, 2), null, 2),
+      );
+      console.log(
+        "🔍 Debug topAssistersData:",
+        JSON.stringify(topAssistersData.slice(0, 2), null, 2),
+      );
 
-      const topScorers: Array<{ player: { id: number; name: string } }> = [];
-      const topAssisters: Array<{ player: { id: number; name: string } }> = [];
+      // Extract top 5 scorers from passed data
+      const topScorers: Array<{ player: { id: number; name: string } }> = topScorersData
+        .slice(0, 5)
+        .filter((player: any) => player && (player.intPlayerID || player.id)) // Only include players with valid IDs
+        .map((player: any) => {
+          const playerId = player.intPlayerID || player.id || 0;
+          const playerName =
+            player.strNickNameEn ||
+            player.strPlayerNameEn ||
+            player.name ||
+            "Unknown Player";
 
-      // Get top scorers if goals stat found
-      if (goalsStat) {
-        try {
-          const topScorersResponse = await this.korastatsService.getSeasonPlayerTopStats(
-            tournamentStructure.id, // season ID
-            goalsStat.intID, // stat type ID
-            "desc", // sort descending for top performers
-          );
+          console.log(`🎯 Scorer: ID=${playerId}, Name=${playerName}`);
 
-          if (
-            topScorersResponse.result === "Success" &&
-            topScorersResponse.data?.arrData
-          ) {
-            topScorers.push(
-              ...topScorersResponse.data.arrData.map((player: any) => ({
-                player: {
-                  id: player.intPlayerID,
-                  name: player.strPlayerNameEn || player.strNickNameEn,
-                },
-              })),
-            );
-          }
-        } catch (error) {
-          console.warn(`⚠️ Failed to get top scorers: ${error.message}`);
-        }
-      }
+          return {
+            player: {
+              id: playerId,
+              name: playerName,
+            },
+          };
+        });
 
-      // Get top assisters if assists stat found
-      if (assistsStat) {
-        try {
-          const topAssistersResponse =
-            await this.korastatsService.getSeasonPlayerTopStats(
-              tournamentStructure.id, // season ID
-              assistsStat.intID, // stat type ID
-              "desc", // sort descending for top performers
-            );
+      // Extract top 5 assisters from passed data
+      const topAssisters: Array<{ player: { id: number; name: string } }> =
+        topAssistersData
+          .slice(0, 5)
+          .filter((player: any) => player && (player.intPlayerID || player.id)) // Only include players with valid IDs
+          .map((player: any) => {
+            const playerId = player.intPlayerID || player.id || 0;
+            const playerName =
+              player.strPlayerNameEn ||
+              player.strNickNameEn ||
+              player.name ||
+              "Unknown Player";
 
-          if (
-            topAssistersResponse.result === "Success" &&
-            topAssistersResponse.data?.arrData
-          ) {
-            topAssisters.push(
-              ...topAssistersResponse.data.arrData.map((player: any) => ({
-                player: {
-                  id: player.intPlayerID,
-                  name: player.strPlayerNameEn || player.strNickNameEn,
-                },
-              })),
-            );
-          }
-        } catch (error) {
-          console.warn(`⚠️ Failed to get top assisters: ${error.message}`);
-        }
-      }
+            console.log(`🎯 Assister: ID=${playerId}, Name=${playerName}`);
+
+            return {
+              player: {
+                id: playerId,
+                name: playerName,
+              },
+            };
+          });
 
       console.log(
         `✅ Extracted ${topScorers.length} top scorers and ${topAssisters.length} top assisters`,

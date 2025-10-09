@@ -308,12 +308,22 @@ export class TeamDataService {
               tournamentId,
             );
 
-            // Update in database
-            await Models.Team.findOneAndUpdate(
-              { korastats_id: updatedTeamData.korastats_id },
-              updatedTeamData,
-              { upsert: true, new: true },
-            );
+            // Check if team already exists to merge tournament stats
+            const existingTeam = await Models.Team.findOne({
+              korastats_id: updatedTeamData.korastats_id,
+            });
+
+            if (existingTeam) {
+              // Team exists - merge tournament stats instead of replacing
+              await this.mergeTeamTournamentStats(existingTeam, updatedTeamData);
+            } else {
+              // New team - create normally
+              await Models.Team.findOneAndUpdate(
+                { korastats_id: updatedTeamData.korastats_id },
+                updatedTeamData,
+                { upsert: true, new: true },
+              );
+            }
             teamsUpdated++;
           }
         } catch (error) {
@@ -512,34 +522,47 @@ export class TeamDataService {
   }
 
   /**
-   * Clear all team data for a tournament
+   * Clear teams using flexible filters (mirrors match clear query)
    */
-  async clearTournamentTeams(tournamentId: number): Promise<{
-    success: boolean;
-    deletedCount: number;
-    error?: string;
-  }> {
+  async clearTeams(
+    options: {
+      beforeDate?: Date;
+      afterDate?: Date;
+      excludeIds?: number[];
+      includeIds?: number[];
+      tournamentId?: number;
+    } = {},
+  ): Promise<{ success: boolean; deletedCount: number; error?: string }> {
     try {
-      this.logger.log(`Clearing all team data for tournament ${tournamentId}`);
+      const query: any = {};
 
-      const deleteResult = await Models.Team.deleteMany({});
+      if (options.beforeDate || options.afterDate) {
+        query.created_at = {};
+        if (options.beforeDate) query.created_at.$lt = options.beforeDate;
+        if (options.afterDate) query.created_at.$gt = options.afterDate;
+      }
+
+      if (options.tournamentId) {
+        query["tournament_stats.tournament_id"] = options.tournamentId;
+      }
+
+      if (options.excludeIds && options.excludeIds.length > 0) {
+        query.korastats_id = { $nin: options.excludeIds };
+      }
+      if (options.includeIds && options.includeIds.length > 0) {
+        query.korastats_id = { $in: options.includeIds };
+      }
+
+      this.logger.log(`Clearing Teams with query: ${JSON.stringify(query)}`);
+      const deleteResult = await Models.Team.deleteMany(query);
       const deletedCount = deleteResult.deletedCount || 0;
+      this.logger.log(`Deleted ${deletedCount} team records`);
 
-      this.logger.log(`Deleted ${deletedCount} teams for tournament ${tournamentId}`);
-
-      return {
-        success: true,
-        deletedCount,
-      };
+      return { success: true, deletedCount };
     } catch (error) {
-      const errorMsg = `Failed to clear team data for tournament ${tournamentId}: ${error.message}`;
+      const errorMsg = `Failed to clear team data: ${error.message}`;
       this.logger.error(errorMsg);
-
-      return {
-        success: false,
-        deletedCount: 0,
-        error: errorMsg,
-      };
+      return { success: false, deletedCount: 0, error: errorMsg };
     }
   }
 
@@ -620,11 +643,22 @@ export class TeamDataService {
         errors: [],
       });
 
-      await Models.Team.findOneAndUpdate(
-        { korastats_id: teamData.korastats_id },
-        teamData,
-        { upsert: true, new: true },
-      );
+      // Check if team already exists to merge tournament stats
+      const existingTeam = await Models.Team.findOne({
+        korastats_id: teamData.korastats_id,
+      });
+
+      if (existingTeam) {
+        // Team exists - merge tournament stats instead of replacing
+        await this.mergeTeamTournamentStats(existingTeam, teamData);
+      } else {
+        // New team - create normally
+        await Models.Team.findOneAndUpdate(
+          { korastats_id: teamData.korastats_id },
+          teamData,
+          { upsert: true, new: true },
+        );
+      }
 
       this.logger.debug(
         `Successfully synced team: ${teamListItem.team} (ID: ${teamListItem.id})`,
@@ -635,6 +669,190 @@ export class TeamDataService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Merge tournament stats for existing teams instead of replacing
+   */
+  private async mergeTeamTournamentStats(
+    existingTeam: any,
+    newTeamData: TeamInterface,
+  ): Promise<void> {
+    try {
+      // Get existing tournament stats
+      const existingTournamentStats = existingTeam.tournament_stats || [];
+
+      // Get new tournament stats from the mapper
+      const newTournamentStats = newTeamData.tournament_stats || [];
+
+      // Create a map of existing tournament stats by league ID for quick lookup
+      const existingStatsMap = new Map();
+      existingTournamentStats.forEach((stats: any) => {
+        const leagueId = stats.league?.id;
+        if (leagueId) {
+          existingStatsMap.set(leagueId, stats);
+        }
+      });
+
+      // Merge new tournament stats
+      const mergedTournamentStats = [...existingTournamentStats];
+
+      for (const newStats of newTournamentStats) {
+        const leagueId = newStats.league?.id;
+
+        if (leagueId) {
+          // Map 1441 to 840 for consistency (as per user requirement)
+          const mappedLeagueId = leagueId === 1441 ? 840 : leagueId;
+
+          if (existingStatsMap.has(mappedLeagueId)) {
+            // Update existing tournament stats
+            const existingIndex = mergedTournamentStats.findIndex(
+              (stats: any) => stats.league?.id === mappedLeagueId,
+            );
+            if (existingIndex !== -1) {
+              mergedTournamentStats[existingIndex] = {
+                ...newStats,
+                league: {
+                  ...newStats.league,
+                  id: mappedLeagueId, // Ensure we use the mapped ID
+                },
+              };
+            }
+          } else {
+            // Add new tournament stats
+            mergedTournamentStats.push({
+              ...newStats,
+              league: {
+                ...newStats.league,
+                id: mappedLeagueId, // Ensure we use the mapped ID
+              },
+            });
+          }
+        }
+      }
+
+      // Update other fields that might have changed (but preserve existing data)
+      const updateData = {
+        // Update basic info if it has changed
+        name: newTeamData.name || existingTeam.name,
+        code: newTeamData.code || existingTeam.code,
+        logo: newTeamData.logo || existingTeam.logo,
+        founded: newTeamData.founded || existingTeam.founded,
+        national:
+          newTeamData.national !== undefined
+            ? newTeamData.national
+            : existingTeam.national,
+        country: newTeamData.country || existingTeam.country,
+
+        // Update metrics
+        clubMarketValue: newTeamData.clubMarketValue || existingTeam.clubMarketValue,
+        totalPlayers: newTeamData.totalPlayers || existingTeam.totalPlayers,
+        foreignPlayers: newTeamData.foreignPlayers || existingTeam.foreignPlayers,
+        averagePlayerAge: newTeamData.averagePlayerAge || existingTeam.averagePlayerAge,
+        rank: newTeamData.rank || existingTeam.rank,
+
+        // Update venue info
+        venue: newTeamData.venue || existingTeam.venue,
+
+        // Update coaching staff
+        coaches: newTeamData.coaches || existingTeam.coaches,
+
+        // Update trophies
+        trophies: newTeamData.trophies || existingTeam.trophies,
+
+        // Use merged tournament stats
+        tournament_stats: mergedTournamentStats,
+
+        // Recalculate stats summary from merged tournament stats
+        stats_summary:
+          this.calculateStatsSummaryFromTournamentStats(mergedTournamentStats),
+
+        // Update lineup
+        lineup: newTeamData.lineup || existingTeam.lineup,
+
+        // Update transfers
+        transfers: newTeamData.transfers || existingTeam.transfers,
+
+        // Update performance over time
+        goalsOverTime: newTeamData.goalsOverTime || existingTeam.goalsOverTime,
+        formOverTime: newTeamData.formOverTime || existingTeam.formOverTime,
+
+        // Update sync tracking
+        last_synced: new Date(),
+        sync_version: (existingTeam.sync_version || 0) + 1,
+        updated_at: new Date(),
+      };
+
+      await Models.Team.findOneAndUpdate(
+        { korastats_id: existingTeam.korastats_id },
+        updateData,
+        { new: true },
+      );
+
+      this.logger.debug(
+        `Merged tournament stats for team: ${existingTeam.name} (ID: ${existingTeam.korastats_id})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to merge tournament stats for team ${existingTeam.name}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate stats summary from tournament stats array
+   */
+  private calculateStatsSummaryFromTournamentStats(tournamentStats: any[]): any {
+    let gamesPlayedHome = 0;
+    let gamesPlayedAway = 0;
+    let winsHome = 0;
+    let winsAway = 0;
+    let drawsHome = 0;
+    let drawsAway = 0;
+    let losesHome = 0;
+    let losesAway = 0;
+    let goalsForHome = 0;
+    let goalsForAway = 0;
+    let goalsAgainstHome = 0;
+    let goalsAgainstAway = 0;
+    let cleanSheetsTotal = 0;
+
+    for (const ts of tournamentStats) {
+      if (ts.fixtures) {
+        gamesPlayedHome += ts.fixtures.played?.home || 0;
+        gamesPlayedAway += ts.fixtures.played?.away || 0;
+        winsHome += ts.fixtures.wins?.home || 0;
+        winsAway += ts.fixtures.wins?.away || 0;
+        drawsHome += ts.fixtures.draws?.home || 0;
+        drawsAway += ts.fixtures.draws?.away || 0;
+        losesHome += ts.fixtures.loses?.home || 0;
+        losesAway += ts.fixtures.loses?.away || 0;
+      }
+
+      if (ts.goals) {
+        goalsForHome += ts.goals.for_?.total?.home || 0;
+        goalsForAway += ts.goals.for_?.total?.away || 0;
+        goalsAgainstHome += ts.goals.against?.total?.home || 0;
+        goalsAgainstAway += ts.goals.against?.total?.away || 0;
+      }
+
+      cleanSheetsTotal += ts.clean_sheet?.total || 0;
+    }
+
+    const goalDifference =
+      goalsForHome + goalsForAway - (goalsAgainstHome + goalsAgainstAway);
+
+    return {
+      gamesPlayed: { home: gamesPlayedHome, away: gamesPlayedAway },
+      wins: { home: winsHome, away: winsAway },
+      draws: { home: drawsHome, away: drawsAway },
+      loses: { home: losesHome, away: losesAway },
+      goalsScored: { home: goalsForHome, away: goalsForAway },
+      goalsConceded: { home: goalsAgainstHome, away: goalsAgainstAway },
+      goalDifference,
+      cleanSheetGames: cleanSheetsTotal,
+    };
   }
 
   /**

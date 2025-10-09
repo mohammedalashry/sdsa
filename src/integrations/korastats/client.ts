@@ -75,7 +75,6 @@ export class KorastatsClient {
   async makeRequest<T>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
     try {
       console.log(`🔍 Making Korastats API request to: ${endpoint}`);
-      console.log(`🔑 Using API Key: ${this.KORASTATS_API_KEY}`);
       console.log(`📡 Request params:`, { api: endpoint, ...params });
 
       const { data } = await this.http.get("", {

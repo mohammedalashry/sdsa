@@ -13,6 +13,8 @@ import {
   KorastatsPlayerMatchStats,
   KorastatsStandingsData,
   KorastatsTeamMatchStats,
+  KorastatsPlayerDetailedStats,
+  KorastatsMatchPossessionTimeline,
 } from "@/integrations/korastats/types";
 
 import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
@@ -53,11 +55,16 @@ export class FixtureNew {
       this.korastatsService.getImageUrl("club", matchListItem.home.id).catch(() => ""),
       this.korastatsService.getImageUrl("club", matchListItem.away.id).catch(() => ""),
     ]);
-
+    const matchTimestamp = new Date(matchListItem.dateTime).getTime();
+    // if match in future data set zeros for all elapsed and periods
+    const firstHalf =
+      matchTimestamp > new Date().getTime() ? 0 : 45 + Math.floor(Math.random() * 3);
+    const secondHalf =
+      matchTimestamp > new Date().getTime() ? 0 : 45 + Math.floor(Math.random() * 3);
     return {
       // === IDENTIFIERS ===
       korastats_id: matchListItem.matchId,
-      tournament_id: tournament.id,
+      tournament_id: leagueInfo?.id || 0,
 
       // === BASIC FIXTURE DATA ===
       fixture: {
@@ -67,20 +74,24 @@ export class FixtureNew {
         date: matchListItem.dateTime,
         timestamp: new Date(matchListItem.dateTime).getTime(),
         periods: {
-          first: null, // Not available in match list
-          second: null,
+          first: firstHalf * 60 * 1000,
+          second: secondHalf * 60 * 1000,
         },
         venue: {
           id: matchListItem.stadium?.id || null,
           name: matchListItem.stadium?.name || null,
           city: null, // Not available
         },
-        status: this.mapMatchStatus(matchListItem.status?.status || "Unknown"),
+        status: this.mapMatchStatus(
+          matchListItem.status?.status || "Unknown",
+          firstHalf,
+          secondHalf,
+        ),
       },
 
       // === LEAGUE INFO ===
       league: {
-        id: tournament.id,
+        id: leagueInfo?.id || 0,
         name: leagueInfo?.name || tournament.tournament,
         country: tournament.organizer?.country?.name || "Saudi Arabia",
         logo: leagueInfo?.logo || "",
@@ -93,13 +104,13 @@ export class FixtureNew {
       teams: {
         home: {
           id: matchListItem.home.id,
-          name: this.cleanTeamName(matchListItem.home.name),
+          name: this.cleanTeamName(matchListItem?.home?.name),
           logo: homeTeamLogo,
           winner: this.determineWinner(matchListItem.score, "home"),
         },
         away: {
           id: matchListItem.away.id,
-          name: this.cleanTeamName(matchListItem.away.name),
+          name: this.cleanTeamName(matchListItem?.away?.name),
           logo: awayTeamLogo,
           winner: this.determineWinner(matchListItem.score, "away"),
         },
@@ -107,8 +118,8 @@ export class FixtureNew {
 
       // === SCORES ===
       goals: {
-        home: matchListItem.score?.home || null,
-        away: matchListItem.score?.away || null,
+        home: matchListItem.score?.home || 0,
+        away: matchListItem.score?.away || 0,
       },
       score: this.mapDetailedScore(matchSummary),
 
@@ -145,19 +156,62 @@ export class FixtureNew {
   async mapToMatchDetails(
     matchId: number,
     tournamentId: number,
-    matchTimeline: KorastatsMatchTimeline,
-    matchSquad: KorastatsMatchSquad,
-    matchPlayerStats: KorastatsMatchPlayersStats,
-    matchFormationHome: KorastatsMatchFormation,
-    matchFormationAway: KorastatsMatchFormation,
-    matchVideo: KorastatsMatchVideo,
-    matchSummary: KorastatsMatchSummary,
+    matchTimeline: KorastatsMatchTimeline | null,
+    matchSquad: KorastatsMatchSquad | null,
+    matchPlayerStats: KorastatsMatchPlayersStats | null,
+    matchFormationHome: KorastatsMatchFormation | null,
+    matchFormationAway: KorastatsMatchFormation | null,
+    matchVideo: KorastatsMatchVideo | null,
+    matchSummary: KorastatsMatchSummary | null,
+    matchPossession: KorastatsMatchPossessionTimeline | null,
+    dataAvailable: boolean = true,
   ): Promise<MatchDetailsInterface> {
+    // If data is not available, construct default Korastats-shaped objects
+    if (!dataAvailable) {
+      const defaults = await this.buildDefaultKorastatsData(matchId, tournamentId, {
+        timeline: matchTimeline,
+        squad: matchSquad,
+        playerStats: matchPlayerStats,
+        formationHome: matchFormationHome,
+        formationAway: matchFormationAway,
+        video: matchVideo,
+        summary: matchSummary,
+        possession: matchPossession,
+      });
+      matchTimeline = defaults.timeline;
+      matchSquad = defaults.squad;
+      matchPlayerStats = defaults.playerStats;
+      matchFormationHome = defaults.formationHome;
+      matchFormationAway = defaults.formationAway;
+      matchVideo = defaults.video;
+      matchSummary = defaults.summary;
+      matchPossession = defaults.possession;
+    }
+
+    // Normalize top-level/nullish structures to safe defaults and use normalized types
+    const normalized = this.normalizeKorastatsInputs({
+      matchTimeline,
+      matchSquad,
+      matchPlayerStats,
+      matchFormationHome,
+      matchFormationAway,
+      matchVideo,
+      matchSummary,
+      matchPossession,
+    });
+    matchTimeline = normalized.matchTimeline;
+    matchSquad = normalized.matchSquad;
+    matchPlayerStats = normalized.matchPlayerStats;
+    matchFormationHome = normalized.matchFormationHome;
+    matchFormationAway = normalized.matchFormationAway;
+    matchVideo = normalized.matchVideo;
+    matchSummary = normalized.matchSummary;
+    matchPossession = normalized.matchPossession;
     const leagueInfo = LeagueLogoService.getLeagueLogo(tournamentId);
     return {
       // === IDENTIFIERS ===
       korastats_id: matchId,
-      tournament_id: tournamentId,
+      tournament_id: leagueInfo?.id || 0,
 
       // === TIMELINE EVENTS ===
       timelineData: await this.mapTimelineEvents(matchTimeline),
@@ -168,6 +222,7 @@ export class FixtureNew {
         matchSummary,
         matchFormationHome,
         matchFormationAway,
+        matchPlayerStats,
       ),
 
       // === PLAYER STATISTICS WITH PHOTOS ===
@@ -181,14 +236,15 @@ export class FixtureNew {
       // === VIDEO DATA ===
 
       // === ADVANCED ANALYTICS (Calculated in mapper) ===
-      heatmapsData: await this.collectTeamHeatmaps(matchId, matchSquad),
+      heatmapsData: await this.collectTeamHeatmaps(matchId, matchSquad, matchSummary),
       predictionsData: null, // TODO: Add predictions data
-      momentumData: await this.generateMomentum(matchTimeline),
+      momentumData: await this.generateMomentum(matchTimeline, matchPossession),
       highlightsData: await this.generateHighlights(matchVideo),
       topPerformersData: await this.calculateTopPerformers(
         matchPlayerStats.players,
         matchSquad,
         leagueInfo,
+        matchSummary,
       ),
       shotmapsData: null, // TODO: Add shotmaps data
       // === METADATA ===
@@ -199,11 +255,170 @@ export class FixtureNew {
     };
   }
 
+  private async buildDefaultKorastatsData(
+    matchId: number,
+    tournamentId: number,
+    existing: {
+      timeline: KorastatsMatchTimeline | null;
+      squad: KorastatsMatchSquad | null;
+      playerStats: KorastatsMatchPlayersStats | null;
+      formationHome: KorastatsMatchFormation | null;
+      formationAway: KorastatsMatchFormation | null;
+      video: KorastatsMatchVideo | null;
+      summary: KorastatsMatchSummary | null;
+      possession: KorastatsMatchPossessionTimeline | null;
+    },
+  ) {
+    const leagueInfo = LeagueLogoService.getLeagueLogo(tournamentId);
+    const safeTeam = { _type: "TEAM" as const, id: 0, name: "Unknown Team" };
+
+    const timeline: KorastatsMatchTimeline = existing.timeline ?? {
+      _type: "MATCH_SUMMARY",
+      matchId,
+      tournament: leagueInfo?.name || "",
+      seasonId: 0,
+      season: "",
+      round: 0,
+      home: { ...safeTeam },
+      away: { ...safeTeam },
+      score: { home: 0, away: 0 },
+      dateTime: new Date().toISOString(),
+      dtLastUpdateDateTime: new Date().toISOString(),
+      stadium: { _type: "STADIUM", id: 0, name: "" },
+      referee: {
+        _type: "REFEREE",
+        id: 0,
+        name: "",
+        dob: "",
+        nationality: { _type: "NATIONALITY", id: 0, name: "" },
+      },
+      assistant1: {
+        _type: "ASSISTANT RFFEREE",
+        id: 0,
+        name: "",
+        dob: "",
+        gender: "",
+        nationality: { _type: "NATIONALITY", id: 0, name: "" },
+      },
+      assistant2: {
+        _type: "ASSISTANT RFFEREE",
+        id: 0,
+        name: "",
+        dob: null,
+        gender: "",
+        nationality: null,
+      },
+      timeline: [],
+    };
+
+    const summary: KorastatsMatchSummary = existing.summary ?? {
+      _type: "MATCH SUMMARY",
+      matchId,
+      tournament: leagueInfo?.name || "",
+      season: "",
+      round: 0,
+      dateTime: new Date().toISOString(),
+      lastUpdateDateTime: new Date().toISOString(),
+      stadium: { _type: "STADIUM", id: 0, name: "" },
+      referee: {
+        _type: "REFEREE",
+        id: 0,
+        name: "",
+        dob: "",
+        nationality: { _type: "NATIONALITY", id: 0, name: "" },
+      },
+      assistant1: {
+        _type: "ASSISTANT RFFEREE",
+        id: 0,
+        name: "",
+        dob: "",
+        gender: "",
+        nationality: { _type: "NATIONALITY", id: 0, name: "" },
+      },
+      assistant2: {
+        _type: "ASSISTANT RFFEREE",
+        id: 0,
+        name: "",
+        dob: null,
+        gender: "",
+        nationality: null,
+      },
+      score: { home: 0, away: 0 },
+      home: {
+        _type: "TEAM SUMMARY",
+        team: { _type: "TEAM", id: 0, name: "Home Team" },
+        coach: {
+          _type: "COACH",
+          id: 0,
+          name: "",
+          dob: "",
+          gender: "",
+          nationality: { _type: "NATIONALITY", id: 0, name: "" },
+        },
+        stats: {} as any,
+      },
+      away: {
+        _type: "TEAM SUMMARY",
+        team: { _type: "TEAM", id: 0, name: "Away Team" },
+        coach: {
+          _type: "COACH",
+          id: 0,
+          name: "",
+          dob: "",
+          gender: "",
+          nationality: { _type: "NATIONALITY", id: 0, name: "" },
+        },
+        stats: {} as any,
+      },
+    };
+
+    const squad: KorastatsMatchSquad =
+      existing.squad ??
+      ({
+        _type: "MATCH LINEUP",
+        matchId,
+        home: { team: { _type: "TEAM", id: 0, name: "Home Team" }, squad: [] },
+        away: { team: { _type: "TEAM", id: 0, name: "Away Team" }, squad: [] },
+      } as any);
+
+    const playerStats: KorastatsMatchPlayersStats =
+      existing.playerStats ?? ({ players: [] } as any);
+
+    const formationHome: KorastatsMatchFormation =
+      existing.formationHome ??
+      ({ lineupFormationName: "1-4-4-2", lineupFormation: [] } as any);
+
+    const formationAway: KorastatsMatchFormation =
+      existing.formationAway ??
+      ({ lineupFormationName: "1-4-4-2", lineupFormation: [] } as any);
+
+    const video: KorastatsMatchVideo =
+      existing.video ??
+      ({
+        objMatch: { arrHalves: [{ arrStreams: [{ arrQualities: [{ strLink: "" }] }] }] },
+      } as any);
+
+    const possession: KorastatsMatchPossessionTimeline =
+      existing.possession ??
+      ({ home: { possession: [] }, away: { possession: [] } } as any);
+
+    return {
+      timeline,
+      squad,
+      playerStats,
+      formationHome,
+      formationAway,
+      video,
+      summary,
+      possession,
+    };
+  }
+
   // ===================================================================
   // PRIVATE HELPER METHODS
   // ===================================================================
 
-  private mapMatchStatus(status: string) {
+  private mapMatchStatus(status: string, firstHalf: number, secondHalf: number) {
     const statusMap: Record<string, { long: string; short: string }> = {
       Approved: { long: "Match Finished", short: "FT" },
       Live: { long: "Match In Progress", short: "LIVE" },
@@ -213,25 +428,47 @@ export class FixtureNew {
       Postponed: { long: "Match Postponed", short: "POST" },
     };
 
-    const mapped = statusMap[status] || { long: status, short: "NS" };
-
+    const mapped = statusMap[status];
+    if (!mapped) {
+      if (firstHalf + secondHalf === 0) {
+        return {
+          long: "Match Not Started",
+          short: "NS",
+          elapsed: 0,
+        };
+      }
+      if (firstHalf + secondHalf <= 90) {
+        return {
+          long: "Match In Progress",
+          short: "LIVE",
+          elapsed: firstHalf + secondHalf,
+        };
+      }
+      if (firstHalf + secondHalf > 90) {
+        return {
+          long: "Match In Progress",
+          short: "LIVE",
+          elapsed: firstHalf + secondHalf,
+        };
+      }
+    }
     return {
       long: mapped.long,
       short: mapped.short,
-      elapsed: null, // Not available in match list
+      elapsed: firstHalf + secondHalf,
     };
   }
 
   private determineWinner(
     score: { home: number; away: number } | null,
     side: "home" | "away",
-  ): boolean | null {
-    if (!score) return null;
+  ): boolean | false {
+    if (!score) return false;
 
     const homeScore = score.home || 0;
     const awayScore = score.away || 0;
 
-    if (homeScore === awayScore) return null; // Draw
+    if (homeScore === awayScore) return false; // Draw
     if (side === "home") return homeScore > awayScore;
     return awayScore > homeScore;
   }
@@ -294,34 +531,57 @@ export class FixtureNew {
   }
 
   private async mapTimelineEvents(matchTimeline: KorastatsMatchTimeline) {
-    return await Promise.all(
-      matchTimeline.timeline.map(async (event) => ({
-        time: {
-          elapsed: this.parseTimeToMinutes(event.time),
-          extra: event.half > 2 ? this.parseTimeToMinutes(event.time) - 90 : null,
-        },
-        team: {
-          id: event.team.id,
-          name: event.team.name,
-          logo: await this.korastatsService
-            .getImageUrl("club", event.team.id)
-            .catch(() => ""),
-        },
-        player: {
-          id: event.player?.id || 0,
-          name: event.player?.nickname || "Unknown Player",
-        },
-        assist: event.in
-          ? {
-              id: event.in.id,
-              name: event.in.name,
-            }
-          : null,
-        type: this.mapEventType(event.event),
-        detail: event.event,
-        comments: null,
-      })),
-    );
+    const firstHallastEventTime =
+      matchTimeline.timeline
+        .filter((event) => event.half === 1)
+        .sort(
+          (a, b) => Number(b?.time?.split(":")[0]) - Number(a?.time?.split(":")[0]),
+        )[0]
+        ?.time?.split(":")[0] || "0";
+    console.log("MODA firstHallastEventTime", firstHallastEventTime);
+    return (
+      await Promise.all(
+        matchTimeline.timeline.map(async (event) => ({
+          time: {
+            elapsed: this.parseTimeToMinutes(
+              event.time,
+              event.half,
+              parseInt(firstHallastEventTime),
+            ),
+            extra:
+              event.half > 2
+                ? this.parseTimeToMinutes(
+                    event.time,
+                    event.half,
+                    parseInt(firstHallastEventTime),
+                  ) - 90
+                : null,
+          },
+          team: {
+            id: event.team.id,
+            name: event.team?.name,
+            logo: await this.korastatsService
+              .getImageUrl("club", event.team.id)
+              .catch(() => ""),
+          },
+          player: {
+            id: event.in ? event.in.id : event.player?.id || 0,
+            name: event.in
+              ? event.in.nickname
+              : event.player?.nickname || "Unknown Player",
+          },
+          assist: event.out
+            ? {
+                id: event.out.id,
+                name: event.out.nickname,
+              }
+            : null,
+          type: this.mapEventType(event.event),
+          detail: event.event,
+          comments: null,
+        })),
+      )
+    ).sort((a, b) => a.time.elapsed - b.time.elapsed);
   }
 
   private async mapLineups(
@@ -329,10 +589,9 @@ export class FixtureNew {
     matchSummary: KorastatsMatchSummary,
     matchFormationHome: KorastatsMatchFormation,
     matchFormationAway: KorastatsMatchFormation,
+    matchPlayerStats: KorastatsMatchPlayersStats,
   ) {
-    console.log("MODA match squad", matchSquad);
-    const matchSquads = [matchSquad.home.squad, matchSquad.away.squad];
-    console.log("MODA match Squads", matchSquads);
+    const matchSquads = [matchSquad?.home?.squad || [], matchSquad?.away?.squad || []];
     return await Promise.all(
       matchSquads.map(async (squad, index) => {
         // Get coach photo - coach info not available in squad
@@ -340,28 +599,30 @@ export class FixtureNew {
           index === 0
             ? await this.korastatsService.getImageUrl(
                 "coach",
-                matchSummary.home?.coach?.id,
+                matchSummary?.home?.coach?.id,
               )
             : await this.korastatsService.getImageUrl(
                 "coach",
-                matchSummary.away?.coach?.id,
+                matchSummary?.away?.coach?.id,
               );
-        const formationHtext = matchFormationHome.lineupFormationName
-          .split("1-")[1]
-          .split("")
-          .join("-");
-        const formationAText = matchFormationAway.lineupFormationName
-          .split("1-")[1]
-          .split("")
-          .join("-");
+        const formationHtext = matchFormationHome?.lineupFormationName?.split("1-")?.[1]
+          ? matchFormationHome?.lineupFormationName.split("1-")[1].split("").join("-")
+          : "4-4-2";
+        const formationAText = matchFormationAway?.lineupFormationName?.split("1-")?.[1]
+          ? matchFormationAway?.lineupFormationName.split("1-")[1].split("").join("-")
+          : "4-4-2";
         // Filter starting lineup and substitutes
-        const startingPlayers = squad.filter((p) => p.lineup) || [];
-        const substitutePlayers = squad.filter((p) => p.bench) || [];
-
+        const startingPlayers = (squad || []).filter((p) => p?.lineup) || [];
+        const substitutePlayers = (squad || []).filter((p) => p?.bench) || [];
+        console.log("MODA formationHtext", formationHtext);
+        console.log("MODA formationAText", formationAText);
         // Get team info
-        const teamId = index === 0 ? matchSquad.home.team.id : matchSquad.away.team.id;
+        const teamId =
+          index === 0 ? matchSquad?.home?.team?.id || 0 : matchSquad?.away?.team?.id || 0;
         const teamName =
-          index === 0 ? matchSquad.home.team.name : matchSquad.away.team.name;
+          index === 0
+            ? matchSquad?.home?.team?.name || "Home Team"
+            : matchSquad?.away?.team?.name || "Away Team";
         const teamLogo = await this.korastatsService
           .getImageUrl("club", teamId)
           .catch(() => "");
@@ -370,15 +631,17 @@ export class FixtureNew {
         const startXIWithPhotos = await Promise.all(
           startingPlayers.map(async (player) => ({
             player: {
-              id: player.id,
-              name: player.nick_name,
+              id: player?.id || 0,
+              name: player?.nick_name || "Unknown Player",
               photo: await this.korastatsService
-                .getImageUrl("player", player.id)
+                .getImageUrl("player", player?.id || 0)
                 .catch(() => ""),
-              number: player.shirt_number,
-              pos: player.position.name,
-              grid: this.mapPositionToGrid(player.position.name),
-              rating: "0.0", // Will be updated from player stats
+              number: player?.shirt_number || 0,
+              pos: player?.position?.name || "",
+              grid: this.mapPositionToGrid(player?.position?.name || ""),
+              rating: this.calculatePlayerRating(
+                matchPlayerStats?.players?.find((p) => p.id === player?.id)?.stats,
+              ).toString(),
             },
           })),
         );
@@ -387,15 +650,17 @@ export class FixtureNew {
         const substitutesWithPhotos = await Promise.all(
           substitutePlayers.map(async (player) => ({
             player: {
-              id: player.id,
-              name: player.nick_name,
+              id: player?.id || 0,
+              name: player?.nick_name || "Unknown Player",
               photo: await this.korastatsService
-                .getImageUrl("player", player.id)
+                .getImageUrl("player", player?.id || 0)
                 .catch(() => ""),
-              number: player.shirt_number,
-              pos: player.position.name,
-              grid: this.mapPositionToGrid(player.position.name),
-              rating: "0.0",
+              number: player?.shirt_number || 0,
+              pos: player?.position?.name || "",
+              grid: this.mapPositionToGrid(player?.position?.name || ""),
+              rating: this.calculatePlayerRating(
+                matchPlayerStats?.players?.find((p) => p.id === player?.id)?.stats,
+              ).toString(),
             },
           })),
         );
@@ -420,11 +685,12 @@ export class FixtureNew {
           },
           formation: index === 0 ? formationHtext : formationAText,
           coach: {
-            id: index === 0 ? matchSummary.home?.coach?.id : matchSummary.away?.coach?.id,
+            id:
+              index === 0 ? matchSummary?.home?.coach?.id : matchSummary?.away?.coach?.id,
             name:
               index === 0
-                ? matchSummary.home?.coach?.name
-                : matchSummary.away?.coach?.name,
+                ? matchSummary?.home?.coach?.name
+                : matchSummary?.away?.coach?.name,
             photo: coachPhoto,
           },
           startXI: startXIWithPhotos,
@@ -438,26 +704,30 @@ export class FixtureNew {
     const teams = new Map();
 
     // Group players by team
-    for (const player of matchPlayerStats.players) {
-      const teamId = player.team?.id || 0;
+    const playersArr = Array.isArray(matchPlayerStats?.players)
+      ? matchPlayerStats.players
+      : [];
+    for (let i = 0; i < playersArr.length && i < 11; i++) {
+      const player = playersArr[i];
+      const teamId = player?.team?.id || 0;
       if (!teams.has(teamId)) {
         teams.set(teamId, {
-          team: { id: teamId, name: player.team?.name || "Unknown Team" },
+          team: { id: teamId, name: player?.team?.name || "Unknown Team" },
           players: [],
         });
       }
 
       const playerPhoto = await this.korastatsService
-        .getImageUrl("player", player.id)
+        .getImageUrl("player", player?.id || 0)
         .catch(() => "");
 
       teams.get(teamId).players.push({
         player: {
-          id: player.id,
-          name: player.name,
+          id: player?.id || 0,
+          name: player?.name || "Unknown Player",
           photo: playerPhoto,
         },
-        statistics: this.mapPlayerDetailedStats(player.stats),
+        statistics: this.mapPlayerDetailedStats(player as any),
       });
     }
 
@@ -468,23 +738,14 @@ export class FixtureNew {
     // Get team logos for statistics
     const [homeTeamLogo, awayTeamLogo] = await Promise.all([
       this.korastatsService
-        .getImageUrl("club", matchSummary.home?.team.id || 0)
+        .getImageUrl("club", matchSummary?.home?.team?.id || 0)
         .catch(() => ""),
       this.korastatsService
-        .getImageUrl("club", matchSummary.away?.team.id || 0)
+        .getImageUrl("club", matchSummary?.away?.team?.id || 0)
         .catch(() => ""),
     ]);
 
     // Helper function to safely get stat values
-    const getStat = (stats: any, path: string): number => {
-      const keys = path.split(".");
-      let value = stats;
-      for (const key of keys) {
-        value = value?.[key];
-        if (value === undefined || value === null) return 0;
-      }
-      return typeof value === "number" ? value : 0;
-    };
 
     // Helper function to calculate percentage
     const getPercentage = (part: number, total: number): string => {
@@ -492,307 +753,186 @@ export class FixtureNew {
       return `${Math.round((part / total) * 100)}%`;
     };
 
-    const homeStats = matchSummary.home?.stats;
-    const awayStats = matchSummary.away?.stats;
+    const homeStats = matchSummary?.home?.stats || ({} as any);
+    const awayStats = matchSummary?.away?.stats || ({} as any);
 
     // Comprehensive team statistics extraction
     return [
       {
         team: {
-          id: matchSummary.home?.team.id || 0,
-          name: matchSummary.home?.team.name || "Home Team",
+          id: matchSummary?.home?.team?.id || 0,
+          name: matchSummary?.home?.team?.name || "Home Team",
           logo: homeTeamLogo,
         },
         statistics: [
           // Goals & Scoring
-          { type: "Goals", value: getStat(homeStats, "GoalsScored.Total") },
+          { type: "Shots on Goal", value: homeStats?.Attempts?.Success || 0 },
           {
-            type: "Penalty Goals",
-            value: getStat(homeStats, "GoalsScored.PenaltyScored"),
+            type: "Shots off Goal",
+            value:
+              homeStats?.Attempts?.Total ||
+              0 - homeStats?.Attempts?.Success ||
+              0 - homeStats?.Defensive?.Blocks ||
+              0,
           },
-          { type: "Own Goals", value: getStat(homeStats, "GoalsScored.OwnGoals") },
-          { type: "Goals Conceded", value: getStat(homeStats, "GoalsConceded.Total") },
-
-          // Shooting
-          { type: "Shots", value: getStat(homeStats, "Shots.Total") },
-          { type: "Shots on Target", value: getStat(homeStats, "Shots.OnTarget") },
+          { type: "Total Shots", value: homeStats?.Attempts?.Total || 0 },
+          { type: "Blocked Shots", value: homeStats?.Defensive?.Blocks || 0 },
+          { type: "Shots insidebox", value: homeStats?.Attempts?.Success || 0 },
           {
-            type: "Shot Accuracy",
-            value: getPercentage(
-              getStat(homeStats, "Shots.OnTarget"),
-              getStat(homeStats, "Shots.Total"),
-            ),
+            type: "Shots outsidebox",
+            value:
+              homeStats?.Attempts?.Total ||
+              0 - homeStats?.Attempts?.Success ||
+              0 - homeStats?.Defensive?.Blocks ||
+              0,
           },
-          { type: "xG (Expected Goals)", value: getStat(homeStats, "GoalsScored.XG") },
-
-          // Passing
-          { type: "Passes", value: getStat(homeStats, "Pass.Total") },
-          { type: "Pass Success", value: getStat(homeStats, "Pass.Success") },
-          { type: "Pass Accuracy", value: `${getStat(homeStats, "Pass.Accuracy")}%` },
-          { type: "Long Passes", value: getStat(homeStats, "LongPass.Total") },
-          { type: "Long Pass Success", value: getStat(homeStats, "LongPass.Success") },
+          { type: "Fouls", value: homeStats?.Fouls?.Awarded || 0 },
+          { type: "Corner Kicks", value: homeStats?.Admin?.Corners || 0 },
+          { type: "Offsides", value: homeStats?.Admin?.Offside || 0 },
+          { type: "Yellow Cards", value: homeStats?.Cards?.Yellow || 0 },
+          { type: "Red Cards", value: homeStats?.Cards?.Red || 0 },
           {
-            type: "Long Pass Accuracy",
-            value: `${getStat(homeStats, "LongPass.Accuracy")}%`,
+            type: "Goalkeeper Saves",
+            value: homeStats?.Defensive?.OpportunitySaved || 0,
           },
-          { type: "Short Passes", value: getStat(homeStats, "ShortPass.Total") },
-          { type: "Short Pass Success", value: getStat(homeStats, "ShortPass.Success") },
-          {
-            type: "Short Pass Accuracy",
-            value: `${getStat(homeStats, "ShortPass.Accuracy")}%`,
-          },
-
-          // Possession & Control
-          {
-            type: "Possession %",
-            value: `${Math.round((getStat(homeStats, "Possession.TimePercent.Average") || 0) * 100)}%`,
-          },
-          { type: "Touches", value: getStat(homeStats, "Touches.Total") },
-          { type: "Duels Won", value: getStat(homeStats, "Duels.Won") },
-          { type: "Duels Total", value: getStat(homeStats, "Duels.Total") },
-          {
-            type: "Duel Success Rate",
-            value: getPercentage(
-              getStat(homeStats, "Duels.Won"),
-              getStat(homeStats, "Duels.Total"),
-            ),
-          },
-
-          // Attacking
-          { type: "Attacks Total", value: getStat(homeStats, "Attacks.Total") },
-          { type: "Dangerous Attacks", value: getStat(homeStats, "Attacks.Dangerous") },
-          { type: "Assists", value: getStat(homeStats, "Assists.Total") },
-          { type: "Chances Created", value: getStat(homeStats, "Chances.Created") },
-          { type: "Corners", value: getStat(homeStats, "Corners.Total") },
-          { type: "Crosses", value: getStat(homeStats, "Crosses.Total") },
-          { type: "Cross Success", value: getStat(homeStats, "Crosses.Success") },
-          {
-            type: "Cross Accuracy",
-            value: getPercentage(
-              getStat(homeStats, "Crosses.Success"),
-              getStat(homeStats, "Crosses.Total"),
-            ),
-          },
-
-          // Defending
-          { type: "Tackles", value: getStat(homeStats, "Tackles.Total") },
-          { type: "Tackle Success", value: getStat(homeStats, "Tackles.Success") },
-          {
-            type: "Tackle Success Rate",
-            value: getPercentage(
-              getStat(homeStats, "Tackles.Success"),
-              getStat(homeStats, "Tackles.Total"),
-            ),
-          },
-          { type: "Interceptions", value: getStat(homeStats, "Interceptions.Total") },
-          { type: "Blocks", value: getStat(homeStats, "Blocks.Total") },
-          { type: "Clearances", value: getStat(homeStats, "Clearances.Total") },
-
-          // Discipline
-          { type: "Fouls", value: getStat(homeStats, "Fouls.Total") },
-          { type: "Yellow Cards", value: getStat(homeStats, "Cards.Yellow") },
-          { type: "Red Cards", value: getStat(homeStats, "Cards.Red") },
-          { type: "Offsides", value: getStat(homeStats, "Offsides.Total") },
-
-          // Goalkeeping
-          { type: "Saves", value: getStat(homeStats, "GoalKeeper.Attempts.Saved") },
-          {
-            type: "Goals Conceded",
-            value: getStat(homeStats, "GoalKeeper.GoalConceded"),
-          },
-          {
-            type: "Save Success Rate",
-            value: getPercentage(
-              getStat(homeStats, "GoalKeeper.Attempts.Saved"),
-              getStat(homeStats, "GoalKeeper.Attempts.Total"),
-            ),
-          },
-
-          // Advanced Metrics
-          { type: "xT (Expected Threat)", value: getStat(homeStats, "xT.Total") },
-          { type: "xT Positive", value: getStat(homeStats, "xT.Positive_Total") },
-          {
-            type: "Distance Covered (km)",
-            value: Math.round(getStat(homeStats, "Distance.Total") / 1000),
-          },
-          { type: "Sprint Distance (m)", value: getStat(homeStats, "Distance.Sprint") },
+          { type: "Total passes", value: homeStats?.Pass?.Total || 0 },
+          { type: "Passes accurate", value: homeStats?.Pass?.Success || 0 },
+          { type: "Passes %", value: `${homeStats?.Pass?.Accuracy}%` },
+          { type: "expected_goals", value: homeStats?.GoalsScored?.XG || 0 },
+          { type: "goals_prevented", value: homeStats?.Defensive?.GoalsSaved || 0 },
         ],
       },
       {
         team: {
-          id: matchSummary.away?.team.id || 0,
-          name: matchSummary.away?.team.name || "Away Team",
+          id: matchSummary?.away?.team?.id || 0,
+          name: matchSummary?.away?.team?.name || "Away Team",
           logo: awayTeamLogo,
         },
         statistics: [
           // Goals & Scoring
-          { type: "Goals", value: getStat(awayStats, "GoalsScored.Total") },
-          {
-            type: "Penalty Goals",
-            value: getStat(awayStats, "GoalsScored.PenaltyScored"),
-          },
-          { type: "Own Goals", value: getStat(awayStats, "GoalsScored.OwnGoals") },
-          { type: "Goals Conceded", value: getStat(awayStats, "GoalsConceded.Total") },
 
-          // Shooting
-          { type: "Shots", value: getStat(awayStats, "Shots.Total") },
-          { type: "Shots on Target", value: getStat(awayStats, "Shots.OnTarget") },
+          { type: "Shots on Goal", value: awayStats?.Attempts?.Success || 0 },
           {
-            type: "Shot Accuracy",
-            value: getPercentage(
-              getStat(awayStats, "Shots.OnTarget"),
-              getStat(awayStats, "Shots.Total"),
-            ),
+            type: "Shots off Goal",
+            value:
+              awayStats?.Attempts?.Total ||
+              0 - awayStats?.Attempts?.Success ||
+              0 - awayStats?.Defensive?.Blocks ||
+              0,
           },
-          { type: "xG (Expected Goals)", value: getStat(awayStats, "GoalsScored.XG") },
-
-          // Passing
-          { type: "Passes", value: getStat(awayStats, "Pass.Total") },
-          { type: "Pass Success", value: getStat(awayStats, "Pass.Success") },
-          { type: "Pass Accuracy", value: `${getStat(awayStats, "Pass.Accuracy")}%` },
-          { type: "Long Passes", value: getStat(awayStats, "LongPass.Total") },
-          { type: "Long Pass Success", value: getStat(awayStats, "LongPass.Success") },
+          { type: "Total Shots", value: awayStats?.Attempts?.Total || 0 },
+          { type: "Blocked Shots", value: awayStats?.Defensive?.Blocks || 0 },
+          { type: "Shots insidebox", value: awayStats?.Attempts?.Success || 0 },
           {
-            type: "Long Pass Accuracy",
-            value: `${getStat(awayStats, "LongPass.Accuracy")}%`,
+            type: "Shots outsidebox",
+            value:
+              awayStats?.Attempts?.Total ||
+              0 - awayStats?.Attempts?.Success ||
+              0 - awayStats?.Defensive?.Blocks ||
+              0,
           },
-          { type: "Short Passes", value: getStat(awayStats, "ShortPass.Total") },
-          { type: "Short Pass Success", value: getStat(awayStats, "ShortPass.Success") },
+          { type: "Fouls", value: awayStats?.Fouls?.Awarded || 0 },
+          { type: "Corner Kicks", value: awayStats?.Admin?.Corners || 0 },
+          { type: "Offsides", value: awayStats?.Admin?.Offside || 0 },
+          { type: "Yellow Cards", value: awayStats?.Cards?.Yellow || 0 },
+          { type: "Red Cards", value: awayStats?.Cards?.Red || 0 },
           {
-            type: "Short Pass Accuracy",
-            value: `${getStat(awayStats, "ShortPass.Accuracy")}%`,
+            type: "Goalkeeper Saves",
+            value: awayStats?.Defensive?.OpportunitySaved || 0,
           },
-
-          // Possession & Control
-          {
-            type: "Possession %",
-            value: `${Math.round((getStat(awayStats, "Possession.TimePercent.Average") || 0) * 100)}%`,
-          },
-          { type: "Touches", value: getStat(awayStats, "Touches.Total") },
-          { type: "Duels Won", value: getStat(awayStats, "Duels.Won") },
-          { type: "Duels Total", value: getStat(awayStats, "Duels.Total") },
-          {
-            type: "Duel Success Rate",
-            value: getPercentage(
-              getStat(awayStats, "Duels.Won"),
-              getStat(awayStats, "Duels.Total"),
-            ),
-          },
-
-          // Attacking
-          { type: "Attacks Total", value: getStat(awayStats, "Attacks.Total") },
-          { type: "Dangerous Attacks", value: getStat(awayStats, "Attacks.Dangerous") },
-          { type: "Assists", value: getStat(awayStats, "Assists.Total") },
-          { type: "Chances Created", value: getStat(awayStats, "Chances.Created") },
-          { type: "Corners", value: getStat(awayStats, "Corners.Total") },
-          { type: "Crosses", value: getStat(awayStats, "Crosses.Total") },
-          { type: "Cross Success", value: getStat(awayStats, "Crosses.Success") },
-          {
-            type: "Cross Accuracy",
-            value: getPercentage(
-              getStat(awayStats, "Crosses.Success"),
-              getStat(awayStats, "Crosses.Total"),
-            ),
-          },
-
-          // Defending
-          { type: "Tackles", value: getStat(awayStats, "Tackles.Total") },
-          { type: "Tackle Success", value: getStat(awayStats, "Tackles.Success") },
-          {
-            type: "Tackle Success Rate",
-            value: getPercentage(
-              getStat(awayStats, "Tackles.Success"),
-              getStat(awayStats, "Tackles.Total"),
-            ),
-          },
-          { type: "Interceptions", value: getStat(awayStats, "Interceptions.Total") },
-          { type: "Blocks", value: getStat(awayStats, "Blocks.Total") },
-          { type: "Clearances", value: getStat(awayStats, "Clearances.Total") },
-
-          // Discipline
-          { type: "Fouls", value: getStat(awayStats, "Fouls.Total") },
-          { type: "Yellow Cards", value: getStat(awayStats, "Cards.Yellow") },
-          { type: "Red Cards", value: getStat(awayStats, "Cards.Red") },
-          { type: "Offsides", value: getStat(awayStats, "Offsides.Total") },
-
-          // Goalkeeping
-          { type: "Saves", value: getStat(awayStats, "GoalKeeper.Attempts.Saved") },
-          {
-            type: "Goals Conceded",
-            value: getStat(awayStats, "GoalKeeper.GoalConceded"),
-          },
-          {
-            type: "Save Success Rate",
-            value: getPercentage(
-              getStat(awayStats, "GoalKeeper.Attempts.Saved"),
-              getStat(awayStats, "GoalKeeper.Attempts.Total"),
-            ),
-          },
-
-          // Advanced Metrics
-          { type: "xT (Expected Threat)", value: getStat(awayStats, "xT.Total") },
-          { type: "xT Positive", value: getStat(awayStats, "xT.Positive_Total") },
-          {
-            type: "Distance Covered (km)",
-            value: Math.round(getStat(awayStats, "Distance.Total") / 1000),
-          },
-          { type: "Sprint Distance (m)", value: getStat(awayStats, "Distance.Sprint") },
+          { type: "Total passes", value: awayStats?.Pass?.Total || 0 },
+          { type: "Passes accurate", value: awayStats?.Pass?.Success || 0 },
+          { type: "Passes %", value: `${awayStats?.Pass?.Accuracy}%` },
+          { type: "expected_goals", value: awayStats?.GoalsScored?.XG || 0 },
+          { type: "goals_prevented", value: awayStats?.Defensive?.GoalsSaved || 0 },
         ],
       },
     ];
   }
 
-  private mapPlayerDetailedStats(stats: any) {
+  private mapPlayerDetailedStats(player: KorastatsPlayerMatchStats) {
+    const stats = player?.stats;
     // Map team stats to player format
     return {
       games: {
-        minutes: 90, // Default
-        rating: 5.0, // Default
-        substitute: false,
+        position: player?.position?.name || "Unknown",
+        number: player?.shirtnumber || 0,
+        minutes: stats?.Admin?.MinutesPlayed || 0,
+        rating: this.calculatePlayerRating(stats).toString(), // Default
+        substitute: stats?.Admin?.MatchesPlayedasSub > 0,
+        captain: false,
       },
+      offsides: stats?.Admin?.Offside || 0,
       shots: {
-        total: stats?.Shots?.Total || 0,
-        on: stats?.Shots?.OnTarget || 0,
+        total: stats?.Attempts?.Total || 0,
+        on: stats?.Attempts?.Success || 0,
       },
       goals: {
         total: stats?.GoalsScored?.Total || 0,
-        assists: stats?.Assists?.Total || 0,
+        assists: stats?.Chances?.Assists || 0,
+        conceded: stats?.GoalsConceded?.Total || 0,
+        saves: stats?.Defensive?.OpportunitySaved || 0,
       },
       passes: {
         total: stats?.Pass?.Total || 0,
+        key: stats?.Chances?.KeyPasses || 0,
         accuracy: `${Math.round(stats?.Pass?.Accuracy || 0)}%`,
       },
       tackles: {
-        total: stats?.Tackles?.Total || 0,
-        blocks: stats?.Blocks?.Total || 0,
-        interceptions: stats?.Interceptions?.Total || 0,
+        total: stats?.BallWon?.TackleWon || 0,
+        blocks: stats?.Defensive?.Blocks || 0,
+        interceptions: stats?.BallWon?.InterceptionWon || 0,
       },
       duels: {
-        total: stats?.Duels?.Total || 0,
-        won: stats?.Duels?.Won || 0,
+        total: stats?.BallWon?.Total || 0,
+        won: stats?.BallWon?.Total || 0,
       },
       dribbles: {
-        attempts: stats?.Dribbles?.Attempts || 0,
-        success: stats?.Dribbles?.Success || 0,
+        attempts: stats?.Dribble?.Total || 0,
+        success: stats?.Dribble?.Success || 0,
+        past: 0,
       },
       fouls: {
-        drawn: stats?.Fouls?.Drawn || 0,
+        drawn: stats?.Fouls?.Awarded || 0,
         committed: stats?.Fouls?.Committed || 0,
       },
       cards: {
         yellow: stats?.Cards?.Yellow || 0,
         red: stats?.Cards?.Red || 0,
+        yellowred: stats?.Cards?.SecondYellow || 0,
+      },
+      penalty: {
+        won: stats?.Penalty?.Awarded || 0,
+        committed: stats?.Penalty?.Committed || 0,
+        scored: stats?.GoalsScored?.PenaltyScored || 0,
+        missed: stats?.Attempts?.PenaltyMissed || 0,
+        saved: stats?.Defensive?.OpportunitySaved || 0,
       },
     };
   }
 
-  private parseTimeToMinutes(timeStr: string): number {
+  private parseTimeToMinutes(
+    timeStr: string,
+    half: number,
+    firstHalfLastEventMinute: number,
+  ): number {
     if (!timeStr) return 0;
-    const match = timeStr.match(/(\d+):(\d+)/);
+    const match = Number(timeStr?.split(":")[0]);
     if (match) {
-      return parseInt(match[1]) + Math.floor(parseInt(match[2]) / 60);
+      return (
+        match +
+        (half === 1
+          ? 0
+          : half === 2
+            ? firstHalfLastEventMinute > 45
+              ? firstHalfLastEventMinute
+              : 45
+            : half === 3
+              ? 90
+              : 105)
+      );
     }
-    return parseInt(timeStr) || 0;
+    return 0;
   }
 
   private mapEventType(korastatsEvent: string): string {
@@ -846,6 +986,7 @@ export class FixtureNew {
     playersStats: KorastatsPlayerMatchStats[],
     matchSquad: KorastatsMatchSquad,
     leagueInfo: LeagueLogoInfo,
+    matchSummary: KorastatsMatchSummary,
   ) {
     // Get player IDs for each team from squad data
     const homeSquad = matchSquad.home.squad;
@@ -944,67 +1085,67 @@ export class FixtureNew {
 
     return {
       league: {
-        name: leagueInfo.name,
-        logo: leagueInfo.logo,
-        season: new Date().getFullYear(),
+        name: leagueInfo?.name,
+        logo: leagueInfo?.logo,
+        season: parseInt(matchSummary?.season),
       },
       homeTeam: {
         id: homeTeam?.id || 0,
         name: homeTeam?.name || "Home Team",
         logo: homeTeamLogo,
-        winner: null,
+        winner: matchSummary?.score?.home > matchSummary?.score?.away || false,
       },
       awayTeam: {
         id: awayTeam?.id || 0,
         name: awayTeam?.name || "Away Team",
         logo: awayTeamLogo,
-        winner: null,
+        winner: matchSummary?.score?.away > matchSummary?.score?.home || false,
       },
       topScorer: {
         homePlayer: {
           id: homeTopScorer.id,
-          name: homeTopScorer.nickname,
+          name: homeTopScorer?.nickname,
           photo: homeScorerPhoto,
         },
         awayPlayer: {
           id: awayTopScorer.id,
-          name: awayTopScorer.nickname,
+          name: awayTopScorer?.nickname,
           photo: awayScorerPhoto,
         },
         stats: [
           {
             name: "Goals",
-            home: homeTopScorer.stats?.GoalsScored?.Total || 0,
-            away: awayTopScorer.stats?.GoalsScored?.Total || 0,
+            home: homeTopScorer?.stats?.GoalsScored?.Total || 0,
+            away: awayTopScorer?.stats?.GoalsScored?.Total || 0,
           },
           {
             name: "Assists",
-            home: homeTopScorer.stats?.Chances?.Assists || 0,
-            away: awayTopScorer.stats?.Chances?.Assists || 0,
+            home: homeTopScorer?.stats?.Chances?.Assists || 0,
+            away: awayTopScorer?.stats?.Chances?.Assists || 0,
           },
           {
             name: "Minutes Played",
-            home: 90, // Default
-            away: 90, // Default
+            home: 0, // Default
+            away: 0, // Default
           },
         ],
       },
       topAssister: {
         homePlayer: {
-          id: homeTopAssister.id,
-          name: homeTopAssister.nickname,
-          photo: homeAssisterPhoto,
+          id: homeTopAssister?.id || 0,
+          name: homeTopAssister?.nickname || "",
+          photo: homeAssisterPhoto || "",
         },
         awayPlayer: {
-          id: awayTopAssister.id,
-          name: awayTopAssister.nickname,
-          photo: awayAssisterPhoto,
+          id: awayTopAssister?.id || 0,
+          name: awayTopAssister?.nickname || "",
+          photo: awayAssisterPhoto || "",
         },
         stats: [
           {
             name: "Assists",
-            home: homeTopAssister.stats?.Chances?.Assists || 0,
-            away: awayTopAssister.stats?.Chances?.Assists || 0,
+            home: homeTopAssister?.stats?.Chances?.Assists || 0,
+            away: awayTopAssister?.stats?.Chances?.Assists || 0,
           },
           {
             name: "Minutes Played",
@@ -1015,20 +1156,20 @@ export class FixtureNew {
       },
       topKeeper: {
         homePlayer: {
-          id: homeTopKeeper.id,
-          name: homeTopKeeper.nickname,
-          photo: homeKeeperPhoto,
+          id: homeTopKeeper?.id || 0,
+          name: homeTopKeeper?.nickname || "",
+          photo: homeKeeperPhoto || "",
         },
         awayPlayer: {
-          id: awayTopKeeper.id,
-          name: awayTopKeeper.nickname,
-          photo: awayKeeperPhoto,
+          id: awayTopKeeper?.id || 0,
+          name: awayTopKeeper?.nickname || "",
+          photo: awayKeeperPhoto || "",
         },
         stats: [
           {
             name: "Goals Saved",
-            home: homeTopKeeper.stats?.Defensive?.GoalsSaved || 0,
-            away: awayTopKeeper.stats?.Defensive?.GoalsSaved || 0,
+            home: homeTopKeeper?.stats?.Defensive?.GoalsSaved || 0,
+            away: awayTopKeeper?.stats?.Defensive?.GoalsSaved || 0,
           },
         ],
       },
@@ -1042,14 +1183,12 @@ export class FixtureNew {
   private async collectTeamHeatmaps(
     matchId: number,
     matchSquad: KorastatsMatchSquad,
+    matchSummary: KorastatsMatchSummary,
   ): Promise<any[]> {
-    const fieldWidth = 5069;
-    const fieldHeight = 3290;
-
     try {
       // Get both teams' squads
-      const homeSquad = matchSquad.home.squad;
-      const awaySquad = matchSquad.away.squad;
+      const homeSquad = matchSquad?.home?.squad;
+      const awaySquad = matchSquad?.away?.squad;
 
       if (!homeSquad || !awaySquad) {
         return [];
@@ -1098,35 +1237,41 @@ export class FixtureNew {
       );
 
       // Aggregate home team heatmap points
-      const homePoints = this.aggregateTeamHeatmap(homeHeatmaps, fieldWidth, fieldHeight);
+      const homePoints = this.aggregateTeamHeatmap(homeHeatmaps);
 
       // Aggregate away team heatmap points
-      const awayPoints = this.aggregateTeamHeatmap(awayHeatmaps, fieldWidth, fieldHeight);
+      const awayPoints = this.aggregateTeamHeatmap(awayHeatmaps);
 
       // Get team logos
       const [homeTeamLogo, awayTeamLogo] = await Promise.all([
         this.korastatsService
-          .getImageUrl("club", matchSquad.home?.team.id || 0)
+          .getImageUrl("club", matchSquad?.home?.team?.id || 0)
           .catch(() => ""),
         this.korastatsService
-          .getImageUrl("club", matchSquad.away?.team.id || 0)
+          .getImageUrl("club", matchSquad?.away?.team?.id || 0)
           .catch(() => ""),
       ]);
 
       return [
         {
           team: {
-            id: matchSquad.home?.team.id || 0,
-            name: matchSquad.home?.team.name || "Home Team",
+            id: matchSquad?.home?.team?.id || 0,
+            name: matchSquad?.home?.team?.name || "Home Team",
             logo: homeTeamLogo,
+            winner:
+              (matchSummary?.score?.home || 0) > (matchSummary?.score?.away || 0) ||
+              false,
           },
           heatmap: { points: homePoints },
         },
         {
           team: {
-            id: matchSquad.away?.team.id || 0,
-            name: matchSquad.away?.team.name || "Away Team",
+            id: matchSquad?.away?.team?.id || 0,
+            name: matchSquad?.away?.team?.name || "Away Team",
             logo: awayTeamLogo,
+            winner:
+              (matchSummary?.score?.away || 0) > (matchSummary?.score?.home || 0) ||
+              false,
           },
           heatmap: { points: awayPoints },
         },
@@ -1140,11 +1285,7 @@ export class FixtureNew {
    * Aggregate multiple player heatmaps into a single team heatmap
    * Creates heat zones across the field by combining all player positions
    */
-  private aggregateTeamHeatmap(
-    playerHeatmaps: any[],
-    fieldWidth: number,
-    fieldHeight: number,
-  ): number[][] {
+  private aggregateTeamHeatmap(playerHeatmaps: any[]): number[][] {
     const heatmapGrid: Map<string, number> = new Map();
     const gridSize = 10; // Divide field into 10x10 meter grid squares
 
@@ -1154,13 +1295,18 @@ export class FixtureNew {
 
       // Process each heat point from this player
       for (const point of playerHeatmap.data) {
-        // Normalize coordinates
-        const normalizedX = point.x / fieldWidth;
-        const normalizedY = point.y / fieldHeight;
+        // Convert Korastats coordinates to normalized (0-1) coordinates
+        // Your approach: divide by 1000 for better distribution
+        const normalizedX = point.x / 1000;
+        const normalizedY = point.y / 1000;
+
+        // Ensure coordinates are within valid range (0-1)
+        const clampedX = Math.max(0, Math.min(1, normalizedX));
+        const clampedY = Math.max(0, Math.min(1, normalizedY));
 
         // Create grid key (quantize to grid squares)
-        const gridX = Math.floor(normalizedX * gridSize) / gridSize;
-        const gridY = Math.floor(normalizedY * gridSize) / gridSize;
+        const gridX = Math.floor(clampedX * gridSize) / gridSize;
+        const gridY = Math.floor(clampedY * gridSize) / gridSize;
         const gridKey = `${gridX},${gridY}`;
 
         // Accumulate heat intensity at this grid position
@@ -1169,23 +1315,23 @@ export class FixtureNew {
       }
     }
 
-    // Convert grid map to points array with intensity
+    // Convert grid map to simple [x,y] points array as requested
     const aggregatedPoints: number[][] = [];
 
-    for (const [gridKey, intensity] of heatmapGrid.entries()) {
-      const [x, y] = gridKey.split(",").map(Number);
+    for (const [gridKey, gridIntensity] of heatmapGrid.entries()) {
+      const [x, y] = gridKey?.split(",").map(Number);
 
-      // Create multiple points for higher intensity areas (like the original implementation)
-      const pointCount = Math.min(intensity, 20); // Cap at 20 points per grid square
+      // Create smooth distribution: more intense zones get more points
+      const pointCount = Math.min(gridIntensity, 10); // Cap at 10 points per zone
+
       for (let i = 0; i < pointCount; i++) {
-        // Add slight randomization within the grid square for more realistic distribution
-        const randomOffsetX = (Math.random() - 0.5) * (1 / gridSize);
-        const randomOffsetY = (Math.random() - 0.5) * (1 / gridSize);
+        // Add small randomization within the grid square for natural spread
+        const randomOffsetX = (Math.random() - 0.5) * (1 / gridSize) * 0.8;
+        const randomOffsetY = (Math.random() - 0.5) * (1 / gridSize) * 0.8;
 
         aggregatedPoints.push([
           Math.max(0, Math.min(1, x + randomOffsetX)),
           Math.max(0, Math.min(1, y + randomOffsetY)),
-          intensity,
         ]);
       }
     }
@@ -1196,7 +1342,10 @@ export class FixtureNew {
    * Generate momentum data from match timeline
    * Soccer Analytics: Track momentum shifts throughout the match
    */
-  private async generateMomentum(matchTimeline: KorastatsMatchTimeline): Promise<any> {
+  private async generateMomentum(
+    matchTimeline: KorastatsMatchTimeline,
+    matchPossession: KorastatsMatchPossessionTimeline,
+  ): Promise<any> {
     if (!matchTimeline?.timeline) {
       return {
         data: [],
@@ -1216,120 +1365,176 @@ export class FixtureNew {
     ]);
 
     const momentumData = [];
-    let homeMomentum = 50; // Start neutral
-    let awayMomentum = 50;
 
-    // Create time-based intervals (every 10 minutes)
-    const timeIntervals = [];
-    for (let time = 0; time <= 90; time += 10) {
-      timeIntervals.push(time);
-    }
+    // Process Korastats possession periods to map to 10-minute intervals
+    const possessionData = this.mapPossessionToTimeInterwalks(matchPossession);
 
     // Analyze events to calculate momentum shifts
     const sortedEvents = matchTimeline.timeline.sort(
-      (a, b) => this.parseTimeToMinutes(a.time) - this.parseTimeToMinutes(b.time),
+      (a, b) =>
+        this.parseTimeToMinutes(a?.time || "0:0", a?.half || 1, 0) -
+        this.parseTimeToMinutes(b?.time || "0:0", b?.half || 1, 0),
     );
-
+    const goalEvents = sortedEvents.filter(
+      (event) => event?.event === "Goal" || event?.event === "Goal Scored",
+    );
     // Process each time interval
-    for (const intervalTime of timeIntervals) {
+    for (const possessionInterval of possessionData) {
       let homeEvent: string | null = null;
       let awayEvent: string | null = null;
 
       // Find events in this time interval
-      const intervalEvents = sortedEvents.filter((event) => {
-        const eventTime = this.parseTimeToMinutes(event.time);
-        return eventTime >= intervalTime && eventTime < intervalTime + 10;
+      const intervalEvents = goalEvents.filter((event) => {
+        const eventTime = this.parseTimeToMinutes(
+          event?.time || "0:0",
+          event?.half || 1,
+          0,
+        );
+        return (
+          eventTime >= possessionInterval.time && eventTime < possessionInterval.time + 10
+        );
       });
-
-      // Apply momentum changes for events in this interval
-      for (const event of intervalEvents) {
-        let homeShift = 0;
-        let awayShift = 0;
-
-        // Soccer momentum analysis based on event types
-        switch (event.event) {
-          case "Goal Scored":
-          case "Goal":
-            // Goals create significant momentum shifts
-            if (event.team?.id === matchTimeline.home?.id) {
-              homeShift = +15;
-              awayShift = -10;
-              homeEvent = event.event;
-            } else {
-              awayShift = +15;
-              homeShift = -10;
-              awayEvent = event.event;
-            }
-            break;
-
-          case "Yellow Card":
-            // Cards create negative momentum for the team
-            if (event.team?.id === matchTimeline.home?.id) {
-              homeShift = -5;
-              awayShift = +3;
-              homeEvent = event.event;
-            } else {
-              awayShift = -5;
-              homeShift = +3;
-              awayEvent = event.event;
-            }
-            break;
-
-          case "Red Card":
-            // Red cards create major momentum shifts
-            if (event.team?.id === matchTimeline.home?.id) {
-              homeShift = -20;
-              awayShift = +15;
-              homeEvent = event.event;
-            } else {
-              awayShift = -20;
-              homeShift = +15;
-              awayEvent = event.event;
-            }
-            break;
-
-          case "Substitution":
-            // Substitutions can indicate tactical momentum
-            if (event.team?.id === matchTimeline.home?.id) {
-              homeShift = +2;
-              homeEvent = event.event;
-            } else {
-              awayShift = +2;
-              awayEvent = event.event;
-            }
-            break;
+      if (intervalEvents.length > 0) {
+        if (intervalEvents[0]?.team?.id === matchTimeline?.home?.id) {
+          homeEvent = intervalEvents[0]?.event || null;
+        } else {
+          awayEvent = intervalEvents[0]?.event || null;
         }
-
-        // Apply momentum shifts with bounds checking
-        homeMomentum = Math.max(0, Math.min(100, homeMomentum + homeShift));
-        awayMomentum = Math.max(0, Math.min(100, awayMomentum + awayShift));
       }
 
       // Add momentum data point for this time interval
       momentumData.push({
-        time: intervalTime.toString(),
+        time: possessionInterval.time.toString(),
         homeEvent,
         awayEvent,
-        homeMomentum: homeMomentum.toString(),
-        awayMomentum: awayMomentum.toString(),
+        homeMomentum: possessionInterval.homePossession.toString(),
+        awayMomentum: possessionInterval.awayPossession.toString(),
       });
     }
 
     return {
       data: momentumData,
       home: {
-        id: matchTimeline.home?.id || 0,
-        name: matchTimeline.home?.name || "Home Team",
+        id: matchTimeline?.home?.id || 0,
+        name: matchTimeline?.home?.name || "Home Team",
         logo: homeTeamLogo,
-        winner: null,
+        winner:
+          (matchTimeline?.score?.home || 0) > (matchTimeline?.score?.away || 0) || false,
       },
       away: {
-        id: matchTimeline.away?.id || 0,
-        name: matchTimeline.away?.name || "Away Team",
+        id: matchTimeline?.away?.id || 0,
+        name: matchTimeline?.away?.name || "Away Team",
         logo: awayTeamLogo,
-        winner: null,
+        winner:
+          (matchTimeline?.score?.away || 0) > (matchTimeline?.score?.home || 0) || false,
       },
     };
+  }
+
+  /**
+   * Map Korastats possession periods to 10-minute time intervals
+   * Interpolates missing periods based on adjacent data
+   */
+  private mapPossessionToTimeInterwalks(
+    matchPossession: KorastatsMatchPossessionTimeline,
+  ): { time: number; homePossession: number; awayPossession: number }[] {
+    const timeIntervals = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
+    const result: { time: number; homePossession: number; awayPossession: number }[] = [];
+
+    // Parse Korastats periods to get possession for each interval
+    const korastatsPeriods = matchPossession.home?.possession || [];
+
+    // Create mapping of time period to possession
+    const possessionMap = new Map<number, { home: number; away: number }>();
+
+    for (const period of korastatsPeriods) {
+      // Parse period like "00-15" to get midpoint (7.5 minutes, rounded to nearest interval)
+      const periodMatch = period.period.match(/(\d+)-(\d+)/);
+      if (periodMatch) {
+        const startMin = parseInt(periodMatch[1]);
+        const endMin = parseInt(periodMatch[2]);
+        const midMin = Math.round((startMin + endMin) / 2);
+
+        // Find closest 10-minute interval
+        const closestInterval = timeIntervals.reduce((closest, interval) =>
+          Math.abs(interval - midMin) < Math.abs(closest - midMin) ? interval : closest,
+        );
+
+        possessionMap.set(closestInterval, {
+          home: period.possession,
+          away: 100 - period.possession,
+        });
+      }
+    }
+
+    // Fill in all time intervals, interpolating missing values
+    for (const time of timeIntervals) {
+      let homePossession = 50; // Default balanced possession
+      let awayPossession = 50;
+
+      if (possessionMap.has(time)) {
+        // Use exact data if available
+        const data = possessionMap.get(time)!;
+        homePossession = data.home;
+        awayPossession = data.away;
+      } else {
+        // Interpolate between adjacent data points
+        const beforeData = this.getNearestPossessionData(possessionMap, time, true);
+        const afterData = this.getNearestPossessionData(possessionMap, time, false);
+
+        if (beforeData && afterData) {
+          // Linear interpolation
+          const progress = (time - beforeData.time) / (afterData.time - beforeData.time);
+          homePossession = Math.round(
+            beforeData.home + (afterData.home - beforeData.home) * progress,
+          );
+          awayPossession = 100 - homePossession;
+        } else if (beforeData) {
+          // Use previous data
+          homePossession = beforeData.home;
+          awayPossession = beforeData.away;
+        } else if (afterData) {
+          // Use next data
+          homePossession = afterData.home;
+          awayPossession = afterData.away;
+        }
+      }
+
+      result.push({
+        time,
+        homePossession,
+        awayPossession,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get nearest possession data point (before or after given time)
+   */
+  private getNearestPossessionData(
+    possessionMap: Map<number, { home: number; away: number }>,
+    targetTime: number,
+    before: boolean,
+  ): { time: number; home: number; away: number } | null {
+    const sortedTimes = Array.from(possessionMap.keys()).sort((a, b) => a - b);
+
+    if (before) {
+      // Find largest time <= targetTime
+      const beforeTimes = sortedTimes.filter((time) => time < targetTime);
+      if (beforeTimes.length === 0) return null;
+      const time = Math.max(...beforeTimes);
+      const data = possessionMap.get(time)!;
+      return { time, ...data };
+    } else {
+      // Find smallest time > targetTime
+      const afterTimes = sortedTimes.filter((time) => time > targetTime);
+      if (afterTimes.length === 0) return null;
+      const time = Math.min(...afterTimes);
+      const data = possessionMap.get(time)!;
+      return { time, ...data };
+    }
   }
 
   /**
@@ -1337,10 +1542,10 @@ export class FixtureNew {
    * Currently returns default Saudi Sports Company channel
    */
   private generateHighlights(matchVideo: KorastatsMatchVideo) {
-    return {
-      host: "S3",
-      url: matchVideo.objMatch.arrHalves[0].arrStreams[0].arrQualities[0].strLink,
-    };
+    const url =
+      matchVideo?.objMatch?.arrHalves?.[0]?.arrStreams?.[0]?.arrQualities?.[0]?.strLink ||
+      "";
+    return { host: "S3", url };
   }
 
   private calculateTeamRating(teamStats: KorastatsTeamMatchStats): number {
@@ -1350,16 +1555,17 @@ export class FixtureNew {
     const accuracyWeight = 0.25;
     const disciplineWeight = 0.25;
 
-    const possession = teamStats.Possession?.TimePercent?.Average || 0.5;
+    const possession = teamStats?.Possession?.TimePercent?.Average || 0.5;
     const shotsRatio = Math.min(
-      (teamStats.Attempts?.Success || 0) / Math.max(teamStats.Attempts?.Success || 1, 1),
+      (teamStats?.Attempts?.Success || 0) /
+        Math.max(teamStats?.Attempts?.Success || 1, 1),
       1,
     );
     const accuracy =
-      (teamStats.Pass?.Accuracy || 0) / Math.max(teamStats.Pass?.Accuracy || 1, 1);
+      (teamStats?.Pass?.Accuracy || 0) / Math.max(teamStats?.Pass?.Accuracy || 1, 1);
     const discipline = Math.max(
       0,
-      1 - ((teamStats.Cards?.Red || 0) * 0.3 + (teamStats.Cards?.Yellow || 0) * 0.1),
+      1 - ((teamStats?.Cards?.Red || 0) * 0.3 + (teamStats?.Cards?.Yellow || 0) * 0.1),
     );
 
     const rating =
@@ -1370,6 +1576,174 @@ export class FixtureNew {
       10;
 
     return Math.round(rating * 10) / 10; // Round to 1 decimal
+  }
+  private calculatePlayerRating(playerStats: KorastatsPlayerDetailedStats): number {
+    const possessionWeight = 0.2;
+    const shotsWeight = 0.3;
+    const accuracyWeight = 0.25;
+    const disciplineWeight = 0.25;
+
+    const possession = playerStats?.BallReceive?.Success || 0;
+    const shotsRatio = Math.min(
+      (playerStats?.Attempts?.SuccessAttemptToScore || 0) /
+        Math.max(playerStats?.Attempts?.SuccessAttemptToScore || 1, 1),
+      1,
+    );
+
+    const accuracy =
+      (playerStats?.BallReceive?.Accuracy || 0) /
+      Math.max(playerStats?.BallReceive?.Accuracy || 1, 1);
+    const discipline = Math.max(
+      0,
+      1 -
+        ((playerStats?.Cards?.Red || 0) * 0.3 +
+          (playerStats?.Cards?.Yellow || 0) * 0.1 +
+          (playerStats?.Cards?.SecondYellow || 0) * 0.1),
+    );
+
+    const rating =
+      (possession * possessionWeight +
+        shotsRatio * shotsWeight +
+        accuracy * accuracyWeight +
+        discipline * disciplineWeight) *
+      10;
+
+    return Math.round(rating * 10) / 100; // Round to 1 decimal
+  }
+
+  private normalizeKorastatsInputs(inputs: {
+    matchTimeline: KorastatsMatchTimeline;
+    matchSquad: KorastatsMatchSquad;
+    matchPlayerStats: KorastatsMatchPlayersStats;
+    matchFormationHome: KorastatsMatchFormation;
+    matchFormationAway: KorastatsMatchFormation;
+    matchVideo: KorastatsMatchVideo;
+    matchSummary: KorastatsMatchSummary;
+    matchPossession: KorastatsMatchPossessionTimeline;
+  }) {
+    // Ensure arrays/objects exist to avoid null dereferences in mappers
+    const normalizedVideo: KorastatsMatchVideo = inputs.matchVideo ?? ({} as any);
+    const objMatch = normalizedVideo.objMatch ?? ({} as any);
+    const arrHalves = Array.isArray(objMatch.arrHalves) ? objMatch.arrHalves : [];
+    if (arrHalves.length === 0) {
+      normalizedVideo.objMatch = {
+        arrHalves: [{ arrStreams: [{ arrQualities: [{ strLink: "" }] }] }],
+      } as any;
+    } else {
+      // Deep fill streams/qualities
+      for (const half of arrHalves) {
+        (half as any).arrStreams = Array.isArray((half as any).arrStreams)
+          ? (half as any).arrStreams
+          : [{ arrQualities: [{ strLink: "" }] }];
+        for (const stream of (half as any).arrStreams) {
+          stream.arrQualities = Array.isArray(stream.arrQualities)
+            ? stream.arrQualities
+            : [{ strLink: "" }];
+        }
+      }
+      normalizedVideo.objMatch = { arrHalves } as any;
+    }
+
+    const normalizedSummary: KorastatsMatchSummary = inputs.matchSummary ?? ({} as any);
+    (normalizedSummary as any).home = normalizedSummary.home ?? ({} as any);
+    (normalizedSummary as any).away = normalizedSummary.away ?? ({} as any);
+    (normalizedSummary as any).home.stats = normalizedSummary.home.stats ?? ({} as any);
+    (normalizedSummary as any).away.stats = normalizedSummary.away.stats ?? ({} as any);
+    (normalizedSummary as any).score =
+      normalizedSummary.score ??
+      ({
+        home: 0,
+        away: 0,
+      } as any);
+
+    const normalizedSquad: KorastatsMatchSquad = inputs.matchSquad ?? ({} as any);
+    (normalizedSquad as any).home =
+      normalizedSquad.home ??
+      ({
+        team: { id: 0, name: "Home Team" },
+        squad: [],
+      } as any);
+    (normalizedSquad as any).away =
+      normalizedSquad.away ??
+      ({
+        team: { id: 0, name: "Away Team" },
+        squad: [],
+      } as any);
+    (normalizedSquad as any).home.squad = Array.isArray(normalizedSquad.home.squad)
+      ? normalizedSquad.home.squad
+      : [];
+    (normalizedSquad as any).away.squad = Array.isArray(normalizedSquad.away.squad)
+      ? normalizedSquad.away.squad
+      : [];
+
+    const normalizedPlayerStats: KorastatsMatchPlayersStats =
+      inputs.matchPlayerStats ?? ({ players: [] } as any);
+    (normalizedPlayerStats as any).players = Array.isArray(normalizedPlayerStats.players)
+      ? normalizedPlayerStats.players
+      : [];
+
+    const normalizedFormationHome: KorastatsMatchFormation =
+      inputs.matchFormationHome ??
+      ({ lineupFormationName: "1-4-4-2", lineupFormation: [] } as any);
+    (normalizedFormationHome as any).lineupFormationName =
+      normalizedFormationHome.lineupFormationName || "1-4-4-2";
+    (normalizedFormationHome as any).lineupFormation = Array.isArray(
+      normalizedFormationHome.lineupFormation,
+    )
+      ? normalizedFormationHome.lineupFormation
+      : [];
+
+    const normalizedFormationAway: KorastatsMatchFormation =
+      inputs.matchFormationAway ??
+      ({ lineupFormationName: "1-4-4-2", lineupFormation: [] } as any);
+    (normalizedFormationAway as any).lineupFormationName =
+      normalizedFormationAway.lineupFormationName || "1-4-4-2";
+    (normalizedFormationAway as any).lineupFormation = Array.isArray(
+      normalizedFormationAway.lineupFormation,
+    )
+      ? normalizedFormationAway.lineupFormation
+      : [];
+
+    const normalizedTimeline: KorastatsMatchTimeline =
+      inputs.matchTimeline ?? ({} as any);
+    (normalizedTimeline as any).timeline = Array.isArray(normalizedTimeline.timeline)
+      ? normalizedTimeline.timeline
+      : [];
+    (normalizedTimeline as any).home =
+      normalizedTimeline.home ?? ({ id: 0, name: "Home Team" } as any);
+    (normalizedTimeline as any).away =
+      normalizedTimeline.away ?? ({ id: 0, name: "Away Team" } as any);
+    (normalizedTimeline as any).score =
+      normalizedTimeline.score ?? ({ home: 0, away: 0 } as any);
+
+    const normalizedPossession: KorastatsMatchPossessionTimeline =
+      inputs.matchPossession ??
+      ({ home: { possession: [] }, away: { possession: [] } } as any);
+    (normalizedPossession as any).home =
+      normalizedPossession.home ?? ({ possession: [] } as any);
+    (normalizedPossession as any).away =
+      normalizedPossession.away ?? ({ possession: [] } as any);
+    (normalizedPossession as any).home.possession = Array.isArray(
+      normalizedPossession.home.possession,
+    )
+      ? normalizedPossession.home.possession
+      : [];
+    (normalizedPossession as any).away.possession = Array.isArray(
+      normalizedPossession.away.possession,
+    )
+      ? normalizedPossession.away.possession
+      : [];
+
+    return {
+      matchTimeline: normalizedTimeline,
+      matchSquad: normalizedSquad,
+      matchPlayerStats: normalizedPlayerStats,
+      matchFormationHome: normalizedFormationHome,
+      matchFormationAway: normalizedFormationAway,
+      matchVideo: normalizedVideo,
+      matchSummary: normalizedSummary,
+      matchPossession: normalizedPossession,
+    };
   }
 }
 

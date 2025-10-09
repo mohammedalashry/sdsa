@@ -28,7 +28,6 @@ export interface TournamentDataResult {
     tournamentList: any;
     tournamentStructure: any;
     matchList: any[];
-    listStatTypes: any[];
   };
   error?: string;
 }
@@ -57,24 +56,24 @@ export class TournamentDataService {
       console.log(`🔄 Collecting data for tournament ${tournamentId}`);
 
       // Collect only required data in parallel for better performance
-      const [tournamentStructureResponse, matchListResponse, listStatTypesResponse] =
-        await Promise.allSettled([
-          this.korastatsService.getTournamentStructure(tournamentId),
-          this.korastatsService.getTournamentMatchList(tournamentId),
-          this.korastatsService.getListStatTypes({} as any), // StatType parameter is not used in the method
-        ]);
+      const [tournamentStructureResponse, matchListResponse] = await Promise.allSettled([
+        this.korastatsService.getTournamentStructure(tournamentId),
+        this.korastatsService.getTournamentMatchList(tournamentId),
+      ]);
 
       // Check if all required data was collected successfully
       const requiredData = [
         { name: "TournamentStructure", response: tournamentStructureResponse },
         { name: "MatchList", response: matchListResponse },
-        { name: "ListStatTypes", response: listStatTypesResponse },
       ];
+
+      // Top performers data is optional but preferred
+
       //console.log("matchListResponse", matchListResponse);
       const failedData = requiredData.filter(
         (item) => item.response.status === "rejected" || !item.response.value?.data,
       );
-      console.log("failedData", failedData);  
+      console.log("failedData", failedData);
       if (failedData.length > 0) {
         const errorMessage = `Failed to collect: ${failedData.map((item) => item.name).join(", ")}`;
         console.error(`❌ ${errorMessage} for tournament ${tournamentId}`);
@@ -92,8 +91,6 @@ export class TournamentDataService {
         tournamentStructure: (tournamentStructureResponse as PromiseFulfilledResult<any>)
           .value.data,
         matchList: (matchListResponse as PromiseFulfilledResult<any>).value.data || [],
-        listStatTypes:
-          (listStatTypesResponse as PromiseFulfilledResult<any>).value.data || [],
       };
 
       console.log(`✅ Successfully collected data for tournament ${tournamentId}`);

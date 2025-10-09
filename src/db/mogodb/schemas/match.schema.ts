@@ -105,20 +105,20 @@ const MatchSchema = new Schema<MatchInterface>(
     // Score
     score: {
       halftime: {
-        home: { type: Number, default: null },
-        away: { type: Number, default: null },
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
       },
       fulltime: {
-        home: { type: Number, default: null },
-        away: { type: Number, default: null },
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
       },
       extratime: {
-        home: { type: Number, default: null },
-        away: { type: Number, default: null },
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
       },
       penalty: {
-        home: { type: Number, default: null },
-        away: { type: Number, default: null },
+        home: { type: Number, default: 0 },
+        away: { type: Number, default: 0 },
       },
     },
 

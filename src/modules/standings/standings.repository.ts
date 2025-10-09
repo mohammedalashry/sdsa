@@ -25,20 +25,23 @@ export class StandingsRepository {
 
       // Get standings from MongoDB Team collection (stats are embedded)
       // Sort by current_rank if available, otherwise by goal difference
-      const standings = await Models.Standings.find({ korastats_id: leagueId });
+      const standings = await Models.Standings.findOne({
+        korastats_id: leagueId,
+      });
+      const seasonData = standings?.seasons.find((s: any) => s.year === season);
       const mappedStandings = {
         league: {
-          id: standings[0].korastats_id,
-          name: standings[0].name,
-          country: standings[0].country,
-          logo: standings[0].logo,
-          flag: standings[0].flag,
-          season: standings[0].season,
-          standings: [standings[0].standings],
+          id: standings?.korastats_id,
+          name: standings?.name,
+          country: standings?.country,
+          logo: standings?.logo,
+          flag: standings?.flag,
+          season: seasonData?.year,
+          standings: [seasonData?.standings],
         },
       };
 
-      this.cacheService.set(cacheKey, standings, 30 * 60 * 1000); // Cache for 30 minutes
+      this.cacheService.set(cacheKey, mappedStandings, 30 * 60 * 1000); // Cache for 30 minutes
       return mappedStandings;
     } catch (error) {
       console.error("Failed to fetch standings:", error);

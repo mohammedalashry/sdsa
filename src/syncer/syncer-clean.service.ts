@@ -127,6 +127,7 @@ export class SyncerService {
   /**
    * Comprehensive tournament/league sync
    */
+  /*
   async syncTournamentsComprehensiveOLD(
     options: SyncOptions = {},
   ): Promise<SyncProgress> {
@@ -177,8 +178,7 @@ export class SyncerService {
           // Map tournament data using LeagueNew mapper
           const mappedTournament = await leagueMapper.tournamentMapper(
             tournament,
-            [], // matchList - empty for now
-            [], // listStatTypes - empty for now
+            tournamentData.data.matchList,
             tournamentStructure,
           );
 
@@ -214,7 +214,7 @@ export class SyncerService {
       throw error;
     }
   }
-
+*/
   // ===================================================================
   // NEW: STANDINGS SYNC - Small and simple, included in main syncer
   // ===================================================================
@@ -261,7 +261,7 @@ export class SyncerService {
 
           await this.syncSingleTournamentStandings(
             tournamentId,
-            options.forceResync || false,
+            options.forceResync || true,
           );
           this.progress.completed++;
         } catch (error) {
@@ -307,7 +307,7 @@ export class SyncerService {
    */
   private async syncSingleTournamentStandings(
     tournamentId: number,
-    forceResync: boolean,
+    forceResync: boolean = true,
   ): Promise<void> {
     // Check if already exists and not forcing resync
     if (!forceResync) {
@@ -357,11 +357,18 @@ export class SyncerService {
       });
 
       // Step 4: Map to MongoDB schema using standingsNew
-      const standingsData = this.standingsNew.mapToStandings(
+      const standingsData = await this.standingsNew.mapToStandings(
         tournament,
         standingsResponse.data,
       );
-
+      const existing = await Models.Standings.findOne({ korastats_id: tournamentId });
+      if (
+        existing &&
+        existing?.seasons?.[0]?.year !== standingsData?.seasons?.[0]?.year
+      ) {
+        standingsData.seasons = [...existing.seasons, ...standingsData.seasons];
+        standingsData.seasons = standingsData.seasons.sort((a, b) => a.year - b.year);
+      }
       // Step 5: Store in MongoDB
       await Models.Standings.findOneAndUpdate(
         { korastats_id: tournamentId },
@@ -370,7 +377,7 @@ export class SyncerService {
       );
 
       console.log(
-        `✅ Successfully synced standings for tournament ${tournamentId} with ${standingsData.standings.length} teams`,
+        `✅ Successfully synced standings for tournament ${tournamentId} with ${standingsData.seasons[0].standings.length} teams`,
       );
     } catch (error) {
       console.error(
@@ -426,20 +433,6 @@ export class SyncerService {
           try {
             this.progress.current = `Syncing tournament: ${tournament.tournament}`;
 
-            // Check if tournament already exists
-            if (!options.forceResync) {
-              const existing = await Models.League.findOne({
-                korastats_id: tournament.id,
-              });
-              if (existing) {
-                console.log(
-                  `⏭️ Tournament ${tournament.tournament} already exists, skipping`,
-                );
-                this.progress.completed++;
-                continue;
-              }
-            }
-
             // Collect tournament data
             const tournamentData = await tournamentDataService.collectTournamentData(
               tournament.id,
@@ -455,7 +448,6 @@ export class SyncerService {
             const mappedTournament = await leagueMapper.tournamentMapper(
               tournament,
               tournamentData.data.matchList,
-              tournamentData.data.listStatTypes,
               tournamentData.data.tournamentStructure,
             );
 
@@ -564,13 +556,13 @@ export class SyncerService {
         try {
           this.progress.current = `Processing tournament ${index + 1}/${this.progress.total}: ID ${tournamentId}`;
           console.log(this.progress.current);
-          /*
+
           // Step 1: Sync basic match data for tournament
           const basicMatchOptions = {
             tournamentId,
             season: options.season,
             limit: options.limit, // Pass limit to individual tournament
-            forceResync: options.forceResync || false,
+            forceResync: options.forceResync || true,
             includeDetails: false, // Basic sync first
             includeAnalytics: false,
           };
@@ -584,7 +576,7 @@ export class SyncerService {
             completed: basicProgress.completed,
             failed: basicProgress.failed,
           });
-*/
+
           // Step 2: Sync detailed match data if requested
           if (options.includeDetails !== false) {
             console.log(`📈 Syncing detailed matches for tournament ${tournamentId}...`);
@@ -593,7 +585,7 @@ export class SyncerService {
               tournamentId,
               season: options.season,
               limit: options.limit,
-              forceResync: options.forceResync || false,
+              forceResync: options.forceResync || true,
               includeDetails: true,
               includeAnalytics: options.includeAnalytics || false,
             };
@@ -952,7 +944,7 @@ export class SyncerService {
           const playerSyncOptions = {
             tournamentId: tournament.id,
             season: options.season,
-            forceResync: options.forceResync || false,
+            forceResync: options.forceResync || true,
             includeStats: true,
             includeAnalytics: options.includeAnalytics || true,
             limit: options.batchSize, // Use batchSize as player limit per tournament
@@ -1049,7 +1041,7 @@ export class SyncerService {
       const playerProgress = await this.playerDataService.syncSpecificPlayers(
         playerIds,
         tournamentId,
-        options.forceResync || false,
+        options.forceResync || true,
       );
 
       this.progress.completed = 1;
@@ -1101,7 +1093,7 @@ export class SyncerService {
       // Update player statistics
       const updateProgress = await this.playerDataService.updatePlayerStatistics(
         tournamentId,
-        options.forceResync || false,
+        options.forceResync || true,
       );
 
       this.progress.completed = 1;
@@ -1177,7 +1169,7 @@ export class SyncerService {
           const coachSyncOptions = {
             tournamentId: tournament.id,
             season: options.season,
-            forceResync: options.forceResync || false,
+            forceResync: options.forceResync || true,
             includeStats: true,
             includeAnalytics: options.includeAnalytics || true,
             limit: options.batchSize, // Use batchSize as coach limit per tournament
@@ -1274,7 +1266,7 @@ export class SyncerService {
       const coachProgress = await this.coachDataService.syncSpecificCoaches(
         coachIds,
         tournamentId,
-        options.forceResync || false,
+        options.forceResync || true,
       );
 
       this.progress.completed = 1;
@@ -1350,7 +1342,7 @@ export class SyncerService {
           const refereeSyncOptions = {
             tournamentId: tournament.id,
             season: options.season,
-            forceResync: options.forceResync || false,
+            forceResync: options.forceResync || true,
             includeStats: true,
             limit: options.batchSize, // Use batchSize as referee limit per tournament
           };
@@ -1446,7 +1438,7 @@ export class SyncerService {
       const refereeProgress = await this.refereeDataService.syncSpecificReferees(
         refereeIds,
         tournamentId,
-        options.forceResync || false,
+        options.forceResync || true,
       );
 
       this.progress.completed = 1;
@@ -1488,7 +1480,7 @@ export class SyncerService {
       const entityOptions = {
         batchSize: options.batchSize || 5,
         delayBetweenBatches: options.delayBetweenBatches || 1000,
-        forceResync: options.forceResync || false,
+        forceResync: options.forceResync || true,
         skipExisting: options.skipExisting || false,
         limit: options.limit,
       };
@@ -1800,11 +1792,50 @@ export class SyncerService {
    * @returns Country code
    */
   private generateCountryCode(name: string): string {
-    const array = name.split(" ");
+    const array = name?.split(" ");
     if (array.length === 1) {
       return array[0].substring(0, 2).toUpperCase();
     }
     return array[0][0].toUpperCase() + array[1][0].toUpperCase();
+  }
+
+  /**
+   * Comprehensive match sync: Ensure both basic and detailed matches are complete
+   * Step 1: Sync missing basic matches from Korastats + old basic matches
+   * Step 2: Sync missing detailed matches + old detailed matches
+   */
+  async syncMatchesComprehensiveWithCutoff(cutoffDate?: Date): Promise<SyncProgress> {
+    this.resetProgress();
+    this.progress.current = "Starting comprehensive match sync...";
+
+    try {
+      console.log("🔍 Starting comprehensive match sync...");
+      await this.mongoService.connect();
+
+      const result = await this.matchDataService.syncMatchesComprehensive(cutoffDate);
+
+      this.progress.total = result.total;
+      this.progress.completed = result.completed;
+      this.progress.failed = result.failed;
+      this.progress.endTime = new Date();
+      this.progress.current = `Comprehensive match sync completed: ${result.completed}/${result.total}`;
+
+      console.log(`✅ Comprehensive match sync completed:`, {
+        total: this.progress.total,
+        completed: this.progress.completed,
+        failed: this.progress.failed,
+        duration: this.progress.endTime.getTime() - this.progress.startTime.getTime(),
+      });
+
+      return this.progress;
+    } catch (error) {
+      this.progress.endTime = new Date();
+      this.progress.current = `Comprehensive match sync failed: ${error.message}`;
+      console.error("❌ Comprehensive match sync failed:", error);
+      throw error;
+    } finally {
+      await this.mongoService.disconnect();
+    }
   }
 }
 

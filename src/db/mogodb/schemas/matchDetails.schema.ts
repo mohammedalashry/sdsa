@@ -59,6 +59,7 @@ const MatchDetailsSchema = new Schema<MatchDetailsInterface>(
         team: {
           id: { type: Number, required: true },
           name: { type: String, required: true },
+          logo: { type: String, required: true },
         },
         player: {
           id: { type: Number, required: true },
@@ -458,7 +459,6 @@ const MatchDetailsSchema = new Schema<MatchDetailsInterface>(
 );
 
 // Indexes for performance
-MatchDetailsSchema.index({ korastats_id: 1 });
 MatchDetailsSchema.index({ tournament_id: 1 });
 MatchDetailsSchema.index({ "momentumData.home.id": 1 });
 MatchDetailsSchema.index({ "momentumData.away.id": 1 });

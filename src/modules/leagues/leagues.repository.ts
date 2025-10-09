@@ -50,17 +50,12 @@ export class LeaguesRepository {
           code: this.getCountryCode("Saudi Arabia"),
           flag: this.getCountryFlag(tournament.country.id),
         },
-        seasons: [
-          {
-            year: this.extractYearFromSeason(tournament.season),
-            start: tournament.start_date?.toISOString() || "",
-            end: tournament.end_date?.toISOString() || "",
-            current: this.isCurrentSeason(
-              tournament.start_date?.toISOString() || "",
-              tournament.end_date?.toISOString() || "",
-            ),
-          },
-        ],
+        seasons: tournament.seasons.map((season) => ({
+          year: season.year,
+          start: season.start,
+          end: season.end,
+          current: season.current,
+        })),
       }));
 
       // Cache for 1 hour
@@ -90,10 +85,28 @@ export class LeaguesRepository {
       const tournament = await Models.League.findOne({
         korastats_id: league,
       });
-      console.log(`Found ${tournament.rounds} rounds`);
-      if (tournament && tournament.rounds) {
-        const rounds = tournament.rounds;
-        if (rounds.length > 0) {
+
+      if (tournament) {
+        // If a specific season year is provided and per-season rounds exist, return that
+        if (season && Array.isArray(tournament.seasons)) {
+          const seasonData = tournament.seasons.find((s: any) => s.year === season);
+          if (
+            seasonData &&
+            Array.isArray((seasonData as any).rounds) &&
+            (seasonData as any).rounds.length > 0
+          ) {
+            const rounds = (seasonData as any).rounds as string[];
+            this.cacheService.set(cacheKey, rounds, 30 * 60 * 1000);
+            return rounds;
+          }
+        }
+
+        // Fallback to league-level rounds union for backward compatibility
+        if (
+          Array.isArray((tournament as any).rounds) &&
+          (tournament as any).rounds.length > 0
+        ) {
+          const rounds = (tournament as any).rounds as string[];
           this.cacheService.set(cacheKey, rounds, 30 * 60 * 1000);
           return rounds;
         }
@@ -151,8 +164,8 @@ export class LeaguesRepository {
 
       // Get team details for winner and runner-up
       const [winnerTeam, runnerUpTeam] = await Promise.all([
-        Models.Team.findOne({ korastats_id: standings.standings[0].team.id }),
-        Models.Team.findOne({ korastats_id: standings.standings[1].team.id }),
+        Models.Team.findOne({ korastats_id: standings.seasons[0].standings[0].team.id }),
+        Models.Team.findOne({ korastats_id: standings.seasons[0].standings[1].team.id }),
       ]);
 
       if (!winnerTeam || !runnerUpTeam) {
@@ -162,14 +175,14 @@ export class LeaguesRepository {
 
       const winners: LeagueHistoricalWinner[] = [
         {
-          season: this.extractYearFromSeason(standings.season.toString()),
+          season: this.extractYearFromSeason(standings.seasons[0].year.toString()),
           winner: {
             id: winnerTeam.korastats_id,
             name: winnerTeam.name,
             code: winnerTeam.code || null,
             country: winnerTeam.country,
             founded: winnerTeam.founded || null,
-            national: winnerTeam.national || false,
+            national: winnerTeam.national || true,
             logo: winnerTeam.logo || "",
           },
           runnerUp: {
@@ -178,7 +191,7 @@ export class LeaguesRepository {
             code: runnerUpTeam.code || null,
             country: runnerUpTeam.country,
             founded: runnerUpTeam.founded || null,
-            national: runnerUpTeam.national || false,
+            national: runnerUpTeam.national || true,
             logo: runnerUpTeam.logo || "",
           },
         },

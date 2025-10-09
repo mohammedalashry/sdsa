@@ -66,7 +66,6 @@ const CountrySchema = new Schema<CountryInterface>(
 );
 
 // Indexes for performance
-CountrySchema.index({ korastats_id: 1 });
 CountrySchema.index({ name: 1 });
 
 export default CountrySchema;

@@ -23,26 +23,6 @@ export class StandingsService {
     season?: number;
   }): Promise<StandingsResponse> {
     try {
-      // First, get group standings from Korastats
-      const groupStandings =
-        await this.leagueKorastatsService.getTournamentGroupStandings(options.league);
-
-      if (!groupStandings) {
-        console.log(
-          `No group standings found for league ${options.league}, falling back to local data`,
-        );
-        return await this.standingsRepository.getStandings(
-          options.league,
-          options.season,
-        );
-      }
-
-      // Extract teams from group standings and get their ranks
-      const teamsWithRanks = await this.extractTeamsWithRanks(groupStandings);
-
-      // Sync team data with rankings
-      await this.syncTeamDataWithRanks(teamsWithRanks);
-
       // Return standings based on updated team data
       return await this.standingsRepository.getStandings(options.league, options.season);
     } catch (error) {

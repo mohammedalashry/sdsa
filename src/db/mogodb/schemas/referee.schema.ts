@@ -107,7 +107,6 @@ const RefereeSchema = new Schema<RefereeInterface>(
 );
 
 // Indexes for performance
-RefereeSchema.index({ korastats_id: 1 });
 RefereeSchema.index({ name: 1 });
 RefereeSchema.index({ country: 1 });
 RefereeSchema.index({ "career_stats.league": 1 });

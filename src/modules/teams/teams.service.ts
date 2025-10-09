@@ -186,7 +186,7 @@ export class TeamsService {
       return await this.repository.getTeamStats(
         options.team,
         options.league,
-        options.season.toString(),
+        options.season,
       );
     } catch (error) {
       if (error instanceof ApiError) throw error;

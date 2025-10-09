@@ -231,27 +231,178 @@ export class MongoStorageService {
     try {
       console.log(`💾 Storing tournament ${tournamentData.korastats_id} in MongoDB`);
 
-      // Check if tournament already exists
+      // Check if tournament already exists by exact korastats_id
       const existingTournament = await Models.League.findOne({
         korastats_id: tournamentData.korastats_id,
+      });
+
+      // Also check if a tournament with the same normalized name exists (for merging seasons)
+      // Normalize by trimming and lowercasing to reduce accidental mismatches
+      const normalizedName = (tournamentData.name || "").trim().toLowerCase();
+      const existingByName = await Models.League.findOne({
+        name: new RegExp(
+          `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          "i",
+        ),
       });
 
       let operation: "created" | "updated";
       let storedTournament: LeagueInterface;
 
       if (existingTournament) {
-        // Update existing tournament
+        // Merge seasons when updating existing tournament by korastats_id
+        const existingSeasons = Array.isArray(existingTournament.seasons)
+          ? existingTournament.seasons
+          : [];
+        const incomingSeasons = Array.isArray(tournamentData.seasons)
+          ? tournamentData.seasons
+          : [];
+
+        const seasonKey = (s: {
+          year: number;
+          start: string;
+          end: string;
+          current: boolean;
+        }) => `${s.year}|${s.start}|${s.end}`;
+        const seasonMap = new Map<string, (typeof existingSeasons)[number]>();
+        for (const s of existingSeasons) seasonMap.set(seasonKey(s), s);
+        for (const s of incomingSeasons) {
+          const key = seasonKey(s);
+          if (seasonMap.has(key)) {
+            const prev = seasonMap.get(key)! as any;
+            const mergedRounds = Array.from(
+              new Set([...(prev.rounds || []), ...((s as any).rounds || [])]),
+            ).sort(
+              (a, b) =>
+                parseInt(a.match(/\d+/)?.[0] || "0") -
+                parseInt(b.match(/\d+/)?.[0] || "0"),
+            );
+            prev.rounds = mergedRounds;
+            prev.rounds_count = mergedRounds.length;
+            prev.current = prev.current || s.current;
+          } else {
+            seasonMap.set(key, s as any);
+          }
+        }
+        const mergedSeasons = Array.from(seasonMap.values()).sort(
+          (a, b) => a.year - b.year,
+        ) as any[];
+        const unionRounds = Array.from(
+          new Set(mergedSeasons.flatMap((s: any) => s.rounds || [])),
+        ).sort(
+          (a, b) =>
+            parseInt(a.match(/\d+/)?.[0] || "0") - parseInt(b.match(/\d+/)?.[0] || "0"),
+        );
+
         storedTournament = (await Models.League.findOneAndUpdate(
-          { korastats_id: tournamentData.korastats_id },
+          { korastats_id: existingTournament.korastats_id },
           {
             ...tournamentData,
+            seasons: mergedSeasons,
+            rounds: unionRounds,
+            rounds_count: unionRounds.length,
             updated_at: new Date(),
             sync_version: existingTournament.sync_version + 1,
           },
           { new: true },
         )) as LeagueInterface;
         operation = "updated";
-        console.log(`✅ Updated tournament ${tournamentData.korastats_id} in MongoDB`);
+        console.log(
+          `✅ Updated (merged) tournament ${tournamentData.korastats_id} in MongoDB`,
+        );
+      } else if (existingByName) {
+        // Merge into existing tournament with the same name but different ID
+        // 1) Merge seasons uniquely by (year,start,end)
+        const existingSeasons = Array.isArray(existingByName.seasons)
+          ? existingByName.seasons
+          : [];
+        const incomingSeasons = Array.isArray(tournamentData.seasons)
+          ? tournamentData.seasons
+          : [];
+
+        const seasonKey = (s: {
+          year: number;
+          start: string;
+          end: string;
+          current: boolean;
+        }) => `${s.year}|${s.start}|${s.end}`;
+        const seasonMap = new Map<string, (typeof existingSeasons)[number]>();
+        for (const s of existingSeasons) seasonMap.set(seasonKey(s), s);
+        for (const s of incomingSeasons) seasonMap.set(seasonKey(s), s);
+        const mergedSeasons = Array.from(seasonMap.values()).sort(
+          (a, b) => a.year - b.year,
+        );
+
+        // 2) Merge rounds per-season and recompute league-level union for backward compatibility
+        const computeRoundNum = (value: string) =>
+          parseInt(String(value).match(/\d+/)?.[0] || "0", 10);
+
+        // Build season map keyed by year|start|end to merge rounds per-season
+        const seasonKeyToRounds = new Map<string, string[]>();
+        for (const s of existingSeasons) {
+          const key = seasonKey(s);
+          if (!seasonKeyToRounds.has(key)) seasonKeyToRounds.set(key, []);
+          const rounds = Array.isArray((s as any).rounds) ? (s as any).rounds : [];
+          seasonKeyToRounds.set(key, rounds);
+        }
+        for (const s of incomingSeasons) {
+          const key = seasonKey(s);
+          const prev = seasonKeyToRounds.get(key) || [];
+          const inc = Array.isArray(s.rounds)
+            ? ((s as any).rounds as string[])
+            : Array.isArray(tournamentData.rounds)
+              ? (tournamentData.rounds as string[])
+              : [];
+          const merged = Array.from(new Set([...prev, ...inc])).sort(
+            (a, b) => computeRoundNum(a) - computeRoundNum(b),
+          );
+          seasonKeyToRounds.set(key, merged);
+        }
+
+        // Apply merged rounds back to seasons with rounds_count
+        const mergedSeasonsWithRounds = mergedSeasons.map((s) => {
+          const key = seasonKey(s);
+          const rounds = seasonKeyToRounds.get(key) || [];
+          return { ...s, rounds, rounds_count: rounds.length } as any;
+        });
+
+        // League-level union for backward compatibility
+        const unionRounds = Array.from(
+          new Set(mergedSeasonsWithRounds.flatMap((s: any) => s.rounds || [])),
+        ).sort((a, b) => computeRoundNum(a) - computeRoundNum(b));
+
+        // 3) Prefer the newer season's current flag for determining if any is current
+        // but we keep season objects as provided; just recompute rounds_count and metadata
+        storedTournament = (await Models.League.findOneAndUpdate(
+          { _id: existingByName._id },
+          {
+            // Ensure canonical korastats_id (from mapper/LeagueLogoService) is applied
+            name: existingByName.name,
+            korastats_id:
+              typeof tournamentData.korastats_id === "number" &&
+              tournamentData.korastats_id > 0
+                ? tournamentData.korastats_id
+                : existingByName.korastats_id,
+            logo: tournamentData.logo || existingByName.logo,
+            type: tournamentData.type || existingByName.type,
+            country: tournamentData.country || existingByName.country,
+            organizer: tournamentData.organizer || existingByName.organizer,
+            age_group: tournamentData.age_group || existingByName.age_group,
+            gender: tournamentData.gender || existingByName.gender,
+            seasons: mergedSeasonsWithRounds,
+            rounds: unionRounds,
+            rounds_count: unionRounds.length,
+            updated_at: new Date(),
+            sync_version: (existingByName as any).sync_version
+              ? (existingByName as any).sync_version + 1
+              : 1,
+          },
+          { new: true },
+        )) as LeagueInterface;
+        operation = "updated";
+        console.log(
+          `🔁 Merged tournament ${tournamentData.korastats_id} into existing league by name: ${existingByName.name}`,
+        );
       } else {
         // Create new tournament
         storedTournament = (await Models.League.create({

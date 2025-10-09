@@ -476,6 +476,21 @@ export class KorastatsService {
     });
   }
 
+  /**
+   * Get entity teams (team details including stadium info)
+   * @param teamIds - Array of team IDs (optional, if empty returns all teams)
+   */
+  async getEntityTeams(teamIds?: number[]): Promise<any> {
+    const params: Record<string, any> = {};
+
+    // If team IDs provided, add them to params
+    if (teamIds && teamIds.length > 0) {
+      params.team_ids = teamIds.join(",");
+    }
+
+    return this.client.makeRequest("EntityTeams", params);
+  }
+
   // ===== REFEREE ENDPOINTS =====
 
   /**

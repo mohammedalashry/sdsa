@@ -173,7 +173,7 @@ export class TeamsRepository {
   async getTeamStats(
     teamId: number,
     league: number,
-    season: string,
+    season: number,
   ): Promise<TeamStatsResponse> {
     const cacheKey = this.cacheService.createKey(
       "teams",
@@ -192,13 +192,35 @@ export class TeamsRepository {
 
     try {
       // Get team from new Team schema
-      const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+      let mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
 
       if (mongoTeam) {
         console.log(`📦 Found team stats for team ${teamId} in MongoDB`);
 
         // Transform new Team schema stats to legacy format
-        const stats: TeamStatsResponse = mongoTeam.stats;
+        // Get the first tournament stats (or aggregate from all if needed)
+        const tournamentStats =
+          mongoTeam.tournament_stats?.find(
+            (t) => t.league?.id === league && t.league?.season === season,
+          ) || mongoTeam.tournament_stats?.[0];
+        const stats: TeamStatsResponse =
+          tournamentStats ||
+          ({
+            league: null,
+            rank: 0,
+            average_team_rating: 0,
+            team: { id: teamId, name: mongoTeam.name, logo: mongoTeam.logo },
+            form: "N/A",
+            korastats_stats: {} as any,
+            team_attacking: {} as any,
+            team_defending: {} as any,
+            team_others: {} as any,
+            team_passing: {} as any,
+            clean_sheet: {} as any,
+            fixtures: {} as any,
+            goals: {} as any,
+            biggest: { streak: { wins: 0, draws: 0, loses: 0 } },
+          } as TeamStatsResponse);
 
         // Cache the result
         this.cacheService.set(cacheKey, stats);
@@ -260,8 +282,9 @@ export class TeamsRepository {
       }
 
       // Extract comparison stats from team's stats_summary
+      const firstTournamentStats = mongoTeam.tournament_stats?.[0];
       const result: TeamComparisonStatsResponse = {
-        league: mongoTeam.stats?.league || null,
+        league: firstTournamentStats?.league || null,
         team: {
           id: teamId,
           name: mongoTeam.name,
@@ -427,7 +450,23 @@ export class TeamsRepository {
           pageSize: 10,
           total: 1,
         },
-        data: mongoTeam.goalsOverTime,
+        data: mongoTeam.goalsOverTime || [
+          {
+            date: "",
+            timestamp: 0,
+            goalsScored: {
+              totalShots: 0,
+              totalGoals: 0,
+              team: { id: 0, name: "", logo: "" },
+            },
+            goalsConceded: {
+              totalShots: 0,
+              totalGoals: 0,
+              team: { id: 0, name: "", logo: "" },
+            },
+            opponentTeam: { id: 0, name: "", logo: "" },
+          },
+        ],
       };
 
       this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
@@ -465,7 +504,16 @@ export class TeamsRepository {
           pageSize: 10,
           total: 1,
         },
-        data: mongoTeam.formOverTime,
+        data: mongoTeam.formOverTime || [
+          {
+            date: "",
+            timestamp: 0,
+            currentPossession: 50,
+            opponentPossession: 50,
+            opponentTeam: { id: 0, name: "", logo: "" },
+            currentTeam: { id: 0, name: "", logo: "" },
+          },
+        ],
       };
 
       this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour

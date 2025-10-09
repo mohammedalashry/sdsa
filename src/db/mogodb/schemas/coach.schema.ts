@@ -176,7 +176,6 @@ const CoachSchema = new Schema<CoachInterface>(
 );
 
 // Indexes for performance
-CoachSchema.index({ korastats_id: 1 });
 CoachSchema.index({ name: 1 });
 CoachSchema.index({ "nationality.id": 1 });
 CoachSchema.index({ "career_history.team_id": 1 });

@@ -2,7 +2,14 @@ import { Schema } from "mongoose";
 export interface LeagueInterface {
   korastats_id: number;
   name: string;
-  season: string;
+  seasons: {
+    year: number;
+    start: string;
+    end: string;
+    current: boolean;
+    rounds: string[];
+    rounds_count: number;
+  }[];
   type: string;
   logo: string;
 
@@ -31,29 +38,6 @@ export interface LeagueInterface {
   rounds: string[]; // Array of round names like ["Round 1", "Round 2", etc.]
   rounds_count: number;
 
-  // Tournament winners
-
-  top_scorers: [
-    {
-      player: {
-        id: number;
-        name: string;
-      };
-    },
-  ];
-  top_assisters: [
-    {
-      player: {
-        id: number;
-        name: string;
-      };
-    },
-  ];
-  // Metadata
-  start_date: Date;
-  end_date: Date;
-  status: "active" | "completed" | "upcoming";
-
   // Sync tracking
   last_synced: Date;
   sync_version: number;
@@ -73,8 +57,17 @@ const LeagueSchema = new Schema<LeagueInterface>(
       type: String,
       required: true,
     },
-    season: {
-      type: String,
+    seasons: {
+      type: [
+        {
+          year: { type: Number, required: true },
+          start: { type: String, required: true },
+          end: { type: String, required: true },
+          current: { type: Boolean, required: true },
+          rounds: { type: [String], required: false },
+          rounds_count: { type: Number, required: false },
+        },
+      ],
       required: true,
     },
     logo: {
@@ -108,36 +101,7 @@ const LeagueSchema = new Schema<LeagueInterface>(
       type: Number,
       required: true,
     },
-    top_assisters: [
-      {
-        player: {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-        },
-      },
-    ],
-    top_scorers: [
-      {
-        player: {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-        },
-      },
-    ],
-    start_date: {
-      type: Date,
-      required: true,
-    },
-    end_date: {
-      type: Date,
-      required: true,
-    },
-    status: {
-      type: String,
-      required: true,
-      enum: ["active", "completed", "upcoming"],
-      default: "upcoming",
-    },
+
     last_synced: {
       type: Date,
       default: Date.now,
@@ -162,10 +126,9 @@ const LeagueSchema = new Schema<LeagueInterface>(
 );
 
 // Indexes for performance
-LeagueSchema.index({ name: 1, season: 1 });
+LeagueSchema.index({ name: 1, seasons: 1 });
 LeagueSchema.index({ country: 1, gender: 1 });
-LeagueSchema.index({ start_date: 1, end_date: 1 });
-LeagueSchema.index({ status: 1, start_date: 1 });
+LeagueSchema.index({ seasons: 1 });
 
 export default LeagueSchema;
 

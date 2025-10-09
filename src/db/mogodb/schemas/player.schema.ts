@@ -339,7 +339,6 @@ const PlayerSchema = new Schema<PlayerInterface>(
 );
 
 // Indexes for performance
-PlayerSchema.index({ korastats_id: 1 });
 PlayerSchema.index({ name: 1 });
 PlayerSchema.index({ firstname: 1 });
 PlayerSchema.index({ lastname: 1 });

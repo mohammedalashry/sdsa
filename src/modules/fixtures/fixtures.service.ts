@@ -21,7 +21,7 @@ export class FixturesService {
   async getFixtures(options: {
     league: number;
     season?: number;
-    round?: string;
+    round?: number;
     date?: string;
     status?: string;
   }): Promise<FixtureDataResponse> {

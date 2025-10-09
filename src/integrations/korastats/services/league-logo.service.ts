@@ -35,6 +35,14 @@ export class LeagueLogoService {
         logo: "https://media.api-sports.io/football/leagues/309.png",
       },
     ],
+    [
+      1441,
+      {
+        id: 840,
+        name: "Pro League",
+        logo: "https://media.api-sports.io/football/leagues/307.png",
+      },
+    ],
   ]);
 
   /**

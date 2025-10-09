@@ -1,0 +1,235 @@
+.
+├── Dockerfile
+├── docker-compose.yml
+├── docs
+│   ├── KoraStats API v2.1.pdf
+│   ├── SDSA (1).json
+│   ├── api
+│   ├── data.txt
+│   ├── fixture.txt
+│   ├── other.txt
+│   ├── sdsa-map-Sheet1.json
+│   ├── sdsa-map-Sheet2.json
+│   ├── sdsa-map.xlsx
+│   └── seastourmoredata.txt
+├── fdstructure.txt
+├── jest.config.js
+├── logs
+├── nodemon.json
+├── package-lock.json
+├── package.json
+├── src
+│   ├── app.ts
+│   ├── core
+│   │   ├── enums
+│   │   │   ├── dial-codes.enum.ts
+│   │   │   ├── enums.ts
+│   │   │   └── index.ts
+│   │   ├── helpers
+│   │   │   ├── get-country-code.ts
+│   │   │   └── hash-password.ts
+│   │   ├── i18n
+│   │   │   ├── ar
+│   │   │   │   └── translation.json
+│   │   │   ├── en
+│   │   │   │   └── translation.json
+│   │   │   └── i18n.ts
+│   │   ├── index.ts
+│   │   ├── middleware
+│   │   │   ├── auth.middleware.ts
+│   │   │   ├── error.middleware.ts
+│   │   │   └── validation.middleware.ts
+│   │   ├── token
+│   │   │   ├── jwt.ts
+│   │   │   ├── refresh.store.ts
+│   │   │   └── token.service.ts
+│   │   ├── types
+│   │   │   ├── auth.types.ts
+│   │   │   ├── common.types.ts
+│   │   │   └── index.ts
+│   │   └── utils
+│   │       ├── app-error.ts
+│   │       ├── catch-async.ts
+│   │       └── response.utils.ts
+│   ├── db
+│   │   ├── mogodb
+│   │   │   ├── README.md
+│   │   │   ├── connection.ts
+│   │   │   ├── models.ts
+│   │   │   └── schemas
+│   │   │       ├── coach.schema.ts
+│   │   │       ├── country.schema.ts
+│   │   │       ├── index.ts
+│   │   │       ├── league.schema.ts
+│   │   │       ├── match.schema.ts
+│   │   │       ├── matchDetails.schema.ts
+│   │   │       ├── player.schema.ts
+│   │   │       ├── referee.schema.ts
+│   │   │       ├── standings.schema.ts
+│   │   │       ├── sync-logs.schema.ts
+│   │   │       ├── team.schema.ts
+│   │   │       └── tournament-data.schema.ts
+│   │   └── prismadb
+│   │       ├── prisma
+│   │       │   ├── migrations
+│   │       │   │   ├── 20250903232450_sdsa
+│   │       │   │   │   └── migration.sql
+│   │       │   │   └── migration_lock.toml
+│   │       │   └── schema.prisma
+│   │       ├── prisma.config.ts
+│   │       └── prisma.service.ts
+│   ├── integrations
+│   │   └── korastats
+│   │       ├── client.ts
+│   │       ├── integration-service.interface.ts
+│   │       ├── integration.factory.ts
+│   │       ├── integration.service.ts
+│   │       ├── services
+│   │       │   ├── cache.service.ts
+│   │       │   ├── korastats.service.ts
+│   │       │   ├── league-logo.service.ts
+│   │       │   ├── league.service.ts
+│   │       │   └── team.service.ts
+│   │       └── types
+│   │           ├── coach.types.ts
+│   │           ├── country.types.ts
+│   │           ├── fixture.types.ts
+│   │           ├── index.ts
+│   │           ├── league.types.ts
+│   │           ├── player.types.ts
+│   │           ├── referee.types.ts
+│   │           └── team.types.ts
+│   ├── legacy-types
+│   │   ├── coach.types.ts
+│   │   ├── fixtures.types.ts
+│   │   ├── index.ts
+│   │   ├── leagues.types.ts
+│   │   ├── players.types.ts
+│   │   ├── referee.types.ts
+│   │   ├── standings.types.ts
+│   │   ├── team-stats.types.ts
+│   │   └── teams.types.ts
+│   ├── mapper
+│   │   ├── coachNew.ts
+│   │   ├── fixtureNew.ts
+│   │   ├── leagueNew.ts
+│   │   ├── playerNew.ts
+│   │   ├── refereeNew.ts
+│   │   ├── standingsNew.ts
+│   │   └── teamNew.ts
+│   ├── mappers
+│   │   ├── README.md
+│   │   ├── default-values.ts
+│   │   ├── fixture-detail.mapper.ts
+│   │   ├── fixture.mapper.ts
+│   │   ├── highlights.mapper.ts
+│   │   ├── index.ts
+│   │   ├── league.mapper.ts
+│   │   ├── player.mapper.ts
+│   │   ├── standings.mapper.ts
+│   │   ├── team-comprehensive.mapper.ts
+│   │   ├── team-helpers.ts
+│   │   └── team.mapper.ts
+│   ├── modules
+│   │   ├── auth
+│   │   │   ├── auth-validation.ts
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── auth.router.ts
+│   │   │   ├── auth.service.ts
+│   │   │   └── user.interface.ts
+│   │   ├── coach
+│   │   │   ├── coach.controller.ts
+│   │   │   ├── coach.repository.ts
+│   │   │   ├── coach.service.ts
+│   │   │   ├── coach.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── country
+│   │   │   ├── country.controller.ts
+│   │   │   ├── country.repository.ts
+│   │   │   ├── country.service.ts
+│   │   │   ├── country.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── fixtures
+│   │   │   ├── fixtures.controller.ts
+│   │   │   ├── fixtures.repository.ts
+│   │   │   ├── fixtures.service.ts
+│   │   │   ├── fixtures.validator.ts
+│   │   │   ├── index.ts
+│   │   │   └── routes.ts
+│   │   ├── leagues
+│   │   │   ├── index.ts
+│   │   │   ├── leagues.controller.ts
+│   │   │   ├── leagues.repository.ts
+│   │   │   ├── leagues.service.ts
+│   │   │   ├── leagues.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── players
+│   │   │   ├── index.ts
+│   │   │   ├── players.controller.ts
+│   │   │   ├── players.repository.ts
+│   │   │   ├── players.service.ts
+│   │   │   ├── players.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── profile
+│   │   │   ├── controllers
+│   │   │   │   └── profile.controller.ts
+│   │   │   ├── index.ts
+│   │   │   ├── routes.ts
+│   │   │   ├── services
+│   │   │   │   └── profile.service.ts
+│   │   │   └── validators
+│   │   │       └── profile.validator.ts
+│   │   ├── referee
+│   │   │   ├── index.ts
+│   │   │   ├── referee.controller.ts
+│   │   │   ├── referee.repository.ts
+│   │   │   ├── referee.service.ts
+│   │   │   ├── referee.validator.ts
+│   │   │   └── routes.ts
+│   │   ├── standings
+│   │   │   ├── index.ts
+│   │   │   ├── routes.ts
+│   │   │   ├── standings.controller.ts
+│   │   │   ├── standings.repository.ts
+│   │   │   ├── standings.service.ts
+│   │   │   └── standings.validator.ts
+│   │   └── teams
+│   │       ├── helpers
+│   │       │   ├── team-helpers.ts
+│   │       │   └── team-mappers.ts
+│   │       ├── index.ts
+│   │       ├── routes.ts
+│   │       ├── teams.controller.ts
+│   │       ├── teams.repository.ts
+│   │       ├── teams.service.ts
+│   │       └── teams.validator.ts
+│   ├── scripts
+│   │   ├── check-matches-data.ts
+│   │   ├── check-tournament-mapping.ts
+│   │   ├── check-tournaments.ts
+│   │   ├── fix-tournament-ids.ts
+│   │   ├── run-syncer.ts
+│   │   ├── sync-specific-data.ts
+│   │   ├── syncer-example.ts
+│   │   └── update-korastats-data.ts
+│   ├── server.ts
+│   ├── syncer
+│   │   ├── coach-data.service.ts
+│   │   ├── entity-data.service.ts
+│   │   ├── index.ts
+│   │   ├── match-data.service.ts
+│   │   ├── mongo-storage.service.ts
+│   │   ├── player-data.service.ts
+│   │   ├── referee-data.service.ts
+│   │   ├── syncer-clean.service.ts
+│   │   ├── team-data.service.ts
+│   │   └── tournament-data.service.ts
+│   └── types
+│       ├── env.d.ts
+│       └── node_env.d.ts
+├── tsconfig-paths-bootstrap.js
+└── tsconfig.json
+
+47 directories, 186 files
