@@ -18,7 +18,12 @@ export interface KorastatsEntityCountries {
 }
 
 // ===== RESPONSE TYPE WRAPPERS =====
-export type KorastatsEntityCountriesResponse = KorastatsBaseResponse<
-  KorastatsEntityCountries[]
->;
+export type KorastatsEntityCountriesResponse = {
+  root: {
+    result: boolean;
+    title: string;
+    message: string;
+    object: KorastatsEntityCountries[];
+  };
+};
 

@@ -29,7 +29,7 @@ export class FixturesController {
     const fixtures: FixtureDataResponse = await this.fixturesService.getFixtures({
       league: Number(league),
       season: Number(season),
-      round: Number(round),
+      round: round as string,
       date: date as string,
     });
 

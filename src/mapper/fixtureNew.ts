@@ -539,49 +539,57 @@ export class FixtureNew {
         )[0]
         ?.time?.split(":")[0] || "0";
     console.log("MODA firstHallastEventTime", firstHallastEventTime);
-    return (
-      await Promise.all(
-        matchTimeline.timeline.map(async (event) => ({
-          time: {
-            elapsed: this.parseTimeToMinutes(
-              event.time,
-              event.half,
-              parseInt(firstHallastEventTime),
-            ),
-            extra:
-              event.half > 2
-                ? this.parseTimeToMinutes(
-                    event.time,
-                    event.half,
-                    parseInt(firstHallastEventTime),
-                  ) - 90
-                : null,
-          },
-          team: {
-            id: event.team.id,
-            name: event.team?.name,
-            logo: await this.korastatsService
-              .getImageUrl("club", event.team.id)
-              .catch(() => ""),
-          },
-          player: {
-            id: event.in ? event.in.id : event.player?.id || 0,
-            name: event.in
-              ? event.in.nickname
-              : event.player?.nickname || "Unknown Player",
-          },
-          assist: event.out
-            ? {
-                id: event.out.id,
-                name: event.out.nickname,
-              }
-            : null,
-          type: this.mapEventType(event.event),
-          detail: event.event,
-          comments: null,
-        })),
-      )
-    ).sort((a, b) => a.time.elapsed - b.time.elapsed);
+    const events = await Promise.all(
+      matchTimeline.timeline.map(async (event) => ({
+        time: {
+          elapsed: this.parseTimeToMinutes(
+            event.time,
+            event.half,
+            parseInt(firstHallastEventTime),
+          ),
+          extra:
+            event.half > 2
+              ? this.parseTimeToMinutes(
+                  event.time,
+                  event.half,
+                  parseInt(firstHallastEventTime),
+                ) - 90
+              : null,
+        },
+        team: {
+          id: event.team.id,
+          name: event.team?.name,
+          logo: await this.korastatsService
+            .getImageUrl("club", event.team.id)
+            .catch(() => ""),
+        },
+        player: {
+          id: event.in ? event.in.id : event.player?.id || 0,
+          name: event.in ? event.in.nickname : event.player?.nickname || "Unknown Player",
+        },
+        assist: event.out
+          ? {
+              id: event.out.id,
+              name: event.out.nickname,
+            }
+          : null,
+        type: this.mapEventType(event.event),
+        detail: event.event,
+        comments: null,
+      })),
+    ).then((events) => events.sort((a, b) => a.time.elapsed - b.time.elapsed));
+    const uniqEvents = new Map<string, any>();
+    for (const event of events) {
+      uniqEvents.set(
+        event.time.elapsed.toString() +
+          event.team.id.toString() +
+          event.player.id.toString() +
+          event.type +
+          event.detail,
+        event,
+      );
+    }
+    return Array.from(uniqEvents.values());
   }
 
   private async mapLineups(
@@ -605,12 +613,12 @@ export class FixtureNew {
                 "coach",
                 matchSummary?.away?.coach?.id,
               );
-        const formationHtext = matchFormationHome?.lineupFormationName?.split("1-")?.[1]
-          ? matchFormationHome?.lineupFormationName.split("1-")[1].split("").join("-")
-          : "4-4-2";
-        const formationAText = matchFormationAway?.lineupFormationName?.split("1-")?.[1]
-          ? matchFormationAway?.lineupFormationName.split("1-")[1].split("").join("-")
-          : "4-4-2";
+        const formationHtext = this.mapFormationToText(
+          matchFormationHome?.lineupFormationName,
+        );
+        const formationAText = this.mapFormationToText(
+          matchFormationAway?.lineupFormationName,
+        );
         // Filter starting lineup and substitutes
         const startingPlayers = (squad || []).filter((p) => p?.lineup) || [];
         const substitutePlayers = (squad || []).filter((p) => p?.bench) || [];
@@ -628,8 +636,16 @@ export class FixtureNew {
           .catch(() => "");
 
         // Get player photos for starting XI
+        const currentFormation = index === 0 ? formationHtext : formationAText;
+
+        // Assign grid positions to all starting players at once
+        const playersWithGrid = this.assignGridPositionsToTeam(
+          startingPlayers,
+          currentFormation,
+        );
+
         const startXIWithPhotos = await Promise.all(
-          startingPlayers.map(async (player) => ({
+          playersWithGrid.map(async ({ player, grid }) => ({
             player: {
               id: player?.id || 0,
               name: player?.nick_name || "Unknown Player",
@@ -638,7 +654,7 @@ export class FixtureNew {
                 .catch(() => ""),
               number: player?.shirt_number || 0,
               pos: player?.position?.name || "",
-              grid: this.mapPositionToGrid(player?.position?.name || ""),
+              grid: grid,
               rating: this.calculatePlayerRating(
                 matchPlayerStats?.players?.find((p) => p.id === player?.id)?.stats,
               ).toString(),
@@ -647,8 +663,13 @@ export class FixtureNew {
         );
 
         // Get player photos for substitutes
+        const substitutesWithGrid = this.assignGridPositionsToTeam(
+          substitutePlayers,
+          currentFormation,
+        );
+
         const substitutesWithPhotos = await Promise.all(
-          substitutePlayers.map(async (player) => ({
+          substitutesWithGrid.map(async ({ player, grid }) => ({
             player: {
               id: player?.id || 0,
               name: player?.nick_name || "Unknown Player",
@@ -657,7 +678,7 @@ export class FixtureNew {
                 .catch(() => ""),
               number: player?.shirt_number || 0,
               pos: player?.position?.name || "",
-              grid: this.mapPositionToGrid(player?.position?.name || ""),
+              grid: grid,
               rating: this.calculatePlayerRating(
                 matchPlayerStats?.players?.find((p) => p.id === player?.id)?.stats,
               ).toString(),
@@ -707,7 +728,7 @@ export class FixtureNew {
     const playersArr = Array.isArray(matchPlayerStats?.players)
       ? matchPlayerStats.players
       : [];
-    for (let i = 0; i < playersArr.length && i < 11; i++) {
+    for (let i = 0; i < playersArr.length; i++) {
       const player = playersArr[i];
       const teamId = player?.team?.id || 0;
       if (!teams.has(teamId)) {
@@ -730,8 +751,22 @@ export class FixtureNew {
         statistics: this.mapPlayerDetailedStats(player as any),
       });
     }
-
-    return Array.from(teams.values());
+    // we need to sort players by total (shots+goals+assists)
+    const sortedPlayers = Array.from(teams.values()).map((team) => {
+      return {
+        team: team.team,
+        players: team.players.sort(
+          (a, b) =>
+            b.statistics.shots.total +
+            b.statistics.goals.total +
+            b.statistics.goals.assists -
+            a.statistics.shots.total -
+            a.statistics.goals.total -
+            a.statistics.goals.assists,
+        ),
+      };
+    });
+    return sortedPlayers;
   }
 
   private async mapTeamStatistics(matchSummary: KorastatsMatchSummary) {
@@ -768,6 +803,10 @@ export class FixtureNew {
           // Goals & Scoring
           { type: "Shots on Goal", value: homeStats?.Attempts?.Success || 0 },
           {
+            type: "Ball Possession",
+            value: `${Math.round(homeStats?.Possession?.TimePercent?.Average * 100) || 50}%`,
+          },
+          {
             type: "Shots off Goal",
             value:
               homeStats?.Attempts?.Total ||
@@ -797,9 +836,12 @@ export class FixtureNew {
           },
           { type: "Total passes", value: homeStats?.Pass?.Total || 0 },
           { type: "Passes accurate", value: homeStats?.Pass?.Success || 0 },
-          { type: "Passes %", value: `${homeStats?.Pass?.Accuracy}%` },
-          { type: "expected_goals", value: homeStats?.GoalsScored?.XG || 0 },
-          { type: "goals_prevented", value: homeStats?.Defensive?.GoalsSaved || 0 },
+          { type: "Passes %", value: homeStats?.Pass?.Accuracy * 100 || 0 },
+          { type: "expected_goals", value: Math.round(homeStats?.GoalsScored?.XG || 0) },
+          {
+            type: "goals_prevented",
+            value: Math.round(homeStats?.Defensive?.GoalsSaved || 0),
+          },
         ],
       },
       {
@@ -812,6 +854,10 @@ export class FixtureNew {
           // Goals & Scoring
 
           { type: "Shots on Goal", value: awayStats?.Attempts?.Success || 0 },
+          {
+            type: "Ball Possession",
+            value: `${Math.round(awayStats?.Possession?.TimePercent?.Average * 100) || 50}%`,
+          },
           {
             type: "Shots off Goal",
             value:
@@ -842,9 +888,12 @@ export class FixtureNew {
           },
           { type: "Total passes", value: awayStats?.Pass?.Total || 0 },
           { type: "Passes accurate", value: awayStats?.Pass?.Success || 0 },
-          { type: "Passes %", value: `${awayStats?.Pass?.Accuracy}%` },
-          { type: "expected_goals", value: awayStats?.GoalsScored?.XG || 0 },
-          { type: "goals_prevented", value: awayStats?.Defensive?.GoalsSaved || 0 },
+          { type: "Passes %", value: awayStats?.Pass?.Accuracy * 100 || 0 },
+          { type: "expected_goals", value: Math.round(awayStats?.GoalsScored?.XG || 0) },
+          {
+            type: "goals_prevented",
+            value: Math.round(awayStats?.Defensive?.GoalsSaved || 0),
+          },
         ],
       },
     ];
@@ -876,7 +925,7 @@ export class FixtureNew {
       passes: {
         total: stats?.Pass?.Total || 0,
         key: stats?.Chances?.KeyPasses || 0,
-        accuracy: `${Math.round(stats?.Pass?.Accuracy || 0)}%`,
+        accuracy: `${Math.round(stats?.Pass?.Accuracy * 100 || 0)}%`,
       },
       tackles: {
         total: stats?.BallWon?.TackleWon || 0,
@@ -938,9 +987,10 @@ export class FixtureNew {
   private mapEventType(korastatsEvent: string): string {
     const eventMap: Record<string, string> = {
       Goal: "Goal",
+      "Goal Scored": "Goal",
       "Yellow Card": "Card",
       "Red Card": "Card",
-      Substitution: "Substitution",
+      Substitution: "subst",
       "Own Goal": "Goal",
       Penalty: "Goal",
     };
@@ -956,22 +1006,263 @@ export class FixtureNew {
       .trim();
   }
 
-  private mapPositionToGrid(position: string): string {
-    // Soccer position to grid mapping
-    const positionGridMap: Record<string, string> = {
-      GK: "1:1",
-      CB: "2:1",
-      LB: "2:2",
-      RB: "2:3",
-      DM: "3:1",
-      CM: "3:2",
-      AM: "3:3",
-      RM: "3:5",
-      LW: "4:1",
-      RW: "4:2",
-      CF: "4:3",
+  /**
+   * Enhanced method to assign grid positions to all players in a team
+   * This method groups players by line and assigns positions incrementally
+   */
+  private assignGridPositionsToTeam(
+    players: any[],
+    formation: string,
+  ): { player: any; grid: string }[] {
+    const formationParts = formation.split("-").map((part) => parseInt(part));
+    const normalizedFormation = formation.trim();
+
+    if (!this.isValidFormation(normalizedFormation)) {
+      // Fallback to basic positioning
+      return players.map((player, index) => ({
+        player,
+        grid: this.getBasicPositionGrid(player?.position?.name || ""),
+      }));
+    }
+
+    // Group players by their line
+    const playersByLine = this.groupPlayersByLine(players);
+
+    // Assign grid positions based on formation
+    const playersWithGrid = this.assignPositionsByFormation(
+      playersByLine,
+      formationParts,
+    );
+
+    return playersWithGrid;
+  }
+
+  private groupPlayersByLine(players: any[]): {
+    goalkeeper: any[];
+    defense: any[];
+    midfield: any[];
+    forward: any[];
+  } {
+    const groups = {
+      goalkeeper: [] as any[],
+      defense: [] as any[],
+      midfield: [] as any[],
+      forward: [] as any[],
     };
-    return positionGridMap[position] || "3:2";
+
+    players.forEach((player) => {
+      const position = player?.position?.name?.trim().toUpperCase() || "";
+
+      if (position === "GK") {
+        groups.goalkeeper.push(player);
+      } else if (this.isDefensePosition(position)) {
+        groups.defense.push(player);
+      } else if (this.isMidfieldPosition(position)) {
+        groups.midfield.push(player);
+      } else if (this.isForwardPosition(position)) {
+        groups.forward.push(player);
+      } else {
+        // Unknown position, add to midfield as fallback
+        groups.midfield.push(player);
+      }
+    });
+
+    return groups;
+  }
+
+  private assignPositionsByFormation(
+    playersByLine: any,
+    formationParts: number[],
+  ): { player: any; grid: string }[] {
+    const result: { player: any; grid: string }[] = [];
+    let currentY = 1; // Start from y=1
+
+    // Assign goalkeeper (always at 1:1)
+    if (playersByLine.goalkeeper.length > 0) {
+      result.push({
+        player: playersByLine.goalkeeper[0],
+        grid: "1:1",
+      });
+    }
+
+    // Assign defense line (Row 2)
+    if (formationParts.length >= 1) {
+      const defenderCount = formationParts[0];
+      const sortedDefenders = this.sortDefendersByPosition(playersByLine.defense);
+
+      sortedDefenders.slice(0, defenderCount).forEach((player, index) => {
+        result.push({
+          player,
+          grid: `2:${index + 1}`,
+        });
+      });
+    }
+
+    // Assign midfield line (Row 3)
+    if (formationParts.length >= 2) {
+      const midfielderCount = formationParts[1];
+      const sortedMidfielders = this.sortMidfieldersByPosition(playersByLine.midfield);
+
+      sortedMidfielders.slice(0, midfielderCount).forEach((player, index) => {
+        result.push({
+          player,
+          grid: `3:${index + 1}`,
+        });
+      });
+    }
+
+    // Assign forward line (Row 4)
+    if (formationParts.length >= 3) {
+      const forwardCount = formationParts[2];
+      const sortedForwards = this.sortForwardsByPosition(playersByLine.forward);
+
+      sortedForwards.slice(0, forwardCount).forEach((player, index) => {
+        result.push({
+          player,
+          grid: `4:${index + 1}`,
+        });
+      });
+    }
+
+    return result;
+  }
+
+  private sortDefendersByPosition(defenders: any[]): any[] {
+    // Sort defenders: LB, CB, CB, RB (left to right)
+    const positionOrder = ["LB", "LWB", "CB-L", "CB", "CB-R", "RB", "RWB"];
+
+    return defenders.sort((a, b) => {
+      const posA = a?.position?.name?.trim().toUpperCase() || "";
+      const posB = b?.position?.name?.trim().toUpperCase() || "";
+
+      const indexA = positionOrder.indexOf(posA);
+      const indexB = positionOrder.indexOf(posB);
+
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+
+      return indexA - indexB;
+    });
+  }
+
+  private sortMidfieldersByPosition(midfielders: any[]): any[] {
+    // Sort midfielders: LM, CM, CM, RM (left to right)
+    const positionOrder = ["LM", "CM-L", "DM-L", "CM", "DM", "AM", "CM-R", "DM-R", "RM"];
+
+    return midfielders.sort((a, b) => {
+      const posA = a?.position?.name?.trim().toUpperCase() || "";
+      const posB = b?.position?.name?.trim().toUpperCase() || "";
+
+      const indexA = positionOrder.indexOf(posA);
+      const indexB = positionOrder.indexOf(posB);
+
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+
+      return indexA - indexB;
+    });
+  }
+
+  private sortForwardsByPosition(forwards: any[]): any[] {
+    // Sort forwards: LW, ST, RW (left to right)
+    const positionOrder = ["LW", "LF", "ST-L", "ST", "CF", "ST-R", "RW", "RF"];
+
+    return forwards.sort((a, b) => {
+      const posA = a?.position?.name?.trim().toUpperCase() || "";
+      const posB = b?.position?.name?.trim().toUpperCase() || "";
+
+      const indexA = positionOrder.indexOf(posA);
+      const indexB = positionOrder.indexOf(posB);
+
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+
+      return indexA - indexB;
+    });
+  }
+
+  private getBasicPositionGrid(position: string): string {
+    // Fallback basic position mapping
+    const positionGridMap: Record<string, string> = {
+      GK: "1:3",
+      CB: "2:3",
+      LB: "2:1",
+      RB: "2:5",
+      CM: "3:3",
+      LM: "3:1",
+      RM: "3:5",
+      ST: "4:3",
+      LW: "4:1",
+      RW: "4:5",
+    };
+
+    return positionGridMap[position] || "3:3";
+  }
+
+  private isValidFormation(formation: string): boolean {
+    // Check if formation follows pattern like "4-3-3", "3-5-2", etc.
+    const formationPattern = /^\d+-\d+(-\d+)?$/;
+    return formationPattern.test(formation);
+  }
+
+  private isDefensePosition(position: string): boolean {
+    const defensePositions = [
+      "CB",
+      "LB",
+      "RB",
+      "LWB",
+      "RWB",
+      "CB-L",
+      "CB-R",
+      "CENTRE BACK",
+      "LEFT BACK",
+      "RIGHT BACK",
+    ];
+    return defensePositions.includes(position);
+  }
+
+  private isMidfieldPosition(position: string): boolean {
+    const midfieldPositions = [
+      "DM",
+      "CM",
+      "AM",
+      "LM",
+      "RM",
+      "DM-L",
+      "DM-R",
+      "CM-L",
+      "CM-R",
+      "AM-L",
+      "AM-R",
+      "DEFENSIVE MIDFIELDER",
+      "CENTRAL MIDFIELDER",
+      "ATTACKING MIDFIELDER",
+      "LEFT MIDFIELDER",
+      "RIGHT MIDFIELDER",
+    ];
+    return midfieldPositions.includes(position);
+  }
+
+  private isForwardPosition(position: string): boolean {
+    const forwardPositions = [
+      "CF",
+      "ST",
+      "LW",
+      "RW",
+      "LF",
+      "RF",
+      "ST-L",
+      "ST-R",
+      "CENTRE FORWARD",
+      "LEFT FORWARD",
+      "RIGHT FORWARD",
+      "LEFT WINGER",
+      "RIGHT WINGER",
+    ];
+    return forwardPositions.includes(position);
   }
 
   // ===================================================================
@@ -1175,7 +1466,22 @@ export class FixtureNew {
       },
     };
   }
-
+  private mapFormationToText(formation: string): string {
+    formation = formation.split("1-")?.[1] || formation;
+    let validNum = (num: string) =>
+      num === "1" ||
+      num === "2" ||
+      num === "3" ||
+      num === "4" ||
+      num === "5" ||
+      num === "6";
+    let validFormation: string[] = formation.split("").filter((a) => validNum(a));
+    let result = validFormation[0];
+    for (let i = 1; i < validFormation.length; i++) {
+      result = result.concat("-", validFormation[i]);
+    }
+    return result;
+  }
   /**
    * Collect player heatmaps for top performers
    * Soccer Analytics: Field position visualization with coordinate normalization
@@ -1601,14 +1907,15 @@ export class FixtureNew {
           (playerStats?.Cards?.SecondYellow || 0) * 0.1),
     );
 
-    const rating =
-      (possession * possessionWeight +
-        shotsRatio * shotsWeight +
-        accuracy * accuracyWeight +
-        discipline * disciplineWeight) *
-      10;
+    let rating =
+      possession * possessionWeight +
+      shotsRatio * shotsWeight +
+      accuracy * accuracyWeight +
+      discipline * disciplineWeight;
 
-    return Math.round(rating * 10) / 100; // Round to 1 decimal
+    rating = rating < 0 ? 0 : rating > 10 ? 10 : rating;
+
+    return Math.round(rating * 10) / 10; // Round to 1 decimal
   }
 
   private normalizeKorastatsInputs(inputs: {

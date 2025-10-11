@@ -121,6 +121,50 @@ async function syncAllDetailedMatches() {
   });
 }
 
+async function resyncCurrentMatches() {
+  console.log("🔄 Starting resync for current matches with details...");
+
+  const matchDataService = new MatchDataService();
+
+  // Find all matches that have details (MatchDetails collection)
+  const { Models } = await import("../db/mogodb/models");
+
+  console.log("🔍 Finding all matches with details...");
+  const matchesWithDetails = await Models.MatchDetails.find(
+    {},
+    { korastats_id: 1, tournament_id: 1 },
+  ).lean();
+  const matchIds = matchesWithDetails.map((match) => match.korastats_id);
+
+  console.log(`📊 Found ${matchIds.length} matches with details to resync`);
+
+  if (matchIds.length === 0) {
+    console.log("ℹ️  No matches with details found. Nothing to resync.");
+    return;
+  }
+
+  // Use syncAllDetailedMatches with includeIds to resync only existing matches with details
+  console.log("🔄 Starting resync process...");
+
+  const result = await matchDataService.syncAllDetailedMatches({
+    includeIds: matchIds,
+    forceResync: true, // Force resync even if details exist
+  });
+
+  console.log(`✅ Resync completed!`);
+  console.log(`📊 Total matches: ${result.total}`);
+  console.log(`✅ Successfully processed: ${result.completed}`);
+  console.log(`❌ Failed: ${result.failed}`);
+
+  if (result.errors.length > 0) {
+    console.log(`⚠️  ${result.errors.length} errors occurred:`);
+    result.errors.slice(0, 10).forEach((error) => console.log(`   - ${error}`));
+    if (result.errors.length > 10) {
+      console.log(`   ... and ${result.errors.length - 10} more errors`);
+    }
+  }
+}
+
 function parseArgs(): { command: string; options: any } {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -153,6 +197,7 @@ Commands:
   sync        - Sync detailed matches with optional filters  
   clear-all   - Clear ALL MatchDetails
   sync-all    - Sync detailed matches for ALL basic matches
+  resync-current - Resync all existing matches with details (for updates/cron jobs)
 
 Clear Options:
   --before-date="YYYY-MM-DD"     - Clear records created before this date
@@ -173,6 +218,7 @@ Examples:
   npm run manage:match-details sync -- --skip-ids="123,456" --limit=10
   npm run manage:match-details clear-all
   npm run manage:match-details sync-all
+  npm run manage:match-details resync-current
 `);
 }
 
@@ -197,6 +243,9 @@ async function main() {
         break;
       case "sync-all":
         await syncAllDetailedMatches();
+        break;
+      case "resync-current":
+        await resyncCurrentMatches();
         break;
       default:
         console.error(`❌ Unknown command: ${command}`);

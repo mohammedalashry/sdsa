@@ -29,6 +29,7 @@
     "sync:match-details": "ts-node --require tsconfig-paths/register src/scripts/sync-match-details.ts",
     "check:match-data": "ts-node --require tsconfig-paths/register src/scripts/check-match-data-availability.ts",
     "manage:match-details": "ts-node --require tsconfig-paths/register src/scripts/manage-match-details.ts",
+    "resync:match-details": "npm run manage:match-details -- resync-current",
     "manage:teams": "ts-node --require tsconfig-paths/register src/scripts/manage-teams.ts",
     "teams:clear": "npm run manage:teams -- clear",
     "teams:sync": "npm run manage:teams -- sync",

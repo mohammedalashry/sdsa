@@ -525,11 +525,12 @@ export class KorastatsService {
   /**
    * Get entity countries (countries list)
    */
-  async getEntityCountries(): Promise<KorastatsEntityCountriesResponse> {
-    return this.client.makeRequest<KorastatsEntityCountriesResponse>(
-      "EntityCountries",
-      {},
-    );
+  async getEntityCountries(
+    countryName?: string,
+  ): Promise<KorastatsEntityCountriesResponse> {
+    return this.client.makeRequest<KorastatsEntityCountriesResponse>("EntityCountries", {
+      country_name: countryName || "",
+    });
   }
 }
 

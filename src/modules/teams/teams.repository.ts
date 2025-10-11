@@ -971,7 +971,7 @@ export class TeamsRepository {
         "fixture.status.short": "FT",
       })
         .sort({ "fixture.date": -1 })
-        .limit(2);
+        .limit(10);
 
       const response: FixtureDataResponse = matches.map((match) => ({
         fixture: match.fixture,

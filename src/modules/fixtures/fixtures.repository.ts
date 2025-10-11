@@ -23,7 +23,7 @@ import { MatchInterface } from "@/db/mogodb/schemas/match.schema";
 export interface GetFixturesOptions {
   league?: number;
   season?: number;
-  round?: number;
+  round?: string;
   date?: string;
   status?: string;
   limit?: number;
@@ -57,9 +57,7 @@ export class FixturesRepository {
       if (options.season) {
         query["league.season"] = options.season;
       }
-      if (options.round) {
-        query["league.round"] = options.round.toString();
-      }
+
       console.log("🔍 Options:", options);
       console.log("🔍 Query:", query);
 
@@ -69,7 +67,9 @@ export class FixturesRepository {
           $gte: startDate.toISOString(),
         };
       }
-
+      if (options.round) {
+        query["league.round"] = options.round.split(" ")[1];
+      }
       if (options.status) {
         query["fixture.status.short"] = options.status;
       }
@@ -81,7 +81,7 @@ export class FixturesRepository {
         .sort({ "fixture.timestamp": -1 })
         .limit(options.limit || 50)
         .lean();
-      console.log("🔍 Matches:", matches.length);
+
       // Return direct mongo data - schema already matches FixtureData[]
       const fixtures = matches.map((match) => ({
         fixture: match.fixture,
@@ -179,17 +179,27 @@ export class FixturesRepository {
   /**
    * GET /fixture/live/
    */
-  async getLiveFixtures(league: number): Promise<FixtureDataResponse> {
+  async getLiveFixtures(league?: number): Promise<FixtureDataResponse> {
     try {
+      //we need to retreive live fixtures by timestamp and live ignore status is wrong
+
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const todayDate = new Date().toISOString();
       const query: any = {
-        "fixture.status.short": "LIVE",
+        "fixture.date": { $gte: todayDate },
       };
 
       if (league) {
         query.tournament_id = league;
       }
-
-      const matches = await Models.Match.find(query).limit(10).lean();
+      const todayFixtures = await Models.Match.find(query)
+        .sort({ "fixture.timestamp": 1 })
+        .lean();
+      const matches = todayFixtures.filter(
+        (fixture) =>
+          currentTimestamp > fixture.fixture.timestamp / 1000 &&
+          currentTimestamp < fixture.fixture.timestamp / 1000 + 115 * 60,
+      );
 
       return matches.map((match) => ({
         fixture: match.fixture,
@@ -276,7 +286,13 @@ export class FixturesRepository {
         timelineData: matchDetails?.timelineData || [],
         lineupsData: matchDetails?.lineupsData || [],
         injuriesData: matchDetails?.injuriesData || [],
-        playerStatsData: matchDetails?.playerStatsData || [],
+        playerStatsData:
+          matchDetails?.playerStatsData.map((team) => {
+            return {
+              team: team.team,
+              players: team.players.slice(0, 11),
+            };
+          }) || [],
         statisticsData: matchDetails?.statisticsData || [],
 
         // Head-to-head and team stats
@@ -669,10 +685,10 @@ export class FixturesRepository {
         away: 0,
         total: team.stats_summary?.cleanSheetGames || 0,
       },
-      teamAttacking: team.tournament_stats?.[0]?.team_attacking || {},
-      teamPasses: team.tournament_stats?.[0]?.team_passing || {},
-      teamDefending: team.tournament_stats?.[0]?.team_defending || {},
-      teamOther: team.tournament_stats?.[0]?.team_others || {},
+      team_attacking: team.tournament_stats?.[0]?.team_attacking || {},
+      team_passing: team.tournament_stats?.[0]?.team_passing || {},
+      team_defending: team.tournament_stats?.[0]?.team_defending || {},
+      team_others: team.tournament_stats?.[0]?.team_others || {},
       average_team_rating: team.tournament_stats?.[0]?.average_team_rating || 0,
       rank: team.tournament_stats?.[0]?.rank || 0,
     };

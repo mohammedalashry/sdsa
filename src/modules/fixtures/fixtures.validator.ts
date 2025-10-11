@@ -33,7 +33,7 @@ export const fixturesValidationSchemas = {
 
   // GET /api/fixture/live/ - league (query)
   getLiveFixtures: Joi.object({
-    league: Joi.number().integer().positive().required(),
+    league: Joi.number().integer().positive().optional(),
   }),
 
   // GET /api/fixture/momentum/ - fixture (query)
