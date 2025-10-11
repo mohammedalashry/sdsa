@@ -654,11 +654,11 @@ export class SyncerService {
       await this.mongoService.connect();
 
       const countriesList = await this.korastatsService.getEntityCountries();
-      if (!countriesList.data || countriesList.data.length === 0) {
+      if (!countriesList.root.object || countriesList.root.object.length === 0) {
         throw new ApiError(400, "No countries found");
       }
 
-      let countries = countriesList.data;
+      let countries = countriesList.root.object;
       if (options.limit && options.limit > 0) {
         countries = countries.slice(0, options.limit);
         console.log(`🔬 Testing mode: Limited to ${options.limit} countries`);
