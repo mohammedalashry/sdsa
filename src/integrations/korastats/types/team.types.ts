@@ -1,7 +1,11 @@
 // src/integrations/korastats/types/team.types.ts
 // KoraStats Team API response types
 
-import { KorastatsBaseResponse, KorastatsPlayerMatchInfo } from "./index";
+import {
+  KorastatsBaseResponse,
+  KorastatsEntityResponse,
+  KorastatsPlayerMatchInfo,
+} from "./index";
 
 // ===== TEAM INFO =====
 // Response from TeamInfo endpoint
@@ -203,5 +207,5 @@ export type KorastatsTournamentTeamStatsResponse =
   KorastatsBaseResponse<KorastatsTournamentTeamStats>;
 export type KorastatsTournamentTeamPlayerListResponse =
   KorastatsBaseResponse<KorastatsTournamentTeamPlayerList>;
-export type KorastatsEntityClubResponse = KorastatsBaseResponse<KorastatsEntityClub>;
+export type KorastatsEntityClubResponse = KorastatsEntityResponse<KorastatsEntityClub>;
 

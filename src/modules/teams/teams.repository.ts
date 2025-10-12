@@ -30,10 +30,15 @@ export class TeamsRepository {
 
     try {
       // Get teams from new Team schema
-      const mongoTeams = await Models.Team.find({
-        // Filter by league if possible (would need league mapping)
-        // For now, get all active teams
-      }).limit(50);
+      let query = {
+        tournaments: {
+          $elemMatch: {
+            id: league,
+            season: parseInt(season), // Convert string to number
+          },
+        },
+      };
+      const mongoTeams = await Models.Team.find(query);
 
       if (mongoTeams.length > 0) {
         console.log(`📦 Found ${mongoTeams.length} teams in MongoDB`);
@@ -67,9 +72,11 @@ export class TeamsRepository {
         return response;
       }
 
-      // If no data in MongoDB, return empty array
+      // If no data in MongoDB, return empty response
       console.log("No teams found in MongoDB for league", league, "season", season);
-      return [];
+      const emptyResponse: TeamsResponse = [];
+      this.cacheService.set(cacheKey, emptyResponse);
+      return emptyResponse;
     } catch (error) {
       console.error("Failed to fetch teams list:", error);
       throw new ApiError(500, "Failed to fetch teams from data source");
@@ -89,7 +96,7 @@ export class TeamsRepository {
     try {
       // Get team from new Team schema
       const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
-
+      const coaches = await Models.Coach.find({ team_id: teamId });
       if (mongoTeam) {
         console.log(`📦 Found team ${teamId} in MongoDB`);
 
@@ -114,24 +121,24 @@ export class TeamsRepository {
             image: mongoTeam.venue?.image || null,
           },
           coach:
-            mongoTeam.coaches && mongoTeam.coaches.length > 0
-              ? mongoTeam.coaches
-                  .filter((coach) => coach.current)
+            coaches && coaches.length > 0
+              ? coaches
+                  .filter((coach) => coach.status === "active")
                   .map((coach) => ({
-                    id: coach.id,
+                    id: coach.korastats_id,
                     name: coach.name,
-                    firstname: coach.name?.split(" ")[0] || null,
-                    lastname: coach.name?.split(" ").slice(1).join(" ") || null,
-                    age: null,
+                    firstname: coach.firstname || null,
+                    lastname: coach.lastname || null,
+                    age: coach.age || null,
                     birth: {
-                      date: null,
-                      place: null,
-                      country: "",
+                      date: coach.birth.date.toISOString() || null,
+                      place: coach.birth.place || null,
+                      country: coach.birth.country || "",
                     },
-                    nationality: "",
-                    height: null,
-                    weight: null,
-                    photo: "",
+                    nationality: coach.nationality || "",
+                    height: coach.height?.toString() || null,
+                    weight: coach.weight?.toString() || null,
+                    photo: coach.photo || "",
                     team: {
                       id: mongoTeam.korastats_id,
                       name: mongoTeam.name,
@@ -141,21 +148,24 @@ export class TeamsRepository {
                       national: mongoTeam.national || false,
                       logo: mongoTeam.logo || "",
                     },
-                    career: [],
+                    career: coach.career_history || [],
                   }))
               : [],
-          transfers: mongoTeam.transfers ? [mongoTeam.transfers] : [],
+          transfers: [],
           totalPlayers: mongoTeam.totalPlayers || 0,
           foreignPlayers: mongoTeam.foreignPlayers || 0,
           averagePlayerAge: mongoTeam.averagePlayerAge || 0,
           clubMarketValue: mongoTeam.clubMarketValue || null,
-          currentLeagues: [], // Would be populated from tournament data
-          trophies:
-            mongoTeam.trophies?.map((trophy) => ({
-              league: trophy.league,
-              country: trophy.country,
-              season: trophy.season,
-            })) || [],
+          currentLeagues:
+            mongoTeam.tournaments
+              .filter((tournament) => tournament.current)
+              .map((tournament) => ({
+                id: tournament.id,
+                name: tournament.name,
+                type: "league",
+                logo: tournament.logo,
+              })) || [], // Would be populated from tournament data
+          trophies: [],
         };
 
         this.cacheService.set(cacheKey, teamInfo);
@@ -343,72 +353,11 @@ export class TeamsRepository {
 
       // Transform matches to legacy fixture format
       const fixtures = matches.map((match) => ({
-        fixture: {
-          id: match.korastats_id,
-          referee: match.fixture?.referee || null,
-          timezone: match.fixture?.timezone || "UTC",
-          date: match.fixture?.date,
-          timestamp: match.fixture?.timestamp,
-          periods: {
-            first: match.fixture?.periods?.first || null,
-            second: match.fixture?.periods?.second || null,
-          },
-          venue: {
-            id: match.fixture?.venue?.id || null,
-            name: match.fixture?.venue?.name || null,
-            city: match.fixture?.venue?.city || null,
-          },
-          status: {
-            long: match.fixture?.status?.long || "Finished",
-            short: match.fixture?.status?.short || "FT",
-            elapsed: match.fixture?.status?.elapsed || null,
-          },
-        },
-        league: {
-          id: match.league?.id || league,
-          name: match.league?.name || "",
-          country: match.league?.country || "Saudi Arabia",
-          logo: match.league?.logo || "",
-          flag: match.league?.flag || "https://media.api-sports.io/flags/sa.svg",
-          season: parseInt(season),
-          round: match.league?.round || "",
-        },
-        teams: {
-          home: {
-            id: match.teams?.home?.id || 0,
-            name: match.teams?.home?.name || "",
-            logo: match.teams?.home?.logo || "",
-            winner: match.teams?.home?.winner || match.goals?.home > match.goals?.away,
-          },
-          away: {
-            id: match.teams?.away?.id || 0,
-            name: match.teams?.away?.name || "",
-            logo: match.teams?.away?.logo || "",
-            winner: match.teams?.away?.winner || match.goals?.away > match.goals?.home,
-          },
-        },
-        goals: {
-          home: match.goals?.home || null,
-          away: match.goals?.away || null,
-        },
-        score: {
-          halftime: {
-            home: match.score?.halftime?.home || null,
-            away: match.score?.halftime?.away || null,
-          },
-          fulltime: {
-            home: match.score?.fulltime?.home || match.goals?.home || null,
-            away: match.score?.fulltime?.away || match.goals?.away || null,
-          },
-          extratime: {
-            home: match.score?.extratime?.home || null,
-            away: match.score?.extratime?.away || null,
-          },
-          penalty: {
-            home: match.score?.penalty?.home || null,
-            away: match.score?.penalty?.away || null,
-          },
-        },
+        fixture: match.fixture,
+        league: match.league,
+        teams: match.teams,
+        goals: match.goals,
+        score: match.score,
         tablePosition: match.tablePosition || null,
         averageTeamRating: match.averageTeamRating || null,
       }));
@@ -450,23 +399,7 @@ export class TeamsRepository {
           pageSize: 10,
           total: 1,
         },
-        data: mongoTeam.goalsOverTime || [
-          {
-            date: "",
-            timestamp: 0,
-            goalsScored: {
-              totalShots: 0,
-              totalGoals: 0,
-              team: { id: 0, name: "", logo: "" },
-            },
-            goalsConceded: {
-              totalShots: 0,
-              totalGoals: 0,
-              team: { id: 0, name: "", logo: "" },
-            },
-            opponentTeam: { id: 0, name: "", logo: "" },
-          },
-        ],
+        data: await this.calculateGoalsOverTime(teamId),
       };
 
       this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
@@ -504,16 +437,7 @@ export class TeamsRepository {
           pageSize: 10,
           total: 1,
         },
-        data: mongoTeam.formOverTime || [
-          {
-            date: "",
-            timestamp: 0,
-            currentPossession: 50,
-            opponentPossession: 50,
-            opponentTeam: { id: 0, name: "", logo: "" },
-            currentTeam: { id: 0, name: "", logo: "" },
-          },
-        ],
+        data: await this.calculateFormOverTime(teamId),
       };
 
       this.cacheService.set(cacheKey, response, 60 * 60 * 1000); // Cache for 1 hour
@@ -574,16 +498,15 @@ export class TeamsRepository {
       if (!mongoTeam) {
         throw new ApiError(404, "Team not found");
       }
-
-      // Generate position over time based on current rank
-      // In a full implementation, this would track actual position changes
-      const currentRank = mongoTeam.rank || 10;
+      const currentStandings = await Models.Standings.findOne({ korastats_id: league });
+      const currentSeason = currentStandings?.seasons.find((s) => s.year === season);
+      const currentRank = currentSeason?.standings.find((s) => s.team.id === teamId);
       const positions = [];
 
       for (let i = 1; i <= 10; i++) {
         // Simulate position changes over time
         const variation = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
-        const position = Math.max(1, Math.min(20, currentRank + variation));
+        const position = Math.max(1, Math.min(20, currentRank?.rank + variation));
         positions.push({
           date: new Date(Date.now() - (10 - i) * 7 * 24 * 60 * 60 * 1000).toISOString(),
           position,
@@ -790,56 +713,13 @@ export class TeamsRepository {
       }
 
       const fixture = {
-        fixture: {
-          id: upcomingMatch.korastats_id,
-          referee: upcomingMatch.fixture?.referee || null,
-          timezone: upcomingMatch.fixture?.timezone || "UTC",
-          date: upcomingMatch.fixture?.date,
-          timestamp: upcomingMatch.fixture?.timestamp,
-          periods: { first: null, second: null },
-          venue: {
-            id: upcomingMatch.fixture?.venue?.id || null,
-            name: upcomingMatch.fixture?.venue?.name || null,
-            city: upcomingMatch.fixture?.venue?.city || null,
-          },
-          status: {
-            long: upcomingMatch.fixture?.status?.long || "Not Started",
-            short: upcomingMatch.fixture?.status?.short || "NS",
-            elapsed: null,
-          },
-        },
-        league: {
-          id: upcomingMatch.league?.id || upcomingMatch.tournament_id,
-          name: upcomingMatch.league?.name || "",
-          country: upcomingMatch.league?.country || "Saudi Arabia",
-          logo: upcomingMatch.league?.logo || "",
-          flag: upcomingMatch.league?.flag || "https://media.api-sports.io/flags/sa.svg",
-          season: upcomingMatch.league?.season || new Date().getFullYear(),
-          round: upcomingMatch.league?.round || "",
-        },
-        teams: {
-          home: {
-            id: upcomingMatch.teams?.home?.id || 0,
-            name: upcomingMatch.teams?.home?.name || "",
-            logo: upcomingMatch.teams?.home?.logo || "",
-            winner: null,
-          },
-          away: {
-            id: upcomingMatch.teams?.away?.id || 0,
-            name: upcomingMatch.teams?.away?.name || "",
-            logo: upcomingMatch.teams?.away?.logo || "",
-            winner: null,
-          },
-        },
-        goals: { home: null, away: null },
-        score: {
-          halftime: { home: null, away: null },
-          fulltime: { home: null, away: null },
-          extratime: { home: null, away: null },
-          penalty: { home: null, away: null },
-        },
-        tablePosition: null,
-        averageTeamRating: null,
+        fixture: upcomingMatch.fixture,
+        league: upcomingMatch.league,
+        teams: upcomingMatch.teams,
+        goals: upcomingMatch.goals,
+        score: upcomingMatch.score,
+        tablePosition: upcomingMatch.tablePosition,
+        averageTeamRating: upcomingMatch.averageTeamRating,
       };
 
       const response: FixtureDataResponse = [fixture];
@@ -873,76 +753,11 @@ export class TeamsRepository {
       }
 
       const fixture = {
-        fixture: {
-          id: lastMatch.korastats_id,
-          referee: lastMatch.fixture?.referee || null,
-          timezone: lastMatch.fixture?.timezone || "UTC",
-          date: lastMatch.fixture?.date,
-          timestamp: lastMatch.fixture?.timestamp,
-          periods: {
-            first: lastMatch.fixture?.periods?.first || null,
-            second: lastMatch.fixture?.periods?.second || null,
-          },
-          venue: {
-            id: lastMatch.fixture?.venue?.id || null,
-            name: lastMatch.fixture?.venue?.name || null,
-            city: lastMatch.fixture?.venue?.city || null,
-          },
-          status: {
-            long: lastMatch.fixture?.status?.long || "Match Finished",
-            short: lastMatch.fixture?.status?.short || "FT",
-            elapsed: 90,
-          },
-        },
-        league: {
-          id: lastMatch.league?.id || lastMatch.tournament_id,
-          name: lastMatch.league?.name || "",
-          country: lastMatch.league?.country || "Saudi Arabia",
-          logo: lastMatch.league?.logo || "",
-          flag: lastMatch.league?.flag || "https://media.api-sports.io/flags/sa.svg",
-          season: lastMatch.league?.season || new Date().getFullYear(),
-          round: lastMatch.league?.round || "",
-        },
-        teams: {
-          home: {
-            id: lastMatch.teams?.home?.id || 0,
-            name: lastMatch.teams?.home?.name || "",
-            logo: lastMatch.teams?.home?.logo || "",
-            winner:
-              lastMatch.teams?.home?.winner ||
-              lastMatch.goals?.home > lastMatch.goals?.away,
-          },
-          away: {
-            id: lastMatch.teams?.away?.id || 0,
-            name: lastMatch.teams?.away?.name || "",
-            logo: lastMatch.teams?.away?.logo || "",
-            winner:
-              lastMatch.teams?.away?.winner ||
-              lastMatch.goals?.away > lastMatch.goals?.home,
-          },
-        },
-        goals: {
-          home: lastMatch.goals?.home || 0,
-          away: lastMatch.goals?.away || 0,
-        },
-        score: {
-          halftime: {
-            home: lastMatch.score?.halftime?.home || null,
-            away: lastMatch.score?.halftime?.away || null,
-          },
-          fulltime: {
-            home: lastMatch.score?.fulltime?.home || lastMatch.goals?.home || 0,
-            away: lastMatch.score?.fulltime?.away || lastMatch.goals?.away || 0,
-          },
-          extratime: {
-            home: lastMatch.score?.extratime?.home || null,
-            away: lastMatch.score?.extratime?.away || null,
-          },
-          penalty: {
-            home: lastMatch.score?.penalty?.home || null,
-            away: lastMatch.score?.penalty?.away || null,
-          },
-        },
+        fixture: lastMatch.fixture,
+        league: lastMatch.league,
+        teams: lastMatch.teams,
+        goals: lastMatch.goals,
+        score: lastMatch.score,
         tablePosition: lastMatch.tablePosition || null,
         averageTeamRating: lastMatch.averageTeamRating || null,
       };
@@ -987,6 +802,196 @@ export class TeamsRepository {
       return response;
     } catch (error) {
       console.error("Failed to fetch team form overview:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Calculate goals over time from actual match data
+   */
+  private async calculateGoalsOverTime(teamId: number): Promise<any[]> {
+    try {
+      // Step 1: Fetch matches where this team played (home or away)
+      const matches = await Models.Match.find({
+        $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
+        "fixture.status.short": "FT", // Only finished matches
+      })
+        .sort({ "fixture.timestamp": 1 }) // Sort by date ascending
+        .lean();
+
+      if (matches.length === 0) {
+        return [];
+      }
+
+      // Step 2: Get match IDs for MatchDetails lookup
+      const matchIds = matches.map((match) => match.korastats_id);
+
+      // Step 3: Fetch MatchDetails for statistics (shots, possession, logos)
+      const matchDetails = await Models.MatchDetails.find({
+        korastats_id: { $in: matchIds },
+      }).lean();
+
+      // Step 4: Create a map for quick lookup
+      const detailsMap = new Map();
+      matchDetails.forEach((detail) => {
+        detailsMap.set(detail.korastats_id, detail);
+      });
+
+      // Step 5: Combine data and return
+      return matches.map((match) => {
+        const isHome = match.teams.home.id === teamId;
+        const goalsScored = isHome
+          ? match.score?.fulltime?.home || 0
+          : match.score?.fulltime?.away || 0;
+        const goalsConceded = isHome
+          ? match.score?.fulltime?.away || 0
+          : match.score?.fulltime?.home || 0;
+        const opponent = isHome ? match.teams.away : match.teams.home;
+
+        // Get match details for this match
+        const details = detailsMap.get(match.korastats_id);
+        let teamLogo = "";
+        let opponentLogo = "";
+        let totalShots = 0;
+        let opponentTotalShots = 0;
+        if (details?.statisticsData) {
+          // Find team stats in MatchDetails
+          const teamStats = details.statisticsData.find(
+            (stat) => stat.team.id === teamId,
+          );
+          const opponentStats = details.statisticsData.find(
+            (stat) => stat.team.id === opponent.id,
+          );
+
+          if (teamStats) {
+            teamLogo = teamStats.team.logo;
+            const shotsStat = teamStats.statistics.find((s) => s.type === "Total Shots");
+            totalShots = shotsStat ? Number(shotsStat.value) || 0 : 0;
+          }
+
+          if (opponentStats) {
+            opponentLogo = opponentStats.team.logo;
+            const shotsStat = opponentStats.statistics.find(
+              (s) => s.type === "Total Shots",
+            );
+            opponentTotalShots = shotsStat ? Number(shotsStat.value) || 0 : 0;
+          }
+        }
+
+        return {
+          date: match.fixture.date,
+          timestamp: match.fixture.timestamp,
+          goalsScored: {
+            totalShots: totalShots,
+            totalGoals: goalsScored,
+            team: {
+              id: teamId,
+              name: isHome ? match.teams.home.name : match.teams.away.name,
+              logo: teamLogo,
+            },
+          },
+          goalsConceded: {
+            totalShots: opponentTotalShots,
+            totalGoals: goalsConceded,
+            team: { id: opponent.id, name: opponent.name, logo: opponentLogo },
+          },
+          opponentTeam: { id: opponent.id, name: opponent.name, logo: opponentLogo },
+        };
+      });
+    } catch (error) {
+      console.error("Failed to calculate goals over time:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Calculate form over time from actual match data
+   */
+  private async calculateFormOverTime(teamId: number): Promise<any[]> {
+    try {
+      // Step 1: Fetch matches where this team played (home or away)
+      const matches = await Models.Match.find({
+        $or: [{ "teams.home.id": teamId }, { "teams.away.id": teamId }],
+        "fixture.status.short": "FT", // Only finished matches
+      })
+        .sort({ "fixture.timestamp": 1 }) // Sort by date ascending
+        .lean();
+
+      if (matches.length === 0) {
+        return [];
+      }
+
+      // Step 2: Get match IDs for MatchDetails lookup
+      const matchIds = matches.map((match) => match.korastats_id);
+
+      // Step 3: Fetch MatchDetails for statistics (possession, logos)
+      const matchDetails = await Models.MatchDetails.find({
+        korastats_id: { $in: matchIds },
+      }).lean();
+
+      // Step 4: Create a map for quick lookup
+      const detailsMap = new Map();
+      matchDetails.forEach((detail) => {
+        detailsMap.set(detail.korastats_id, detail);
+      });
+
+      // Step 5: Combine data and return
+      return matches.map((match) => {
+        const isHome = match.teams.home.id === teamId;
+        const opponent = isHome ? match.teams.away : match.teams.home;
+
+        // Get match details for this match
+        const details = detailsMap.get(match.korastats_id);
+        let teamLogo = "";
+        let opponentLogo = "";
+        let currentPossession = 50; // Default fallback
+        let opponentPossession = 50; // Default fallback
+
+        if (details?.statisticsData) {
+          // Find team stats in MatchDetails
+          const teamStats = details.statisticsData.find(
+            (stat) => stat.team.id === teamId,
+          );
+          const opponentStats = details.statisticsData.find(
+            (stat) => stat.team.id === opponent.id,
+          );
+
+          if (teamStats) {
+            teamLogo = teamStats.team.logo;
+            const possessionStat = teamStats.statistics.find(
+              (s) => s.type === "Ball Possession",
+            );
+            if (possessionStat) {
+              currentPossession = Number(possessionStat.value) || 50;
+            }
+          }
+
+          if (opponentStats) {
+            opponentLogo = opponentStats.team.logo;
+            const possessionStat = opponentStats.statistics.find(
+              (s) => s.type === "Ball Possession",
+            );
+            if (possessionStat) {
+              opponentPossession = Number(possessionStat.value) || 50;
+            }
+          }
+        }
+
+        return {
+          date: match.fixture.date,
+          timestamp: match.fixture.timestamp,
+          currentPossession: currentPossession,
+          opponentPossession: opponentPossession,
+          opponentTeam: { id: opponent.id, name: opponent.name, logo: opponentLogo },
+          currentTeam: {
+            id: teamId,
+            name: isHome ? match.teams.home.name : match.teams.away.name,
+            logo: teamLogo,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Failed to calculate form over time:", error);
       return [];
     }
   }

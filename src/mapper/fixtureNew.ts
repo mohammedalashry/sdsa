@@ -22,7 +22,7 @@ import {
   LeagueLogoInfo,
   LeagueLogoService,
 } from "@/integrations/korastats/services/league-logo.service";
-
+import { mapFormationToText, assignGridPositionsToTeam } from "./helper";
 export class FixtureNew {
   private readonly korastatsService: KorastatsService;
 
@@ -613,10 +613,10 @@ export class FixtureNew {
                 "coach",
                 matchSummary?.away?.coach?.id,
               );
-        const formationHtext = this.mapFormationToText(
+        const formationHtext = mapFormationToText(
           matchFormationHome?.lineupFormationName,
         );
-        const formationAText = this.mapFormationToText(
+        const formationAText = mapFormationToText(
           matchFormationAway?.lineupFormationName,
         );
         // Filter starting lineup and substitutes
@@ -639,7 +639,7 @@ export class FixtureNew {
         const currentFormation = index === 0 ? formationHtext : formationAText;
 
         // Assign grid positions to all starting players at once
-        const playersWithGrid = this.assignGridPositionsToTeam(
+        const playersWithGrid = assignGridPositionsToTeam(
           startingPlayers,
           currentFormation,
         );
@@ -663,7 +663,7 @@ export class FixtureNew {
         );
 
         // Get player photos for substitutes
-        const substitutesWithGrid = this.assignGridPositionsToTeam(
+        const substitutesWithGrid = assignGridPositionsToTeam(
           substitutePlayers,
           currentFormation,
         );
@@ -1006,265 +1006,6 @@ export class FixtureNew {
       .trim();
   }
 
-  /**
-   * Enhanced method to assign grid positions to all players in a team
-   * This method groups players by line and assigns positions incrementally
-   */
-  private assignGridPositionsToTeam(
-    players: any[],
-    formation: string,
-  ): { player: any; grid: string }[] {
-    const formationParts = formation.split("-").map((part) => parseInt(part));
-    const normalizedFormation = formation.trim();
-
-    if (!this.isValidFormation(normalizedFormation)) {
-      // Fallback to basic positioning
-      return players.map((player, index) => ({
-        player,
-        grid: this.getBasicPositionGrid(player?.position?.name || ""),
-      }));
-    }
-
-    // Group players by their line
-    const playersByLine = this.groupPlayersByLine(players);
-
-    // Assign grid positions based on formation
-    const playersWithGrid = this.assignPositionsByFormation(
-      playersByLine,
-      formationParts,
-    );
-
-    return playersWithGrid;
-  }
-
-  private groupPlayersByLine(players: any[]): {
-    goalkeeper: any[];
-    defense: any[];
-    midfield: any[];
-    forward: any[];
-  } {
-    const groups = {
-      goalkeeper: [] as any[],
-      defense: [] as any[],
-      midfield: [] as any[],
-      forward: [] as any[],
-    };
-
-    players.forEach((player) => {
-      const position = player?.position?.name?.trim().toUpperCase() || "";
-
-      if (position === "GK") {
-        groups.goalkeeper.push(player);
-      } else if (this.isDefensePosition(position)) {
-        groups.defense.push(player);
-      } else if (this.isMidfieldPosition(position)) {
-        groups.midfield.push(player);
-      } else if (this.isForwardPosition(position)) {
-        groups.forward.push(player);
-      } else {
-        // Unknown position, add to midfield as fallback
-        groups.midfield.push(player);
-      }
-    });
-
-    return groups;
-  }
-
-  private assignPositionsByFormation(
-    playersByLine: any,
-    formationParts: number[],
-  ): { player: any; grid: string }[] {
-    const result: { player: any; grid: string }[] = [];
-    let currentY = 1; // Start from y=1
-
-    // Assign goalkeeper (always at 1:1)
-    if (playersByLine.goalkeeper.length > 0) {
-      result.push({
-        player: playersByLine.goalkeeper[0],
-        grid: "1:1",
-      });
-    }
-
-    // Assign defense line (Row 2)
-    if (formationParts.length >= 1) {
-      const defenderCount = formationParts[0];
-      const sortedDefenders = this.sortDefendersByPosition(playersByLine.defense);
-
-      sortedDefenders.slice(0, defenderCount).forEach((player, index) => {
-        result.push({
-          player,
-          grid: `2:${index + 1}`,
-        });
-      });
-    }
-
-    // Assign midfield line (Row 3)
-    if (formationParts.length >= 2) {
-      const midfielderCount = formationParts[1];
-      const sortedMidfielders = this.sortMidfieldersByPosition(playersByLine.midfield);
-
-      sortedMidfielders.slice(0, midfielderCount).forEach((player, index) => {
-        result.push({
-          player,
-          grid: `3:${index + 1}`,
-        });
-      });
-    }
-
-    // Assign forward line (Row 4)
-    if (formationParts.length >= 3) {
-      const forwardCount = formationParts[2];
-      const sortedForwards = this.sortForwardsByPosition(playersByLine.forward);
-
-      sortedForwards.slice(0, forwardCount).forEach((player, index) => {
-        result.push({
-          player,
-          grid: `4:${index + 1}`,
-        });
-      });
-    }
-
-    return result;
-  }
-
-  private sortDefendersByPosition(defenders: any[]): any[] {
-    // Sort defenders: LB, CB, CB, RB (left to right)
-    const positionOrder = ["LB", "LWB", "CB-L", "CB", "CB-R", "RB", "RWB"];
-
-    return defenders.sort((a, b) => {
-      const posA = a?.position?.name?.trim().toUpperCase() || "";
-      const posB = b?.position?.name?.trim().toUpperCase() || "";
-
-      const indexA = positionOrder.indexOf(posA);
-      const indexB = positionOrder.indexOf(posB);
-
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-
-      return indexA - indexB;
-    });
-  }
-
-  private sortMidfieldersByPosition(midfielders: any[]): any[] {
-    // Sort midfielders: LM, CM, CM, RM (left to right)
-    const positionOrder = ["LM", "CM-L", "DM-L", "CM", "DM", "AM", "CM-R", "DM-R", "RM"];
-
-    return midfielders.sort((a, b) => {
-      const posA = a?.position?.name?.trim().toUpperCase() || "";
-      const posB = b?.position?.name?.trim().toUpperCase() || "";
-
-      const indexA = positionOrder.indexOf(posA);
-      const indexB = positionOrder.indexOf(posB);
-
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-
-      return indexA - indexB;
-    });
-  }
-
-  private sortForwardsByPosition(forwards: any[]): any[] {
-    // Sort forwards: LW, ST, RW (left to right)
-    const positionOrder = ["LW", "LF", "ST-L", "ST", "CF", "ST-R", "RW", "RF"];
-
-    return forwards.sort((a, b) => {
-      const posA = a?.position?.name?.trim().toUpperCase() || "";
-      const posB = b?.position?.name?.trim().toUpperCase() || "";
-
-      const indexA = positionOrder.indexOf(posA);
-      const indexB = positionOrder.indexOf(posB);
-
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-
-      return indexA - indexB;
-    });
-  }
-
-  private getBasicPositionGrid(position: string): string {
-    // Fallback basic position mapping
-    const positionGridMap: Record<string, string> = {
-      GK: "1:3",
-      CB: "2:3",
-      LB: "2:1",
-      RB: "2:5",
-      CM: "3:3",
-      LM: "3:1",
-      RM: "3:5",
-      ST: "4:3",
-      LW: "4:1",
-      RW: "4:5",
-    };
-
-    return positionGridMap[position] || "3:3";
-  }
-
-  private isValidFormation(formation: string): boolean {
-    // Check if formation follows pattern like "4-3-3", "3-5-2", etc.
-    const formationPattern = /^\d+-\d+(-\d+)?$/;
-    return formationPattern.test(formation);
-  }
-
-  private isDefensePosition(position: string): boolean {
-    const defensePositions = [
-      "CB",
-      "LB",
-      "RB",
-      "LWB",
-      "RWB",
-      "CB-L",
-      "CB-R",
-      "CENTRE BACK",
-      "LEFT BACK",
-      "RIGHT BACK",
-    ];
-    return defensePositions.includes(position);
-  }
-
-  private isMidfieldPosition(position: string): boolean {
-    const midfieldPositions = [
-      "DM",
-      "CM",
-      "AM",
-      "LM",
-      "RM",
-      "DM-L",
-      "DM-R",
-      "CM-L",
-      "CM-R",
-      "AM-L",
-      "AM-R",
-      "DEFENSIVE MIDFIELDER",
-      "CENTRAL MIDFIELDER",
-      "ATTACKING MIDFIELDER",
-      "LEFT MIDFIELDER",
-      "RIGHT MIDFIELDER",
-    ];
-    return midfieldPositions.includes(position);
-  }
-
-  private isForwardPosition(position: string): boolean {
-    const forwardPositions = [
-      "CF",
-      "ST",
-      "LW",
-      "RW",
-      "LF",
-      "RF",
-      "ST-L",
-      "ST-R",
-      "CENTRE FORWARD",
-      "LEFT FORWARD",
-      "RIGHT FORWARD",
-      "LEFT WINGER",
-      "RIGHT WINGER",
-    ];
-    return forwardPositions.includes(position);
-  }
-
   // ===================================================================
   // ADVANCED ANALYTICS METHODS
   // ===================================================================
@@ -1466,22 +1207,7 @@ export class FixtureNew {
       },
     };
   }
-  private mapFormationToText(formation: string): string {
-    formation = formation.split("1-")?.[1] || formation;
-    let validNum = (num: string) =>
-      num === "1" ||
-      num === "2" ||
-      num === "3" ||
-      num === "4" ||
-      num === "5" ||
-      num === "6";
-    let validFormation: string[] = formation.split("").filter((a) => validNum(a));
-    let result = validFormation[0];
-    for (let i = 1; i < validFormation.length; i++) {
-      result = result.concat("-", validFormation[i]);
-    }
-    return result;
-  }
+
   /**
    * Collect player heatmaps for top performers
    * Soccer Analytics: Field position visualization with coordinate normalization

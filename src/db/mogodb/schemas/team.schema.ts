@@ -23,7 +23,6 @@ export interface TeamInterface {
   totalPlayers: number;
   foreignPlayers: number;
   averagePlayerAge: number;
-  rank: number;
   // Location
   country: string;
 
@@ -43,13 +42,7 @@ export interface TeamInterface {
     id: number;
     name: string;
     current: boolean;
-  }>;
-
-  // Trophies
-  trophies?: Array<{
-    league: string;
-    country: string;
-    season: string;
+    photo: string;
   }>;
 
   // Team stats summary (denormalized)
@@ -64,12 +57,22 @@ export interface TeamInterface {
     cleanSheetGames: number;
   };
   lineup: TeamLineup;
-  transfers: TransferData;
-  goalsOverTime: GoalsOverTime[];
-  formOverTime: FormOverTime[];
+  tournaments: {
+    id: number;
+    name: string;
+    logo: string;
+    season: number;
+    current: boolean;
+  }[];
   // Tournament-specific stats (array to support multiple tournaments/seasons)
   tournament_stats: TeamStats[];
-
+  players: {
+    id: number;
+    name: string;
+    photo: string;
+    number: number;
+    pos: string;
+  }[];
   // Sync tracking
   last_synced: Date;
   sync_version: number;
@@ -490,86 +493,13 @@ const TeamSchema = new Schema<TeamInterface>(
       ],
     },
 
-    // Transfers data
-    transfers: {
-      player: {
+    tournaments: [
+      {
         id: { type: Number, required: true },
         name: { type: String, required: true },
-      },
-      update: { type: String, required: true },
-      transfers: [
-        {
-          date: { type: String, required: true },
-          type: { type: String, default: null },
-          teams: {
-            in: {
-              id: { type: Number, required: true },
-              name: { type: String, required: true },
-              logo: { type: String, required: true },
-            },
-            out: {
-              id: { type: Number, required: true },
-              name: { type: String, required: true },
-              logo: { type: String, required: true },
-            },
-          },
-        },
-      ],
-    },
-
-    // Goals over time data
-    goalsOverTime: [
-      {
-        date: { type: String, required: true },
-        timestamp: { type: Number, required: true },
-        goalsScored: {
-          totalShots: { type: Number, required: true },
-          totalGoals: { type: Number, required: true },
-          team: {
-            id: { type: Number, required: true },
-            name: { type: String, required: true },
-            logo: { type: String, required: true },
-            winner: { type: Boolean, default: null },
-          },
-        },
-        goalsConceded: {
-          totalShots: { type: Number, required: true },
-          totalGoals: { type: Number, required: true },
-          team: {
-            id: { type: Number, required: true },
-            name: { type: String, required: true },
-            logo: { type: String, required: true },
-            winner: { type: Boolean, default: null },
-          },
-        },
-        opponentTeam: {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-          logo: { type: String, required: true },
-          winner: { type: Boolean, default: null },
-        },
-      },
-    ],
-
-    // Form over time data
-    formOverTime: [
-      {
-        date: { type: String, required: true },
-        timestamp: { type: Number, required: true },
-        currentPossession: { type: Number, required: true },
-        opponentPossession: { type: Number, required: true },
-        opponentTeam: {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-          logo: { type: String, required: true },
-          winner: { type: Boolean, default: null },
-        },
-        currentTeam: {
-          id: { type: Number, required: true },
-          name: { type: String, required: true },
-          logo: { type: String, required: true },
-          winner: { type: Boolean, default: null },
-        },
+        logo: { type: String, required: true },
+        season: { type: Number, required: true },
+        current: { type: Boolean, required: true },
       },
     ],
     coaches: [
@@ -577,13 +507,16 @@ const TeamSchema = new Schema<TeamInterface>(
         id: { type: Number, required: true },
         name: { type: String, required: true },
         current: { type: Boolean, required: true },
+        photo: { type: String, required: true },
       },
     ],
-    trophies: [
+    players: [
       {
-        league: { type: String, required: true },
-        country: { type: String, required: true },
-        season: { type: String, required: true },
+        id: { type: Number, required: true },
+        name: { type: String, required: true },
+        photo: { type: String, required: true },
+        number: { type: Number, required: true },
+        pos: { type: String, required: true },
       },
     ],
     totalPlayers: {
@@ -592,10 +525,6 @@ const TeamSchema = new Schema<TeamInterface>(
       default: 0,
     },
     foreignPlayers: {
-      type: Number,
-      default: 0,
-    },
-    rank: {
       type: Number,
       default: 0,
     },
@@ -635,14 +564,11 @@ const TeamSchema = new Schema<TeamInterface>(
 // Indexes for performance
 TeamSchema.index({ name: 1 });
 TeamSchema.index({ country: 1 });
-TeamSchema.index({ "venue.id": 1 });
 TeamSchema.index({ "coaches.id": 1 });
-TeamSchema.index({ national: 1 });
-TeamSchema.index({ rank: 1 });
 TeamSchema.index({ "stats.league.id": 1 });
-TeamSchema.index({ "stats.rank": 1 });
 TeamSchema.index({ "lineup.team.id": 1 });
-TeamSchema.index({ "transfers.player.id": 1 });
-
+TeamSchema.index({ "tournaments.id": 1 });
+TeamSchema.index({ "tournaments.id": 1, "tournaments.season": 1 });
+TeamSchema.index({ "players.id": 1 });
 export default TeamSchema;
 

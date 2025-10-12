@@ -82,9 +82,14 @@ export class StandingsRepository {
     standings: StandingsEntry[],
     leagueId: number,
   ): Promise<StandingsEntry[]> {
-    standings.forEach(async (standing) => {
-      standing.form = await this.calculateTeamFormFromMatches(standing.team.id, leagueId);
-    });
+    await Promise.all(
+      standings.map(async (standing) => {
+        standing.form = await this.calculateTeamFormFromMatches(
+          standing.team.id,
+          leagueId,
+        );
+      }),
+    );
     return standings;
   }
   private async calculateTeamFormFromMatches(
@@ -99,7 +104,7 @@ export class StandingsRepository {
     const matches = await Models.Match.find(query).sort({ date: -1 }).limit(5);
 
     if (matches.length === 0) {
-      return "WDLWD";
+      return "DDDDD";
     }
     matches.forEach((match) => {
       if (match.teams.home.id === teamId) {

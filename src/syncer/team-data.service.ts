@@ -66,7 +66,7 @@ export class TeamDataService {
 
       const tournamentTeamListResponse =
         await this.korastatsService.getTournamentTeamList(tournamentId);
-      const tournamentTeamList = tournamentTeamListResponse.data;
+      const tournamentTeamList = tournamentTeamListResponse?.data;
 
       if (!tournamentTeamList?.teams?.length) {
         throw new Error(`No teams found for tournament ${tournamentId}`);
@@ -294,11 +294,40 @@ export class TeamDataService {
               const teamInfoResponse = await this.korastatsService.getTeamInfo(
                 team.korastats_id,
               );
-              teamInfo = teamInfoResponse.data;
+              teamInfo = teamInfoResponse?.data;
             } catch (error) {
               this.logger.warn(
                 `Could not fetch team info for ${team.name}: ${error.message}`,
               );
+            }
+
+            // Get tournament team players for lineup data
+            let tournamentTeamPlayers: any;
+            try {
+              const tournamentTeamPlayersResponse =
+                await this.korastatsService.getTournamentTeamPlayerList(tournamentId);
+              tournamentTeamPlayers = tournamentTeamPlayersResponse?.data;
+
+              // Ensure we have a valid structure
+              if (!tournamentTeamPlayers || !tournamentTeamPlayers.teams) {
+                throw new Error("Invalid tournament team players response structure");
+              }
+            } catch (error) {
+              this.logger.warn(
+                `Could not fetch tournament team players for ${team.name}: ${error.message}`,
+              );
+              // Create a minimal fallback structure
+              tournamentTeamPlayers = {
+                teams: [
+                  {
+                    id: team.korastats_id,
+                    players: [],
+                  },
+                ],
+                season: new Date().getFullYear().toString(),
+                startDate: new Date().toISOString(),
+                endDate: new Date().toISOString(),
+              };
             }
 
             const updatedTeamData = await this.teamMapper.mapToTeam(
@@ -306,6 +335,7 @@ export class TeamDataService {
               teamStats,
               teamInfo || ({} as KorastatsTeamInfo),
               tournamentId,
+              tournamentTeamPlayers,
             );
 
             // Check if team already exists to merge tournament stats
@@ -380,7 +410,7 @@ export class TeamDataService {
       // Get tournament teams from API
       const tournamentTeamListResponse =
         await this.korastatsService.getTournamentTeamList(tournamentId);
-      const tournamentTeamList = tournamentTeamListResponse.data;
+      const tournamentTeamList = tournamentTeamListResponse?.data;
 
       if (!tournamentTeamList?.teams?.length) {
         throw new Error(`No teams found in tournament ${tournamentId}`);
@@ -484,7 +514,7 @@ export class TeamDataService {
       // Get tournament teams count
       const tournamentTeamListResponse =
         await this.korastatsService.getTournamentTeamList(tournamentId);
-      const tournamentTeamList = tournamentTeamListResponse.data;
+      const tournamentTeamList = tournamentTeamListResponse?.data;
       const totalTeamsInTournament = tournamentTeamList?.teams?.length || 0;
 
       // Get database teams count
@@ -592,7 +622,7 @@ export class TeamDataService {
 
       const currentTournamentResponse =
         await this.korastatsService.getTournamentTeamStats(tournamentId, teamListItem.id);
-      currentTournament = currentTournamentResponse.data;
+      currentTournament = currentTournamentResponse?.data;
 
       if (!currentTournament) {
         throw new Error(`No team statistics found for team ${teamListItem.id}`);
@@ -610,7 +640,7 @@ export class TeamDataService {
       let teamInfo: KorastatsTeamInfo | undefined;
       try {
         const teamInfoResponse = await this.korastatsService.getTeamInfo(teamListItem.id);
-        teamInfo = teamInfoResponse.data;
+        teamInfo = teamInfoResponse?.data;
       } catch (error) {
         this.logger.warn(
           `Could not fetch team info for ${teamListItem.team}: ${error.message}`,
@@ -618,11 +648,48 @@ export class TeamDataService {
         // Continue without team info - mapper can handle this
       }
 
-      // Phase 3: Map the data
+      // Phase 3: Fetch tournament team players for lineup data
       onProgress?.({
         phase: "mapping",
         current: 3,
-        total: 4,
+        total: 5,
+        message: `Fetching team players for ${teamListItem.team}...`,
+        errors: [],
+      });
+
+      let tournamentTeamPlayers: any;
+      try {
+        const tournamentTeamPlayersResponse =
+          await this.korastatsService.getTournamentTeamPlayerList(tournamentId);
+        tournamentTeamPlayers = tournamentTeamPlayersResponse?.data;
+
+        // Ensure we have a valid structure
+        if (!tournamentTeamPlayers || !tournamentTeamPlayers.teams) {
+          throw new Error("Invalid tournament team players response structure");
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Could not fetch tournament team players for ${teamListItem.team}: ${error.message}`,
+        );
+        // Create a minimal fallback structure
+        tournamentTeamPlayers = {
+          teams: [
+            {
+              id: teamListItem.id,
+              players: [],
+            },
+          ],
+          season: new Date().getFullYear().toString(),
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+        };
+      }
+
+      // Phase 4: Map the data
+      onProgress?.({
+        phase: "mapping",
+        current: 4,
+        total: 5,
         message: `Mapping data for ${teamListItem.team}...`,
         errors: [],
       });
@@ -632,13 +699,14 @@ export class TeamDataService {
         currentTournament,
         teamInfo || ({} as KorastatsTeamInfo),
         tournamentId,
+        tournamentTeamPlayers,
       );
 
-      // Phase 4: Store in database
+      // Phase 5: Store in database
       onProgress?.({
         phase: "storing",
-        current: 4,
-        total: 4,
+        current: 5,
+        total: 5,
         message: `Storing ${teamListItem.team} in database...`,
         errors: [],
       });
@@ -685,12 +753,14 @@ export class TeamDataService {
       // Get new tournament stats from the mapper
       const newTournamentStats = newTeamData.tournament_stats || [];
 
-      // Create a map of existing tournament stats by league ID for quick lookup
+      // Create a map of existing tournament stats by league ID + season for quick lookup
       const existingStatsMap = new Map();
       existingTournamentStats.forEach((stats: any) => {
         const leagueId = stats.league?.id;
-        if (leagueId) {
-          existingStatsMap.set(leagueId, stats);
+        const season = stats.league?.season;
+        if (leagueId && season) {
+          const key = `${leagueId}-${season}`;
+          existingStatsMap.set(key, stats);
         }
       });
 
@@ -699,15 +769,18 @@ export class TeamDataService {
 
       for (const newStats of newTournamentStats) {
         const leagueId = newStats.league?.id;
+        const season = newStats.league?.season;
 
-        if (leagueId) {
+        if (leagueId && season) {
           // Map 1441 to 840 for consistency (as per user requirement)
           const mappedLeagueId = leagueId === 1441 ? 840 : leagueId;
+          const key = `${mappedLeagueId}-${season}`;
 
-          if (existingStatsMap.has(mappedLeagueId)) {
+          if (existingStatsMap.has(key)) {
             // Update existing tournament stats
             const existingIndex = mergedTournamentStats.findIndex(
-              (stats: any) => stats.league?.id === mappedLeagueId,
+              (stats: any) =>
+                stats.league?.id === mappedLeagueId && stats.league?.season === season,
             );
             if (existingIndex !== -1) {
               mergedTournamentStats[existingIndex] = {
@@ -749,16 +822,12 @@ export class TeamDataService {
         totalPlayers: newTeamData.totalPlayers || existingTeam.totalPlayers,
         foreignPlayers: newTeamData.foreignPlayers || existingTeam.foreignPlayers,
         averagePlayerAge: newTeamData.averagePlayerAge || existingTeam.averagePlayerAge,
-        rank: newTeamData.rank || existingTeam.rank,
 
         // Update venue info
         venue: newTeamData.venue || existingTeam.venue,
 
         // Update coaching staff
         coaches: newTeamData.coaches || existingTeam.coaches,
-
-        // Update trophies
-        trophies: newTeamData.trophies || existingTeam.trophies,
 
         // Use merged tournament stats
         tournament_stats: mergedTournamentStats,
@@ -770,12 +839,14 @@ export class TeamDataService {
         // Update lineup
         lineup: newTeamData.lineup || existingTeam.lineup,
 
-        // Update transfers
-        transfers: newTeamData.transfers || existingTeam.transfers,
+        // Update players
+        players: newTeamData.players || existingTeam.players,
 
-        // Update performance over time
-        goalsOverTime: newTeamData.goalsOverTime || existingTeam.goalsOverTime,
-        formOverTime: newTeamData.formOverTime || existingTeam.formOverTime,
+        // Update tournaments (merge with uniqueness by id + season)
+        tournaments: this.mergeTournamentsArray(
+          existingTeam.tournaments || [],
+          newTeamData.tournaments || [],
+        ),
 
         // Update sync tracking
         last_synced: new Date(),
@@ -798,6 +869,52 @@ export class TeamDataService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Merge tournaments array ensuring uniqueness by id + season
+   */
+  private mergeTournamentsArray(
+    existingTournaments: any[],
+    newTournaments: any[],
+  ): any[] {
+    // Create a map of existing tournaments by id + season for quick lookup
+    const existingTournamentsMap = new Map();
+    existingTournaments.forEach((tournament: any) => {
+      const id = tournament.id;
+      const season = tournament.season;
+      if (id && season) {
+        const key = `${id}-${season}`;
+        existingTournamentsMap.set(key, tournament);
+      }
+    });
+
+    // Merge new tournaments
+    const mergedTournaments = [...existingTournaments];
+
+    for (const newTournament of newTournaments) {
+      const id = newTournament.id;
+      const season = newTournament.season;
+
+      if (id && season) {
+        const key = `${id}-${season}`;
+
+        if (existingTournamentsMap.has(key)) {
+          // Update existing tournament
+          const existingIndex = mergedTournaments.findIndex(
+            (tournament: any) => tournament.id === id && tournament.season === season,
+          );
+          if (existingIndex !== -1) {
+            mergedTournaments[existingIndex] = newTournament;
+          }
+        } else {
+          // Add new tournament
+          mergedTournaments.push(newTournament);
+        }
+      }
+    }
+
+    return mergedTournaments;
   }
 
   /**

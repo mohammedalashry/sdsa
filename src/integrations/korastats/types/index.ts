@@ -7,7 +7,13 @@ export interface KorastatsBaseResponse<T> {
   message: string;
   data: T;
 }
-
+export interface KorastatsEntityResponse<T> {
+  root: {
+    result: string; // "Success" or "Error"
+    message: string;
+    object: T;
+  };
+}
 // Fixture types
 export * from "./fixture.types";
 
