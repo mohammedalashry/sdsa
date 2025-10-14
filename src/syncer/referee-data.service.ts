@@ -299,16 +299,8 @@ export class RefereeDataService {
               tournamentId,
             );
 
-            // Update only statistics-related fields
-            await Models.Referee.findOneAndUpdate(
-              { korastats_id: referee.korastats_id },
-              {
-                career_stats: updatedStats.career_stats,
-                matches: updatedStats.matches,
-                last_synced: new Date(),
-                updated_at: new Date(),
-              },
-            );
+            // Update using merging logic
+            await this.mergeRefereeCareerStats(referee, updatedStats);
 
             progress.completed++;
           } else {
@@ -387,12 +379,17 @@ export class RefereeDataService {
         tournamentReferees,
         tournamentId,
       );
-
-      // Store in MongoDB
-      await Models.Referee.findOneAndUpdate({ korastats_id: refereeId }, refereeData, {
-        upsert: true,
-        new: true,
-      });
+      const existingReferee = await Models.Referee.findOne({ korastats_id: refereeId });
+      if (existingReferee) {
+        // Referee exists - merge career stats instead of replacing
+        await this.mergeRefereeCareerStats(existingReferee, refereeData);
+      } else {
+        // New referee - create normally
+        await Models.Referee.findOneAndUpdate({ korastats_id: refereeId }, refereeData, {
+          upsert: true,
+          new: true,
+        });
+      }
 
       console.log(`✅ Synced referee data: ${refereeId} (${entityReferee.fullname})`);
     } catch (error) {
@@ -406,6 +403,78 @@ export class RefereeDataService {
   // ===================================================================
 
   /**
+   * Merge referee career stats ensuring uniqueness by league + season
+   */
+  private async mergeRefereeCareerStats(
+    existingReferee: RefereeInterface,
+    newRefereeData: RefereeInterface,
+  ): Promise<void> {
+    try {
+      // Create a map of existing career stats by league + season for quick lookup
+      const existingStatsMap = new Map<string, any>();
+      existingReferee.career_stats.forEach((stat) => {
+        const leagueId = stat.league?.id;
+        const season = stat.league?.season;
+        if (leagueId && season) {
+          const key = `${leagueId}-${season}`;
+          existingStatsMap.set(key, stat);
+        }
+      });
+
+      // Merge career stats
+      const mergedCareerStats = [...existingReferee.career_stats];
+
+      for (const newStat of newRefereeData.career_stats) {
+        const leagueId = newStat.league?.id;
+        const season = newStat.league?.season;
+
+        if (leagueId && season) {
+          const key = `${leagueId}-${season}`;
+
+          if (existingStatsMap.has(key)) {
+            // Update existing career stats
+            const existingIndex = mergedCareerStats.findIndex(
+              (stat) => stat.league?.id === leagueId && stat.league?.season === season,
+            );
+            if (existingIndex !== -1) {
+              mergedCareerStats[existingIndex] = newStat;
+            }
+          } else {
+            // Add new career stats
+            mergedCareerStats.push(newStat);
+          }
+        }
+      }
+
+      // Calculate total matches from merged career stats
+      const totalMatches = mergedCareerStats.reduce(
+        (total, stat) => total + stat.appearances,
+        0,
+      );
+
+      // Update referee with merged data
+      await Models.Referee.findOneAndUpdate(
+        { korastats_id: existingReferee.korastats_id },
+        {
+          career_stats: mergedCareerStats,
+          matches: totalMatches,
+          last_synced: new Date(),
+          updated_at: new Date(),
+        },
+        { new: true },
+      );
+
+      console.log(`🔄 Merged career stats for referee ${existingReferee.korastats_id}`);
+    } catch (error) {
+      console.error(
+        `❌ Failed to merge career stats for referee ${existingReferee.korastats_id}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Extract successful response from Promise.allSettled result
    */
   private extractSuccessfulResponse(
@@ -414,10 +483,10 @@ export class RefereeDataService {
   ): any | null {
     if (
       result.status === "fulfilled" &&
-      result.value?.result === "Success" &&
-      result.value?.data
+      result.value?.root?.result === true &&
+      result.value?.root?.object
     ) {
-      return result.value.data;
+      return result.value.root.object;
     }
 
     if (result.status === "rejected") {

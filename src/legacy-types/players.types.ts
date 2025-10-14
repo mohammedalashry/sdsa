@@ -81,7 +81,14 @@ export interface PlayerSubstitutes {
 }
 export interface PlayerStatistics {
   team: Team;
-  league: League;
+  league: {
+    id: number;
+    name: string;
+    season: number;
+    country: string;
+    logo: string;
+    flag: string;
+  };
   games: PlayerGames;
   substitutes: PlayerSubstitutes;
   shots: PlayerShots;
@@ -122,12 +129,6 @@ export interface TrophiesTeamData {
 export interface CareerData {
   team: Team;
   season: number;
-  goals: {
-    total: number;
-    assists: number;
-    conceded: number;
-    saves: number;
-  };
 }
 export interface PlayerBaseInfo {
   player: PlayerInfo;

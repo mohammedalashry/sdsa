@@ -65,7 +65,6 @@ export class PlayersRepository {
           logo: team.logo,
         },
         season: careerItem.season,
-        goals: careerItem.goals,
       }));
 
       this.cacheService.set(cacheKey, career, 30 * 60 * 1000); // Cache for 30 minutes
@@ -104,9 +103,7 @@ export class PlayersRepository {
           lastname: player.lastname || null,
           age: player.age,
           birth: {
-            date: player.birth.date
-              ? player.birth.date.toISOString().split("T")[0]
-              : null,
+            date: player.birth.date ? player.birth.date.split("T")[0] : null,
             place: player.birth.place || null,
             country: player.birth.country || null,
           },
@@ -158,7 +155,7 @@ export class PlayersRepository {
         ],
       })
         .sort({ "fixture.date": -1 })
-        .limit(20)
+        .limit(10)
         .lean();
 
       const fixtures = matches.map((match) => {
@@ -208,7 +205,7 @@ export class PlayersRepository {
         lastname: player.lastname || null,
         age: player.age,
         birth: {
-          date: player.birth.date ? player.birth.date.toISOString().split("T")[0] : null,
+          date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
           place: player.birth.place || null,
           country: player.birth.country || null,
         },
@@ -307,11 +304,11 @@ export class PlayersRepository {
 
       // Get players with highest assists from new Player collection
       const players = await Models.Player.find({
-        "stats.league.id": options.league,
-        //status: "active",
+        "topAssists.league": options.league,
+        "topAssists.season": options.season,
       })
         .sort({ "stats.goals.assists": -1 })
-        .limit(20)
+        .limit(10)
         .lean();
 
       // Map to PlayerData format
@@ -323,9 +320,7 @@ export class PlayersRepository {
           lastname: player.lastname || null,
           age: player.age,
           birth: {
-            date: player.birth.date
-              ? player.birth.date.toISOString().split("T")[0]
-              : null,
+            date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
             place: player.birth.place || null,
             country: player.birth.country || null,
           },
@@ -363,11 +358,11 @@ export class PlayersRepository {
 
       // Get players with highest goals from new Player collection
       const players = await Models.Player.find({
-        "stats.league.id": options.league,
-        status: "active",
+        "topScorers.league": options.league,
+        "topScorers.season": options.season,
       })
         .sort({ "stats.goals.total": -1 })
-        .limit(20)
+        .limit(10)
         .lean();
 
       // Map to PlayerData format
@@ -379,9 +374,7 @@ export class PlayersRepository {
           lastname: player.lastname || null,
           age: player.age,
           birth: {
-            date: player.birth.date
-              ? player.birth.date.toISOString().split("T")[0]
-              : null,
+            date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
             place: player.birth.place || null,
             country: player.birth.country || null,
           },
@@ -449,8 +442,6 @@ export class PlayersRepository {
         throw new ApiError(404, "Player not found");
       }
 
-      const team = await this.mapTeam(player.stats[0].team.id);
-
       // Map to transfer response format
       const transferData = {
         player: {
@@ -461,9 +452,7 @@ export class PlayersRepository {
             lastname: player.lastname || null,
             age: player.age,
             birth: {
-              date: player.birth.date
-                ? player.birth.date.toISOString().split("T")[0]
-                : null,
+              date: player.birth.date ? player.birth.date.split("T")[0] : null,
               place: player.birth.place || null,
               country: player.birth.country || null,
             },
@@ -476,30 +465,7 @@ export class PlayersRepository {
           statistics: player.stats,
         },
         update: new Date().toISOString(),
-        transfers: player.transfers.map((transfer) => ({
-          date: transfer.date,
-          type: transfer.type,
-          teams: {
-            in: {
-              id: transfer.teams.in.id,
-              name: transfer.teams.in.name,
-              code: team.code || null,
-              country: team.country,
-              founded: team.founded || null,
-              national: team.national,
-              logo: transfer.teams.in.logo,
-            },
-            out: {
-              id: transfer.teams.out.id,
-              name: transfer.teams.out.name,
-              code: team.code || null,
-              country: team.country,
-              founded: team.founded || null,
-              national: team.national,
-              logo: transfer.teams.out.logo,
-            },
-          },
-        })),
+        transfers: [],
       };
 
       this.cacheService.set(cacheKey, [transferData], 30 * 60 * 1000);
@@ -529,30 +495,8 @@ export class PlayersRepository {
         return [];
       }
 
-      const team = await this.mapTeam(player.trophies.team_id);
-
       // Map trophies to response format
-      const trophies = [
-        {
-          league: {
-            id: 0,
-            name: player.trophies.league,
-            type: "League",
-            logo: "",
-          },
-          season: player.trophies.season.toString(),
-          seasonInt: player.trophies.season,
-          team: {
-            id: player.trophies.team_id,
-            name: player.trophies.team_name,
-            code: team.code || null,
-            country: team.country,
-            founded: team.founded || null,
-            national: team.national,
-            logo: team.logo,
-          },
-        },
-      ];
+      const trophies = [];
 
       this.cacheService.set(cacheKey, trophies, 30 * 60 * 1000);
       return trophies;
@@ -590,9 +534,7 @@ export class PlayersRepository {
           lastname: player.lastname || null,
           age: player.age,
           birth: {
-            date: player.birth.date
-              ? player.birth.date.toISOString().split("T")[0]
-              : null,
+            date: player.birth.date ? player.birth.date.split("T")[0] : null,
             place: player.birth.place || null,
             country: player.birth.country || null,
           },

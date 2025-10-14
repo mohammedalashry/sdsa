@@ -5,11 +5,8 @@ import {
   CoachInfoResponse,
   CoachCareerResponse,
   CoachCareerStatsResponse,
-  CoachTrophiesResponse,
-  CoachMatchStatsResponse,
-  CoachPerformanceResponse,
 } from "../../legacy-types/coach.types";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { FixtureData, FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
 export class CoachService {
   constructor(private readonly coachRepository: CoachRepository) {}
@@ -28,16 +25,14 @@ export class CoachService {
    * GET /api/coach/career/ - Get coach career
    */
   async getCoachCareer(coachId: number): Promise<CoachCareerResponse> {
-    // This needs to be implemented properly in the repository
-    // For now, return empty array
-    return [];
+    return await this.coachRepository.getCoachCareer(coachId);
   }
 
   /**
    * GET /api/coach/fixtures/ - Get coach fixtures
    */
   async getCoachFixtures(options: {
-    coach: number;
+    coachId: number;
     league: number;
   }): Promise<FixtureDataResponse> {
     return await this.coachRepository.getCoachFixtures(options);
@@ -47,19 +42,7 @@ export class CoachService {
    * GET /api/coach/info/ - Get coach info
    */
   async getCoachInfo(coachId: number): Promise<CoachInfoResponse> {
-    // This needs to be implemented properly in the repository
-    // For now, return basic info
-    return {
-      nationality: {
-        name: "Unknown",
-        code: "sa",
-        flag: "https://media.api-sports.io/flags/sa.svg",
-      },
-      matches: 0,
-      prefferedFormation: "4-4-2",
-      currentTeam: { id: 0, name: "Unknown Team", logo: "" },
-      trophies: [],
-    };
+    return await this.coachRepository.getCoachInfo(coachId);
   }
 
   /**
@@ -76,7 +59,9 @@ export class CoachService {
   /**
    * GET /api/coach/available-leagues/ - Get available leagues for coach
    */
-  async getAvailableLeagues(coachId: number): Promise<number[]> {
+  async getAvailableLeagues(
+    coachId: number,
+  ): Promise<{ id: number; name: string; logo: string; season: number }[]> {
     return await this.coachRepository.getAvailableLeagues(coachId);
   }
 
@@ -90,7 +75,7 @@ export class CoachService {
   /**
    * GET /api/coach/last-match/ - Get coach last match
    */
-  async getCoachLastMatch(coachId: number): Promise<FixtureDataResponse> {
+  async getCoachLastMatch(coachId: number): Promise<FixtureData> {
     return await this.coachRepository.getCoachLastMatch(coachId);
   }
 

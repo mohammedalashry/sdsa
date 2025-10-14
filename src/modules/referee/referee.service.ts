@@ -39,8 +39,11 @@ export class RefereeService {
   /**
    * GET /api/referee/career-stats/ - Get referee career
    */
-  async getRefereeCareer(refereeId: number): Promise<RefereeCareerStatsResponse> {
-    return await this.refereeRepository.getRefereeCareer(refereeId);
+  async getRefereeCareer(
+    refereeId: number,
+    season: number,
+  ): Promise<RefereeCareerStatsResponse> {
+    return await this.refereeRepository.getRefereeCareer(refereeId, season);
   }
 
   /**

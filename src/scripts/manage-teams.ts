@@ -75,14 +75,20 @@ async function main() {
         }
         const ids = Array.from(uniqueTeamIds);
         console.log(`Found ${ids.length} unique teams across tournaments. Syncing...`);
-        const res = await service.syncSpecificTeams(ids, tournaments[0]?.id || 0, (p) => {
-          if (p.phase === "mapping" || p.phase === "storing") {
-            console.log(`${p.phase}: ${p.current}/${p.total} ${p.currentTeam || ""}`);
+        for (const t of tournaments) {
+          try {
+            const res = await service.syncTournamentTeams(t.id || 0, (p) => {
+              if (p.phase === "mapping" || p.phase === "storing") {
+                console.log(`${p.phase}: ${p.current}/${p.total} ${p.currentTeam || ""}`);
+              }
+            });
+            processed += res.teamsProcessed;
+            errors = errors.concat(res.errors);
+            console.log(`Done. processed=${processed} errors=${errors.length}`);
+          } catch (e: any) {
+            console.warn(`Skip tournament ${t.id}: ${e.message}`);
           }
-        });
-        processed += res.teamsProcessed;
-        errors = errors.concat(res.errors);
-        console.log(`Done. processed=${processed} errors=${errors.length}`);
+        }
       }
       break;
     }

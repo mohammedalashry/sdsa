@@ -34,14 +34,92 @@ export class RefereeRepository {
       if (cached) {
         return cached;
       }
+      let query: any = {
+        status: "active",
+      };
+
+      // Use $elemMatch for proper array filtering
+      if (options.season || options.league) {
+        const elemMatchConditions: any = {};
+
+        if (options.season) {
+          elemMatchConditions["league.season"] = options.season;
+        }
+        if (options.league) {
+          elemMatchConditions["league.id"] = options.league;
+        }
+
+        query.career_stats = {
+          $elemMatch: elemMatchConditions,
+        };
+      }
+
+      console.log("🔍 Referee query:", JSON.stringify(query, null, 2));
+      console.log("🔍 Options received:", {
+        league: options.league,
+        season: options.season,
+      });
 
       // Try to get referees from MongoDB first
-      const mongoReferees = await Models.Referee.find({
-        status: "active",
-      }).limit(50);
+      let mongoReferees = await Models.Referee.find(query).select(
+        "korastats_id name photo country birthDate age matches career_stats",
+      );
+
+      // If no results and we have filters, try without filters to see if data exists
+      if (mongoReferees.length === 0 && (options.season || options.league)) {
+        console.log("🔍 No results with filters, checking all referees...");
+        const allReferees = await Models.Referee.find({ status: "active" }).select(
+          "korastats_id name photo country birthDate age matches career_stats",
+        );
+        console.log(`📊 Total active referees in DB: ${allReferees.length}`);
+
+        if (allReferees.length > 0) {
+          console.log(
+            "🔍 Sample referee career_stats:",
+            JSON.stringify(allReferees[0].career_stats, null, 2),
+          );
+
+          // Try a simpler MongoDB query as well
+          console.log("🔍 Trying simpler MongoDB query...");
+          const simpleQuery: any = { status: "active" };
+          if (options.league) {
+            simpleQuery["career_stats.league.id"] = options.league;
+          }
+          if (options.season) {
+            simpleQuery["career_stats.league.season"] = options.season;
+          }
+
+          const simpleResults = await Models.Referee.find(simpleQuery).select(
+            "korastats_id name photo country birthDate age matches career_stats",
+          );
+          console.log(`🔍 Simple query results: ${simpleResults.length} referees`);
+
+          // Filter in memory as fallback
+          mongoReferees = allReferees.filter((referee) => {
+            if (!referee.career_stats || referee.career_stats.length === 0) return false;
+
+            return referee.career_stats.some((stat) => {
+              const leagueMatch = !options.league || stat.league?.id === options.league;
+              const seasonMatch =
+                !options.season || stat.league?.season === options.season;
+              return leagueMatch && seasonMatch;
+            });
+          });
+
+          console.log(`🔍 After in-memory filtering: ${mongoReferees.length} referees`);
+        }
+      }
 
       if (mongoReferees.length > 0) {
         console.log(`📦 Found ${mongoReferees.length} referees in MongoDB`);
+
+        // Debug: Show first referee's career_stats structure
+        if (mongoReferees[0] && mongoReferees[0].career_stats) {
+          console.log(
+            "🔍 Sample career_stats structure:",
+            JSON.stringify(mongoReferees[0].career_stats[0], null, 2),
+          );
+        }
 
         // Transform MongoDB referees to legacy format
         const refereeData = mongoReferees.map((referee) => ({
@@ -125,7 +203,10 @@ export class RefereeRepository {
   /**
    * GET /api/referee/career-stats/ - Get referee career stats
    */
-  async getRefereeCareer(refereeId: number): Promise<RefereeCareerStatsResponse> {
+  async getRefereeCareer(
+    refereeId: number,
+    season?: number,
+  ): Promise<RefereeCareerStatsResponse> {
     try {
       const cacheKey = `referee_career_${refereeId}`;
 
@@ -138,19 +219,23 @@ export class RefereeRepository {
       const referee = await Models.Referee.findOne({
         korastats_id: refereeId,
       });
-
-      if (referee) {
-        const refereeData = referee.career_stats;
-
-        this.cacheService.set(cacheKey, refereeData, 30 * 60 * 1000); // Cache for 30 minutes
-        return refereeData;
+      if (!referee) {
+        throw new ApiError(404, "Referee not found");
+      }
+      let refereeData: RefereeCareerStatsResponse | null = null;
+      if (season) {
+        refereeData = [
+          referee.career_stats.find((stat) => stat.league.season === season),
+        ];
+      }
+      if (!refereeData) {
+        refereeData = referee.career_stats;
       }
 
-      console.log(`📦 No referee found in MongoDB for referee ${refereeId}`);
-      return [];
+      return refereeData;
     } catch (error) {
       console.error("Failed to fetch referee career:", error);
-      return [];
+      return null;
     }
   }
 
@@ -275,7 +360,7 @@ export class RefereeRepository {
   calculateYellowCards(matches: MatchDetailsInterface[]): number {
     return matches.reduce(
       (acc, match) =>
-        acc + match.timelineData.filter((event) => event.type === "yellow_card").length,
+        acc + match.timelineData.filter((event) => event.detail === "Yellow Card").length,
       0,
     );
   }
@@ -283,7 +368,7 @@ export class RefereeRepository {
   calculateRedCards(matches: MatchDetailsInterface[]): number {
     return matches.reduce(
       (acc, match) =>
-        acc + match.timelineData.filter((event) => event.type === "red_card").length,
+        acc + match.timelineData.filter((event) => event.detail === "Red Card").length,
       0,
     );
   }

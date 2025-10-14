@@ -53,6 +53,64 @@ export class CoachDataService {
   // ===================================================================
 
   /**
+   * Sync coaches for ALL tournaments returned by Korastats TournamentList
+   * - Iterates tournaments, calls syncTournamentCoaches for each
+   * - Merges coach stats by league+season using existing merge logic
+   */
+  async syncAllTournamentsCoaches(
+    limitPerTournament?: number,
+  ): Promise<CoachSyncProgress> {
+    const aggregate: CoachSyncProgress = {
+      total: 0,
+      completed: 0,
+      failed: 0,
+      current: "Starting all-tournaments coach sync...",
+      startTime: new Date(),
+      errors: [],
+    };
+
+    try {
+      const tournamentsResp = await this.korastatsService.getTournamentList();
+      const tournaments = tournamentsResp?.data || [];
+      if (!tournaments.length) {
+        console.log("ℹ️ No tournaments found from TournamentList");
+        aggregate.endTime = new Date();
+        return aggregate;
+      }
+
+      // Process tournaments sequentially to avoid API overload
+      for (const t of tournaments) {
+        const tournamentId = t.id;
+        const tName = (t as any)?.tournament || (t as any)?.name || "Unknown";
+        console.log(`👔 Syncing coaches for tournament ${tournamentId} (${tName})`);
+        const progress = await this.syncTournamentCoaches({
+          tournamentId,
+          limit: limitPerTournament,
+          includeStats: true,
+          includeAnalytics: true,
+          forceResync: false,
+        });
+
+        aggregate.total += progress.total;
+        aggregate.completed += progress.completed;
+        aggregate.failed += progress.failed;
+        aggregate.errors.push(...(progress.errors || []));
+      }
+
+      aggregate.current = `All-tournaments coach sync completed: ${aggregate.completed}/${aggregate.total}`;
+      aggregate.endTime = new Date();
+      console.log(`✅ ${aggregate.current}`);
+      return aggregate;
+    } catch (error) {
+      aggregate.current = `All-tournaments coach sync failed: ${(error as any)?.message}`;
+      aggregate.endTime = new Date();
+      aggregate.errors.push((error as any)?.message);
+      console.error("❌ All-tournaments coach sync failed:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Sync all coaches from a tournament with comprehensive data
    * Uses: TournamentCoachList + EntityCoach → Coach Schema
    */
@@ -209,15 +267,20 @@ export class CoachDataService {
         currentTournament || 0,
       );
 
-      // Store in MongoDB
-      const savedCoach = await Models.Coach.findOneAndUpdate(
-        { korastats_id: coachId },
-        coachData,
-        { upsert: true, new: true },
-      );
+      // Store in MongoDB (merge stats if exists)
+      const existingCoach = await Models.Coach.findOne({ korastats_id: coachId });
+      if (existingCoach) {
+        await this.mergeCoachStats(existingCoach as unknown as CoachInterface, coachData);
+      } else {
+        await Models.Coach.findOneAndUpdate({ korastats_id: coachId }, coachData, {
+          upsert: true,
+          new: true,
+        });
+      }
 
       console.log(`✅ Synced career data for coach: ${coachId}`);
-      return { coachId, success: true, data: savedCoach };
+      const latest = await Models.Coach.findOne({ korastats_id: coachId });
+      return { coachId, success: true, data: latest as unknown as CoachInterface };
     } catch (error) {
       console.error(`❌ Failed to sync career data for coach ${coachId}:`, error.message);
       return { coachId, success: false, error: error.message };
@@ -276,7 +339,7 @@ export class CoachDataService {
                 _type: "COACH",
                 id: coach.korastats_id,
                 fullname: coach.name,
-                nationality: { id: 0, name: coach.nationality },
+                nationality: { id: 0, name: coach.nationality.name },
                 dob: coach.birth.date.toISOString(),
                 age: coach.age.toString(),
                 retired: coach.status === "retired",
@@ -288,16 +351,8 @@ export class CoachDataService {
               tournamentId,
             );
 
-            // Update only statistics-related fields
-            await Models.Coach.findOneAndUpdate(
-              { korastats_id: coach.korastats_id },
-              {
-                stats: updatedStats.stats,
-                coachPerformance: updatedStats.coachPerformance,
-                last_synced: new Date(),
-                updated_at: new Date(),
-              },
-            );
+            // Merge statistics by league+season (do not replace)
+            await this.mergeCoachStats(coach as unknown as CoachInterface, updatedStats);
 
             progress.completed++;
           } else {
@@ -341,14 +396,8 @@ export class CoachDataService {
     tournamentCoaches: any[],
     forceResync: boolean = false,
   ): Promise<void> {
-    // Check if already exists and not forcing resync
-    if (!forceResync) {
-      const existing = await Models.Coach.findOne({ korastats_id: coachId });
-      if (existing) {
-        console.log(`⭐ Skipping coach ${coachId} - already exists`);
-        return;
-      }
-    }
+    // If exists and not forcing resync, we will merge instead of skipping
+    const existingForMerge = await Models.Coach.findOne({ korastats_id: coachId });
 
     try {
       // Fetch additional coach data in parallel
@@ -377,11 +426,18 @@ export class CoachDataService {
         tournamentId,
       );
 
-      // Store in MongoDB
-      await Models.Coach.findOneAndUpdate({ korastats_id: coachId }, coachData, {
-        upsert: true,
-        new: true,
-      });
+      // Store in MongoDB (merge if exists)
+      if (existingForMerge && !forceResync) {
+        await this.mergeCoachStats(
+          existingForMerge as unknown as CoachInterface,
+          coachData,
+        );
+      } else {
+        await Models.Coach.findOneAndUpdate({ korastats_id: coachId }, coachData, {
+          upsert: true,
+          new: true,
+        });
+      }
 
       console.log(`✅ Synced coach data: ${coachId} (${entityCoach.fullname})`);
     } catch (error) {
@@ -393,6 +449,60 @@ export class CoachDataService {
   // ===================================================================
   // UTILITY METHODS
   // ===================================================================
+
+  /**
+   * Merge coach stats ensuring uniqueness by league.id + season
+   */
+  private async mergeCoachStats(
+    existingCoach: CoachInterface,
+    newCoachData: CoachInterface,
+  ): Promise<void> {
+    try {
+      const existingStats = existingCoach.stats || [];
+      const newStatsArray = newCoachData.stats || [];
+
+      const existingMap = new Map<string, number>();
+      existingStats.forEach((stat, idx) => {
+        const leagueId = (stat as any)?.league?.id ?? (stat as any)?.league; // schema may be string earlier
+        const season = (stat as any)?.league?.season ?? 0;
+        const key = `${leagueId}-${season}`;
+        existingMap.set(key, idx);
+      });
+
+      const merged = [...existingStats];
+      for (const ns of newStatsArray) {
+        const leagueId = (ns as any)?.league?.id ?? (ns as any)?.league;
+        const season = (ns as any)?.league?.season ?? 0;
+        const key = `${leagueId}-${season}`;
+        if (existingMap.has(key)) {
+          const i = existingMap.get(key)!;
+          merged[i] = ns;
+        } else {
+          merged.push(ns);
+        }
+      }
+
+      // Update combined coach performance if provided on new data
+      const coachPerformance =
+        newCoachData.coachPerformance || existingCoach.coachPerformance;
+
+      await Models.Coach.findOneAndUpdate(
+        { korastats_id: existingCoach.korastats_id },
+        {
+          stats: merged,
+          coachPerformance,
+          last_synced: new Date(),
+          updated_at: new Date(),
+        },
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed merging coach stats for ${existingCoach.korastats_id}:`,
+        (error as any)?.message || error,
+      );
+      throw error;
+    }
+  }
 
   /**
    * Extract successful response from Promise.allSettled result

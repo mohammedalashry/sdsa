@@ -13,13 +13,13 @@ export interface RefereeInterface {
     flag: string;
   };
   birthDate: string;
-  age?: number;
-  photo?: string;
+  age: number;
+  photo: string;
   matches: number;
 
   // Career stats (denormalized)
   career_stats: Array<{
-    league: string;
+    league: { id: number; name: string; season: number; logo: string };
     appearances: number;
     yellow_cards: number;
     red_cards: number;
@@ -69,7 +69,12 @@ const RefereeSchema = new Schema<RefereeInterface>(
 
     career_stats: [
       {
-        league: { type: String, required: true },
+        league: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          season: { type: Number, required: true },
+          logo: { type: String, required: true },
+        },
         appearances: { type: Number, default: 0 },
         yellow_cards: { type: Number, default: 0 },
         red_cards: { type: Number, default: 0 },
@@ -109,7 +114,9 @@ const RefereeSchema = new Schema<RefereeInterface>(
 // Indexes for performance
 RefereeSchema.index({ name: 1 });
 RefereeSchema.index({ country: 1 });
-RefereeSchema.index({ "career_stats.league": 1 });
+RefereeSchema.index({ "career_stats.league.id": 1 });
+RefereeSchema.index({ "career_stats.league.season": 1 });
+RefereeSchema.index({ "career_stats.league.id": 1, "career_stats.league.season": 1 });
 
 export default RefereeSchema;
 

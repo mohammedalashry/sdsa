@@ -7,6 +7,8 @@ export interface LeagueLogoInfo {
   id: number;
   name: string;
   logo: string;
+  season: number;
+  type: string;
 }
 
 export class LeagueLogoService {
@@ -15,8 +17,10 @@ export class LeagueLogoService {
       934,
       {
         id: 934,
-        name: "Division 1",
+        name: "Pro League U19",
         logo: "https://media.api-sports.io/football/leagues/308.png",
+        season: 2024,
+        type: "League",
       },
     ],
     [
@@ -25,14 +29,18 @@ export class LeagueLogoService {
         id: 840,
         name: "Pro League",
         logo: "https://media.api-sports.io/football/leagues/307.png",
+        season: 2024,
+        type: "League",
       },
     ],
     [
       600,
       {
         id: 600,
-        name: "Division 2",
+        name: "Yelo",
         logo: "https://media.api-sports.io/football/leagues/309.png",
+        season: 2023,
+        type: "Cup",
       },
     ],
     [
@@ -41,6 +49,8 @@ export class LeagueLogoService {
         id: 840,
         name: "Pro League",
         logo: "https://media.api-sports.io/football/leagues/307.png",
+        season: 2025,
+        type: "League",
       },
     ],
   ]);

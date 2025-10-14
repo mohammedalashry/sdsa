@@ -14,13 +14,23 @@ export interface CoachData {
     place: string | null;
     country: string | null;
   };
-  nationality: string;
+  nationality: { name: string; code: string; flag: string };
   height: string | null;
   weight: string | null;
   team: { id: number; name: string; logo: string };
 }
 export interface CoachInfo {
+  id: number;
+  name: string;
+  photo: string;
+  firstname: string;
+  lastname: string;
+  age: number | null;
+  birth: { date: string | null; place: string | null; country: string | null };
   nationality: { name: string; code: string; flag: string };
+  height: string | null;
+  weight: string | null;
+  team: { id: number; name: string; logo: string };
   matches: number;
   prefferedFormation: string;
   currentTeam: { id: number; name: string; logo: string };

@@ -4,6 +4,7 @@ import {
   KorastatsEntityCoach,
   KorastatsTournamentCoachList,
   KorastatsCoachStats,
+  KorastatsTournamentTeamList,
 } from "@/integrations/korastats/types";
 
 import { KorastatsService } from "@/integrations/korastats/services/korastats.service";
@@ -44,32 +45,33 @@ export class CoachNew {
     const coachingStats = await this.mapCoachingStatistics(
       tournamentCoaches,
       tournamentId,
+      entityCoach,
     );
 
     // Calculate performance metrics
-    const performance = this.calculateCoachPerformance(tournamentCoaches);
+    const performance = this.calculateCoachPerformance(tournamentCoaches, entityCoach);
 
     // Determine preferred formation from match data
     const preferredFormation = this.determinePreferredFormation(tournamentCoaches);
 
     // Map trophies and achievements
     const trophiesData = this.mapCoachTrophies(tournamentCoaches, tournamentId);
-
+    const nameParts = entityCoach.fullname.split(" ");
     return {
       // === IDENTIFIERS ===
       korastats_id: entityCoach.id,
 
       // === PERSONAL INFO ===
       name: entityCoach.fullname,
-      firstname: this.extractFirstName(entityCoach.fullname),
-      lastname: this.extractLastName(entityCoach.fullname),
+      firstname: nameParts[0],
+      lastname: nameParts[nameParts.length - 1],
       age: parseInt(entityCoach.age) || this.calculateAge(entityCoach.dob),
       birth: {
         date: new Date(entityCoach.dob),
         place: "Unknown", // Not available in KoraStats
         country: entityCoach.nationality?.name || "Unknown",
       },
-      nationality: entityCoach.nationality?.name || "Unknown",
+      nationality: await this.mapCountryInfo(entityCoach.nationality),
       height: 0, // Not available in KoraStats
       weight: 0, // Not available in KoraStats
       photo: coachPhoto,
@@ -79,10 +81,9 @@ export class CoachNew {
       career_history: careerHistory,
 
       // === COACHING STATISTICS ===
-      stats: coachingStats,
+      stats: [coachingStats],
 
       // === TROPHIES ===
-      trophies: trophiesData,
 
       // === PERFORMANCE METRICS ===
       coachPerformance: performance,
@@ -101,18 +102,6 @@ export class CoachNew {
   // ===================================================================
   // PRIVATE HELPER METHODS
   // ===================================================================
-
-  private extractFirstName(fullname: string): string {
-    if (!fullname) return "";
-    const parts = fullname.split(" ");
-    return parts[0] || "";
-  }
-
-  private extractLastName(fullname: string): string {
-    if (!fullname) return "";
-    const parts = fullname.split(" ");
-    return parts.length > 1 ? parts.slice(1).join(" ") : "";
-  }
 
   private calculateAge(dob: string): number {
     if (!dob) return 0;
@@ -133,7 +122,9 @@ export class CoachNew {
     // Extract team information from tournament data
     const teamHistory = new Map();
 
-    for (const coach of tournamentCoaches) {
+    const coach = tournamentCoaches.find((coach) => coach.id === coachId);
+
+    if (coach) {
       if (coach.id === coachId) {
         // Since KoraStats doesn't provide team info directly in coach data,
         // we'll need to infer from match data or use placeholder
@@ -171,40 +162,50 @@ export class CoachNew {
   private async mapCoachingStatistics(
     tournamentCoaches: KorastatsTournamentCoachList[],
     tournamentId: number,
+    entityCoach: KorastatsEntityCoach,
   ) {
     const leagueInfo = LeagueLogoService.getLeagueLogo(tournamentId);
+    const coach = tournamentCoaches.find((coach) => coach.id === entityCoach.id);
 
-    return tournamentCoaches.map((coach) => {
-      const stats = coach.stats?.Admin;
-      const totalMatches = stats?.MatchesPlayed || 0;
-      const wins = stats?.Win || 0;
-      const draws = stats?.Draw || 0;
-      const loses = stats?.Lost || 0;
+    const stats = coach.stats?.Admin;
+    const totalMatches = stats?.MatchesPlayed || 0;
+    const wins = stats?.Win || 0;
+    const draws = stats?.Draw || 0;
+    const loses = stats?.Lost || 0;
 
-      // Calculate points (3 for win, 1 for draw)
-      const points = wins * 3 + draws * 1;
-      const pointsPerGame = totalMatches > 0 ? points / totalMatches : 0;
+    // Calculate points (3 for win, 1 for draw)
+    const points = wins * 3 + draws * 1;
+    const pointsPerGame = totalMatches > 0 ? points / totalMatches : 0;
 
-      return {
-        league: leagueInfo?.name || "Unknown League", // Just the league name as string
-        matches: totalMatches,
-        wins,
-        draws,
-        loses,
-        points,
-        points_per_game: Math.round(pointsPerGame * 100) / 100, // Round to 2 decimals
-      };
-    });
+    return {
+      league: {
+        id: leagueInfo?.id || 0,
+        name: leagueInfo?.name || "Unknown League",
+        logo: leagueInfo?.logo || "",
+        season: leagueInfo?.season || 0,
+        type: leagueInfo?.type || "League",
+      }, // Just the league name as string
+      matches: totalMatches,
+      wins,
+      draws,
+      loses,
+      points,
+      points_per_game: Math.round(pointsPerGame * 100) / 100, // Round to 2 decimals
+    };
   }
 
-  private calculateCoachPerformance(tournamentCoaches: KorastatsTournamentCoachList[]) {
+  private calculateCoachPerformance(
+    tournamentCoaches: KorastatsTournamentCoachList[],
+    entityCoach: KorastatsEntityCoach,
+  ) {
     // Aggregate performance across all tournaments
     let totalMatches = 0;
     let totalWins = 0;
     let totalDraws = 0;
     let totalLoses = 0;
 
-    for (const coach of tournamentCoaches) {
+    const coach = tournamentCoaches.find((coach) => coach.id === entityCoach.id);
+    if (coach) {
       const stats = coach.stats?.Admin;
       if (stats) {
         totalMatches += stats.MatchesPlayed || 0;
@@ -277,7 +278,53 @@ export class CoachNew {
       offensiveActions: count > 0 ? totalOffensiveActions / count : 0,
     };
   }
-
+  private async mapCountryInfo(nationality: { id: number; name: string }) {
+    // Map nationality to country info with flag
+    const countryCode = this.getCountryCode(nationality.name);
+    const countryFlag = this.korastatsService
+      .getEntityCountries(nationality.name)
+      .then((res) => {
+        return res.root.object.find((country) => country.id === nationality.id)?.flag;
+      });
+    return {
+      name: nationality.name,
+      code: countryCode,
+      flag: await countryFlag,
+    };
+  }
+  private getCountryCode(countryName: string): string {
+    // Map country names to ISO codes for flag URLs
+    const countryMap: Record<string, string> = {
+      "Saudi Arabia": "sa",
+      "United Arab Emirates": "ae",
+      Qatar: "qa",
+      Kuwait: "kw",
+      Bahrain: "bh",
+      Oman: "om",
+      Jordan: "jo",
+      Lebanon: "lb",
+      Syria: "sy",
+      Iraq: "iq",
+      Yemen: "ye",
+      Egypt: "eg",
+      Morocco: "ma",
+      Tunisia: "tn",
+      Algeria: "dz",
+      Libya: "ly",
+      Sudan: "sd",
+    };
+    let countryCode = "";
+    if (countryMap[countryName]) {
+      countryCode = countryMap[countryName];
+    } else {
+      if (countryName.split(" ").length > 1) {
+        countryCode = countryName.split(" ")[0][0] + countryName.split(" ")[1][0];
+      } else {
+        countryCode = countryName.substring(0, 2).toLowerCase();
+      }
+    }
+    return countryCode;
+  }
   private mapCoachTrophies(
     tournamentCoaches: KorastatsTournamentCoachList[],
     tournamentId: number,

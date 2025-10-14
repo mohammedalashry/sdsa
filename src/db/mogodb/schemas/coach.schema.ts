@@ -15,7 +15,11 @@ export interface CoachInterface {
     place: string;
     country: string;
   };
-  nationality: string;
+  nationality: {
+    name: string;
+    flag: string;
+    code: string;
+  };
   height: number;
   weight: number;
   photo: string;
@@ -25,14 +29,19 @@ export interface CoachInterface {
     team_id: number;
     team_name: string;
     team_logo: string;
-    start_date: Date;
-    end_date?: Date;
+    start_date: string;
+    end_date?: string;
     is_current: boolean;
   }>;
 
   // Coaching stats summary (denormalized)
   stats: Array<{
-    league: any;
+    league: {
+      id: number;
+      name: string;
+      logo: string;
+      season: number;
+    };
     matches: number;
     wins: number;
     draws: number;
@@ -41,15 +50,6 @@ export interface CoachInterface {
     points_per_game: number;
   }>;
 
-  // Trophies and achievements
-  trophies: Array<{
-    id: number;
-    name: string;
-    season: string;
-    team_id: number;
-    team_name: string;
-    league: string;
-  }>;
   coachPerformance: {
     winPercentage: number;
     drawPercentage: number;
@@ -94,8 +94,9 @@ const CoachSchema = new Schema<CoachInterface>(
       country: { type: String },
     },
     nationality: {
-      id: { type: Number, required: true },
       name: { type: String, required: true },
+      flag: { type: String, required: true },
+      code: { type: String, required: true },
     },
     height: {
       type: Number,
@@ -122,7 +123,12 @@ const CoachSchema = new Schema<CoachInterface>(
     ],
     stats: [
       {
-        league: { type: String, required: true },
+        league: {
+          id: { type: Number, required: true },
+          name: { type: String, required: true },
+          logo: { type: String, required: true },
+          season: { type: Number, required: true },
+        },
         matches: { type: Number, default: 0 },
         wins: { type: Number, default: 0 },
         draws: { type: Number, default: 0 },
@@ -131,16 +137,7 @@ const CoachSchema = new Schema<CoachInterface>(
         points_per_game: { type: Number, default: 0 },
       },
     ],
-    trophies: [
-      {
-        id: { type: Number, required: true },
-        name: { type: String, required: true },
-        season: { type: String, required: true },
-        team_id: { type: Number, required: true },
-        team_name: { type: String, required: true },
-        league: { type: String, required: true },
-      },
-    ],
+
     coachPerformance: {
       winPercentage: { type: Number, default: 0 },
       drawPercentage: { type: Number, default: 0 },

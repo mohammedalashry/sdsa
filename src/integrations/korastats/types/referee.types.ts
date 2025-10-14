@@ -60,6 +60,12 @@ export interface KorastatsEntityReferee {
 // ===== RESPONSE TYPE WRAPPERS =====
 export type KorastatsTournamentRefereeListResponse =
   KorastatsBaseResponse<KorastatsTournamentRefereeList>;
-export type KorastatsEntityRefereeResponse =
-  KorastatsBaseResponse<KorastatsEntityReferee>;
+export type KorastatsEntityRefereeResponse = {
+  root: {
+    result: boolean;
+    title: string;
+    message: string;
+    object: KorastatsEntityReferee;
+  };
+};
 

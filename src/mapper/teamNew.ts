@@ -104,30 +104,12 @@ export class TeamNew {
     // Calculate transfer data
 
     // Get venue information from teamInfo match history
-    const venueInfo = await this.getVenueInformation(teamListItem.stadium, teamInfo);
+    const venueInfo = await this.getVenueInformation(teamInfo);
 
     // Calculate team ranking and market value
+    console.log("MODA tournamentId", tournamentId);
 
-    // Try fetch paired tournament season for same league family (e.g., 840<->1441)
-    const pairedTournamentId =
-      tournamentId === 840 ? 1441 : tournamentId === 1441 ? 840 : undefined;
-    let pairedStatsAnalysis: any = null;
-    if (pairedTournamentId) {
-      try {
-        const pairedStatsResp = await this.korastatsService.getTournamentTeamStats(
-          pairedTournamentId,
-          teamListItem.id,
-        );
-        if (pairedStatsResp?.data) {
-          pairedStatsAnalysis = await this.calculateTeamStatistics(
-            pairedStatsResp.data,
-            pairedTournamentId,
-            parseInt(tournamentTeamPlayers.season),
-          );
-        }
-      } catch {}
-    }
-
+    console.log("MODA before return");
     return {
       // === IDENTIFIERS ===
       korastats_id: teamListItem.id,
@@ -166,13 +148,17 @@ export class TeamNew {
       // === TROPHIES ===
 
       // === STATISTICS ===
-      tournament_stats: [
-        statsAnalysis,
-        ...(pairedStatsAnalysis ? [pairedStatsAnalysis] : []),
-      ],
-      stats_summary: this.aggregateStatsSummaryFromTournamentStats(
-        [statsAnalysis].concat(pairedStatsAnalysis ? [pairedStatsAnalysis] : []),
-      ),
+      tournament_stats: [statsAnalysis],
+      stats_summary: {
+        gamesPlayed: { home: 0, away: 0 },
+        wins: { home: 0, away: 0 },
+        draws: { home: 0, away: 0 },
+        loses: { home: 0, away: 0 },
+        goalsScored: { home: 0, away: 0 },
+        goalsConceded: { home: 0, away: 0 },
+        goalDifference: 0,
+        cleanSheetGames: 0,
+      },
 
       // === TACTICAL DATA ===
       lineup: lineupData,
@@ -192,11 +178,15 @@ export class TeamNew {
           })),
       ),
       // === TOURNAMENTS ===
-      tournaments: this.buildTournamentsArray(
-        leagueInfo,
-        tournamentTeamPlayers,
-        pairedTournamentId,
-      ),
+      tournaments: [
+        {
+          id: leagueInfo.id,
+          name: leagueInfo.name,
+          logo: leagueInfo.logo,
+          season: parseInt(tournamentTeamPlayers.season),
+          current: true,
+        },
+      ],
 
       // === SYNC TRACKING ===
       last_synced: new Date(),
@@ -250,7 +240,7 @@ export class TeamNew {
 
     const performanceScore = goalsScored / matchesPlayed + (wins / matchesPlayed) * 2;
     const estimatedValue = Math.max(1, performanceScore * 5); // Minimum 1M
-
+    console.log("MODA calculateMarketValue", "estimatedValue", estimatedValue);
     return `€${estimatedValue.toFixed(1)}M`;
   }
 
@@ -515,7 +505,6 @@ export class TeamNew {
     const goalsConceded = statsMap.get("Goals Conceded") || 0;
 
     const winRate = wins / matchesPlayed;
-    const goalDifference = (goalsScored - goalsConceded) / matchesPlayed;
     const attackingRating = goalsScored / matchesPlayed / 2; // Normalize to 0-1
     const defensiveRating = Math.max(0, 1 - goalsConceded / matchesPlayed / 3); // Normalize to 0-1
 
@@ -729,69 +718,6 @@ export class TeamNew {
     };
   }
 
-  /**
-   * Aggregate stats_summary totals across provided tournament TeamStats
-   */
-  private aggregateStatsSummaryFromTournamentStats(teamStatsList: TeamStats[]): {
-    gamesPlayed: { home: number; away: number };
-    wins: { home: number; away: number };
-    draws: { home: number; away: number };
-    loses: { home: number; away: number };
-    goalsScored: { home: number; away: number };
-    goalsConceded: { home: number; away: number };
-    goalDifference: number;
-    cleanSheetGames: number;
-  } {
-    let gamesPlayedHome = 0;
-    let gamesPlayedAway = 0;
-    let winsHome = 0;
-    let winsAway = 0;
-    let drawsHome = 0;
-    let drawsAway = 0;
-    let losesHome = 0;
-    let losesAway = 0;
-    let goalsForHome = 0;
-    let goalsForAway = 0;
-    let goalsAgainstHome = 0;
-    let goalsAgainstAway = 0;
-    let cleanSheetsTotal = 0;
-
-    for (const ts of teamStatsList) {
-      // fixtures played/wins/draws/loses
-      gamesPlayedHome += ts.fixtures.played.home;
-      gamesPlayedAway += ts.fixtures.played.away;
-      winsHome += ts.fixtures.wins.home;
-      winsAway += ts.fixtures.wins.away;
-      drawsHome += ts.fixtures.draws.home;
-      drawsAway += ts.fixtures.draws.away;
-      losesHome += ts.fixtures.loses.home;
-      losesAway += ts.fixtures.loses.away;
-
-      // goals for/against totals
-      goalsForHome += ts.goals.for_.total.home;
-      goalsForAway += ts.goals.for_.total.away;
-      goalsAgainstHome += ts.goals.against.total.home;
-      goalsAgainstAway += ts.goals.against.total.away;
-
-      // clean sheets (sum total); fallback to korastats clean_sheet if needed
-      cleanSheetsTotal += ts.clean_sheet.total ?? 0;
-    }
-
-    const goalDifference =
-      goalsForHome + goalsForAway - (goalsAgainstHome + goalsAgainstAway);
-
-    return {
-      gamesPlayed: { home: gamesPlayedHome, away: gamesPlayedAway },
-      wins: { home: winsHome, away: winsAway },
-      draws: { home: drawsHome, away: drawsAway },
-      loses: { home: losesHome, away: losesAway },
-      goalsScored: { home: goalsForHome, away: goalsForAway },
-      goalsConceded: { home: goalsAgainstHome, away: goalsAgainstAway },
-      goalDifference,
-      cleanSheetGames: cleanSheetsTotal,
-    };
-  }
-
   private calculateBiggestStats(statsMap: Map<string, number>) {
     // Estimate biggest streaks based on performance
     const wins = statsMap.get("Win") || 0;
@@ -844,10 +770,7 @@ export class TeamNew {
   // COMPLEX DATA GENERATION METHODS
   // ===================================================================
 
-  private async getVenueInformation(
-    stadium?: { id: number; name: string },
-    teamInfo?: KorastatsTeamInfo,
-  ) {
+  private async getVenueInformation(teamInfo?: KorastatsTeamInfo) {
     try {
       // Default venue data
       let venueData = {
@@ -860,37 +783,6 @@ export class TeamNew {
         image: "https://via.placeholder.com/300x200/cccccc/666666?text=STADIUM",
       };
 
-      // Try to get stadium data from EntityTeams if we have stadium ID
-      if (stadium?.id) {
-        try {
-          const entityTeamResponse = await this.korastatsService.getEntityTeam(
-            stadium.id,
-          );
-          if (entityTeamResponse?.data) {
-            // EntityTeam response should have stadium data
-            const entityData = entityTeamResponse.data;
-            if (entityData.stadium) {
-              venueData.id = entityData.stadium.id || stadium.id;
-              venueData.name = entityData.stadium.name || stadium.name;
-              venueData.capacity = entityData.stadium.capacity || 25000;
-              venueData.city = entityData.stadium.city || "Riyadh";
-              venueData.surface = entityData.stadium.surface || "Grass";
-              venueData.image =
-                entityData.stadium.image ||
-                "https://via.placeholder.com/300x200/cccccc/666666?text=STADIUM";
-              venueData.address =
-                entityData.stadium.address ||
-                `${venueData.name}, ${venueData.city}, Saudi Arabia`;
-            }
-          }
-        } catch (error) {
-          console.warn(
-            `Could not fetch stadium data for ID ${stadium.id}: ${error.message}`,
-          );
-        }
-      }
-
-      // Fallback: Extract venue data from teamInfo matches
       if (venueData.id === 0 && teamInfo?.matches && teamInfo.matches.length > 0) {
         // Find home matches to get venue information
         const homeMatches = teamInfo.matches.filter(
@@ -906,7 +798,6 @@ export class TeamNew {
             venueData.name =
               firstHomeMatch.objStadium.strStadiumNameEn ||
               firstHomeMatch.objStadium.strStadiumNameAr ||
-              stadium?.name ||
               "Unknown Stadium";
 
             // Parse capacity if available
@@ -929,23 +820,15 @@ export class TeamNew {
         }
       }
 
-      // Final fallback: Use provided stadium info
-      if (venueData.id === 0 && stadium) {
-        venueData.id = stadium.id;
-        venueData.name = stadium.name;
-        venueData.capacity = 25000; // Estimate for Saudi stadiums
-        venueData.address = `${stadium.name}, Riyadh, Saudi Arabia`;
-      }
-
       return venueData;
     } catch (error) {
       console.error(`Failed to get venue information: ${error.message}`);
 
       // Return safe fallback
       return {
-        id: stadium?.id || 0,
-        name: stadium?.name || "Unknown Stadium",
-        address: `${stadium?.name || "Unknown Stadium"}, Riyadh, Saudi Arabia`,
+        id: 0,
+        name: "Unknown Stadium",
+        address: `${"Unknown Stadium"}, Riyadh, Saudi Arabia`,
         capacity: 20000,
         surface: "Grass",
         city: "Riyadh",
@@ -1090,54 +973,6 @@ export class TeamNew {
   // ===================================================================
   // NEW HELPER METHODS FOR REAL DATA EXTRACTION
   // ===================================================================
-
-  /**
-   * Build tournaments array ensuring uniqueness by id + season
-   */
-  private buildTournamentsArray(
-    leagueInfo: LeagueLogoInfo,
-    tournamentTeamPlayers: KorastatsTournamentTeamPlayerList,
-    pairedTournamentId?: number,
-  ): Array<{
-    id: number;
-    name: string;
-    logo: string;
-    season: number;
-    current: boolean;
-  }> {
-    const tournaments = [];
-    const currentSeason = parseInt(tournamentTeamPlayers.season);
-
-    // Add current tournament
-    tournaments.push({
-      id: leagueInfo.id,
-      name: leagueInfo.name,
-      logo: leagueInfo.logo,
-      season: currentSeason,
-      current:
-        new Date() > new Date(tournamentTeamPlayers.startDate) &&
-        new Date() < new Date(tournamentTeamPlayers.endDate),
-    });
-
-    // Add paired tournament if it exists (different season, same league family)
-    if (pairedTournamentId) {
-      const pairedLeagueInfo = LeagueLogoService.getLeagueLogo(pairedTournamentId);
-      if (pairedLeagueInfo) {
-        // Determine the paired season (opposite of current)
-        const pairedSeason = pairedTournamentId === 1441 ? 2025 : 2024;
-
-        tournaments.push({
-          id: pairedLeagueInfo.id,
-          name: pairedLeagueInfo.name,
-          logo: pairedLeagueInfo.logo,
-          season: pairedSeason,
-          current: false, // Paired tournament is not current
-        });
-      }
-    }
-
-    return tournaments;
-  }
 
   /**
    * Generate a random valid formation

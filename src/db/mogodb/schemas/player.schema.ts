@@ -17,13 +17,13 @@ export interface PlayerInterface {
   firstname?: string;
   lastname?: string;
   birth: {
-    date: Date;
+    date: string;
     place: string;
     country: string;
   };
   age: number;
   nationality: string;
-
+  shirtNumber: number;
   // Physical attributes
   height?: number;
   weight?: number;
@@ -49,16 +49,6 @@ export interface PlayerInterface {
     name: string;
     position: string;
   };
-  // Trophies
-  trophies: {
-    id: number;
-    name: string;
-    season: number;
-    team_id: number;
-    team_name: string;
-    league: string;
-  };
-  transfers: Array<Transfer>;
   // Injury status
   injured: boolean;
 
@@ -72,12 +62,6 @@ export interface PlayerInterface {
         logo: string;
       };
       season: number;
-      goals: {
-        total: number;
-        assists: number;
-        conceded: number;
-        saves: number;
-      };
     }>;
   };
 
@@ -87,7 +71,14 @@ export interface PlayerInterface {
   playerShotMap: PlayerShotMap;
   // Status
   status: "active" | "retired" | "inactive";
-
+  topAssists: Array<{
+    season: number;
+    league: number;
+  }>;
+  topScorers: Array<{
+    season: number;
+    league: number;
+  }>;
   // Sync tracking
   last_synced: Date;
   sync_version: number;
@@ -106,13 +97,13 @@ const PlayerSchema = new Schema<PlayerInterface>(
     firstname: { type: String, required: false },
     lastname: { type: String, required: false },
     birth: {
-      date: { type: Date, required: true },
+      date: { type: String, required: true },
       place: { type: String, required: true },
       country: { type: String, required: true },
     },
     age: { type: Number, required: true },
     nationality: { type: String, required: true },
-
+    shirtNumber: { type: Number, required: true },
     // Physical attributes
     height: { type: Number, required: false },
     weight: { type: Number, required: false },
@@ -144,36 +135,6 @@ const PlayerSchema = new Schema<PlayerInterface>(
       position: { type: String, required: false },
     },
 
-    // Trophies
-    trophies: {
-      id: { type: Number, required: true },
-      name: { type: String, required: true },
-      season: { type: Number, required: true },
-      team_id: { type: Number, required: true },
-      team_name: { type: String, required: true },
-      league: { type: String, required: true },
-    },
-
-    // Transfers
-    transfers: [
-      {
-        date: { type: String, required: true },
-        type: { type: String, default: null },
-        teams: {
-          in: {
-            id: { type: Number, required: true },
-            name: { type: String, required: true },
-            logo: { type: String, required: true },
-          },
-          out: {
-            id: { type: Number, required: true },
-            name: { type: String, required: true },
-            logo: { type: String, required: true },
-          },
-        },
-      },
-    ],
-
     // Injury status
     injured: { type: Boolean, default: false },
 
@@ -188,12 +149,6 @@ const PlayerSchema = new Schema<PlayerInterface>(
             logo: { type: String, required: true },
           },
           season: { type: Number, required: true },
-          goals: {
-            total: { type: Number, default: 0 },
-            assists: { type: Number, default: 0 },
-            conceded: { type: Number, default: 0 },
-            saves: { type: Number, default: 0 },
-          },
         },
       ],
     },
@@ -211,7 +166,7 @@ const PlayerSchema = new Schema<PlayerInterface>(
           name: { type: String, required: true },
           country: { type: String, required: true },
           logo: { type: String, required: true },
-          flag: { type: String, default: null },
+          flag: { type: String, required: true },
           season: { type: Number, required: true },
         },
         games: {
@@ -325,7 +280,18 @@ const PlayerSchema = new Schema<PlayerInterface>(
       enum: ["active", "retired", "inactive"],
       default: "active",
     },
-
+    topAssists: [
+      {
+        season: { type: Number, required: true },
+        league: { type: Number, required: true },
+      },
+    ],
+    topScorers: [
+      {
+        season: { type: Number, required: true },
+        league: { type: Number, required: true },
+      },
+    ],
     // Sync tracking
     last_synced: { type: Date, default: Date.now },
     sync_version: { type: Number, default: 1 },

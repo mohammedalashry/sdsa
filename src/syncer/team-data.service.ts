@@ -11,7 +11,15 @@ import {
   KorastatsTeamInfo,
   KorastatsTeamListItem,
 } from "@/integrations/korastats/types/team.types";
+import { TeamStats } from "@/legacy-types/teams.types";
 
+interface MinimalTournament {
+  id: number;
+  name: string;
+  logo: string;
+  season: number;
+  current: boolean;
+}
 export interface TeamSyncProgress {
   phase:
     | "fetching_teams"
@@ -76,7 +84,7 @@ export class TeamDataService {
       this.logger.log(`Found ${totalTeams} teams for tournament ${tournamentId}`);
 
       // Process teams in batches to avoid overwhelming the API
-      const batchSize = 5;
+      const batchSize = 3;
       const teamBatches = this.chunkArray(tournamentTeamList.teams, batchSize);
 
       for (let batchIndex = 0; batchIndex < teamBatches.length; batchIndex++) {
@@ -609,6 +617,7 @@ export class TeamDataService {
     onProgress?: (progress: TeamSyncProgress) => void,
   ): Promise<void> {
     let currentTournament: KorastatsTournamentTeamStats | undefined;
+    // Check if team already exists to merge tournament stats
 
     try {
       // Phase 1: Fetch team statistics
@@ -710,15 +719,13 @@ export class TeamDataService {
         message: `Storing ${teamListItem.team} in database...`,
         errors: [],
       });
-
-      // Check if team already exists to merge tournament stats
       const existingTeam = await Models.Team.findOne({
-        korastats_id: teamData.korastats_id,
+        korastats_id: teamListItem.id,
       });
-
       if (existingTeam) {
         // Team exists - merge tournament stats instead of replacing
         await this.mergeTeamTournamentStats(existingTeam, teamData);
+        await this.mergeTournamentsArray(existingTeam.tournaments, teamData.tournaments);
       } else {
         // New team - create normally
         await Models.Team.findOneAndUpdate(
@@ -743,7 +750,7 @@ export class TeamDataService {
    * Merge tournament stats for existing teams instead of replacing
    */
   private async mergeTeamTournamentStats(
-    existingTeam: any,
+    existingTeam: TeamInterface,
     newTeamData: TeamInterface,
   ): Promise<void> {
     try {
@@ -773,33 +780,25 @@ export class TeamDataService {
 
         if (leagueId && season) {
           // Map 1441 to 840 for consistency (as per user requirement)
-          const mappedLeagueId = leagueId === 1441 ? 840 : leagueId;
-          const key = `${mappedLeagueId}-${season}`;
+          const key = `${leagueId}-${season}`;
 
           if (existingStatsMap.has(key)) {
             // Update existing tournament stats
             const existingIndex = mergedTournamentStats.findIndex(
-              (stats: any) =>
-                stats.league?.id === mappedLeagueId && stats.league?.season === season,
+              (stats) => stats.league?.id === leagueId && stats.league?.season === season,
             );
             if (existingIndex !== -1) {
               mergedTournamentStats[existingIndex] = {
                 ...newStats,
                 league: {
                   ...newStats.league,
-                  id: mappedLeagueId, // Ensure we use the mapped ID
+                  id: leagueId, // Ensure we use the mapped ID
                 },
               };
             }
           } else {
             // Add new tournament stats
-            mergedTournamentStats.push({
-              ...newStats,
-              league: {
-                ...newStats.league,
-                id: mappedLeagueId, // Ensure we use the mapped ID
-              },
-            });
+            mergedTournamentStats.push(newStats);
           }
         }
       }
@@ -874,13 +873,14 @@ export class TeamDataService {
   /**
    * Merge tournaments array ensuring uniqueness by id + season
    */
+
   private mergeTournamentsArray(
-    existingTournaments: any[],
-    newTournaments: any[],
-  ): any[] {
+    existingTournaments: MinimalTournament[],
+    newTournaments: MinimalTournament[],
+  ): MinimalTournament[] {
     // Create a map of existing tournaments by id + season for quick lookup
-    const existingTournamentsMap = new Map();
-    existingTournaments.forEach((tournament: any) => {
+    const existingTournamentsMap = new Map<string, MinimalTournament>();
+    existingTournaments.forEach((tournament) => {
       const id = tournament.id;
       const season = tournament.season;
       if (id && season) {

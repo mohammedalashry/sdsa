@@ -41,9 +41,12 @@ export class RefereeController {
    * Get referee career statistics
    */
   getCareerStats = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { referee } = req.query;
+    const { referee, season } = req.query;
 
-    const stats = await this.refereeService.getRefereeCareer(Number(referee));
+    const stats = await this.refereeService.getRefereeCareer(
+      Number(referee),
+      Number(season),
+    );
 
     res.json(stats);
   });

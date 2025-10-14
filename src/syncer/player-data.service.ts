@@ -34,6 +34,96 @@ export interface PlayerDataResult {
   error?: string;
 }
 
+// Stat type constants based on ListStatTypes response
+const STAT_TYPE_CONSTANTS = {
+  SUCCESS_PASSES: { id: 1, name: "Success Passes" },
+  TOTAL_PASSES: { id: 2, name: "Total Passes" },
+  SUCCESS_CROSSES: { id: 3, name: "Success Crosses" },
+  TOTAL_CROSSES: { id: 4, name: "Total Crosses" },
+  SUCCESS_LONG_PASS: { id: 5, name: "Success Long Pass" },
+  TOTAL_LONG_PASS: { id: 6, name: "Total Long Pass" },
+  TOTAL_BALL_LOST: { id: 8, name: "Total Ball Lost" },
+  TOTAL_BALL_WON: { id: 9, name: "Total Ball Won" },
+  TOTAL_ATTEMPTS: { id: 12, name: "Total Attempts" },
+  SUCCESS_ATTEMPTS: { id: 13, name: "Success Attempts" },
+  YELLOW_CARD: { id: 14, name: "Yellow Card" },
+  SECOND_YELLOW_CARD: { id: 15, name: "Second Yellow Card" },
+  RED_CARD: { id: 16, name: "Red Card" },
+  FOULS_COMMITED: { id: 17, name: "Fouls Commited" },
+  MINUTES_PLAYED: { id: 20, name: "Minutes Played" },
+  GOALS_SCORED: { id: 21, name: "Goals Scored" },
+  ASSISTS: { id: 22, name: "Assists" },
+  OWN_GOALS: { id: 23, name: "Own Goals" },
+  CORNERS: { id: 24, name: "Corners" },
+  OFFSIDES: { id: 25, name: "Offsides" },
+  OWN_GOALS_IN_FAVOUR: { id: 26, name: "Own Goals in Favour" },
+  MATCHES_PLAYED_AS_LINEUP: { id: 27, name: "Matches Played as Lineup" },
+  GOALS_CONCEDED: { id: 28, name: "Goals Conceded" },
+  MATCHES_PLAYED_AS_SUB: { id: 29, name: "Matches Played as Sub" },
+  POSSESSION: { id: 30, name: "Possession" },
+  POSSESSION_0_15: { id: 31, name: "Possession 0-15" },
+  POSSESSION_15_30: { id: 32, name: "Possession 15-30" },
+  POSSESSION_30_45: { id: 33, name: "Possession 30-45" },
+  POSSESSION_45_60: { id: 34, name: "Possession 45-60" },
+  POSSESSION_60_75: { id: 35, name: "Possession 60-75" },
+  POSSESSION_75_90: { id: 36, name: "Possession 75-90" },
+  GOALS_SCORED_BY_HEAD: { id: 46, name: "Goals Scored By Head" },
+  BALL_RECEIVED_SUCCESS: { id: 47, name: "Ball Received Success" },
+  PENALTY_COMMITTED: { id: 48, name: "Penalty Committed" },
+  PENALTY_AWARDED: { id: 49, name: "Penalty Awarded" },
+  PENALTY_MISSED: { id: 50, name: "Penalty Missed" },
+  PENALTY_SCORED: { id: 51, name: "Penalty Scored" },
+  GOALS_SAVED: { id: 52, name: "Goals Saved" },
+  FOULS_AWARDED: { id: 53, name: "Fouls Awarded" },
+  BLOCKS: { id: 54, name: "Blocks" },
+  OPPORTUNITY_SAVE: { id: 55, name: "Opportunity Save" },
+  ATTEMPTS_ON_BARS: { id: 56, name: "Attempts on Bars" },
+  ONE_ON_ONE_MISSED: { id: 57, name: "One on One Missed" },
+  TOTAL_SHORT_PASS: { id: 58, name: "Total Short Pass" },
+  SUCCESS_SHORT_PASS: { id: 59, name: "Success Short Pass" },
+  DRIBBLE_SUCCESS: { id: 60, name: "Dribble Success" },
+  BALL_LOST_UNDER_PRESSURE: { id: 61, name: "Ball Lost Under Pressure" },
+  GOALS_SCORED_0_15: { id: 62, name: "GoalsScored 0-15" },
+  GOALS_SCORED_15_30: { id: 63, name: "GoalsScored 15-30" },
+  GOALS_SCORED_30_45: { id: 64, name: "GoalsScored 30-45" },
+  GOALS_SCORED_45_60: { id: 65, name: "GoalsScored 45-60" },
+  GOALS_SCORED_60_75: { id: 66, name: "GoalsScored 60-75" },
+  GOALS_SCORED_75_90: { id: 67, name: "GoalsScored 75-90" },
+  GOALS_SCORED_BY_RIGHT_FOOT: { id: 68, name: "Goals Scored By Right Foot" },
+  GOALS_SCORED_BY_LEFT_FOOT: { id: 69, name: "Goals Scored By Left Foot" },
+  GOALS_SCORED_BY_OTHER: { id: 70, name: "Goals Scored By Other" },
+  TACKLE_WON: { id: 81, name: "TackleWon" },
+  TACKLE_FAIL: { id: 82, name: "TackleFail" },
+  TACKLE_CLEAR: { id: 83, name: "TackleClear" },
+  INTERCEPT_WON: { id: 84, name: "InterceptWon" },
+  INTERCEPT_CLEAR: { id: 85, name: "InterceptClear" },
+  AERIAL_WON: { id: 86, name: "Aerial Won" },
+  AERIAL_LOST: { id: 87, name: "Aerial Lost" },
+  BALL_RECEIVED_FAIL: { id: 88, name: "Ball Received Fail" },
+  BALL_RECOVER: { id: 89, name: "Ball Recover" },
+  CLEAR: { id: 90, name: "Clear" },
+  DRIBBLE_FAIL: { id: 91, name: "Dribble Fail" },
+  KEY_PASSES: { id: 92, name: "KeyPasses" },
+  SUCCESS_OPEN_PLAY_CROSSES: { id: 93, name: "Success Open Play Crosses" },
+  TOTAL_OPEN_PLAY_CROSSES: { id: 94, name: "Total Open Play Crosses" },
+  SUCCESS_SET_PIECE_CROSSES: { id: 95, name: "Success Set-Piece Crosses" },
+  TOTAL_SET_PIECE_CROSSES: { id: 96, name: "Total Set-Piece Crosses" },
+  DIRECT_SET_PIECE_GOAL_SCORED: { id: 97, name: "Direct Set Piece Goal Scored" },
+  FOULS_COMMITED_IN_DEFENSIVE_THIRD: {
+    id: 98,
+    name: "Fouls Commited In Defensive Third",
+  },
+  FOULS_AWARDED_IN_OFFENSIVE_THIRD: { id: 99, name: "Fouls Awarded In Offensive Third" },
+  CHANCE_CREATED: { id: 100, name: "Chance Created" },
+  CLEAN_SHEET: { id: 101, name: "Clean Sheet" },
+  WIN: { id: 173, name: "Win" },
+  DRAW: { id: 174, name: "Draw" },
+  LOST: { id: 175, name: "Lost" },
+  XG: { id: 106, name: "XG" },
+  XGA: { id: 107, name: "XGA" },
+  ATTEMPTS_SAVED: { id: 108, name: "Attempts Saved" },
+} as const;
+
 export class PlayerDataService {
   private korastatsService: KorastatsService;
   private playerMapper: PlayerNew;
@@ -114,14 +204,14 @@ export class PlayerDataService {
         try {
           progress.current = "Fetching season achievements data...";
           const topStatsPromises = [
-            "Goals Scored",
-            "Assists",
-            "Yellow Card",
-            "Red Card",
-          ].map((statType) =>
+            STAT_TYPE_CONSTANTS.GOALS_SCORED.id,
+            STAT_TYPE_CONSTANTS.ASSISTS.id,
+            STAT_TYPE_CONSTANTS.YELLOW_CARD.id,
+            STAT_TYPE_CONSTANTS.RED_CARD.id,
+          ].map((statTypeId) =>
             this.korastatsService.getSeasonPlayerTopStats(
               options.tournamentId,
-              statType as any,
+              statTypeId,
             ),
           );
 
@@ -155,20 +245,15 @@ export class PlayerDataService {
           const entityPlayerResponse =
             await this.korastatsService.getEntityPlayer(playerId);
           const entityPlayer = (entityPlayerResponse as any).root?.object;
-          console.log("entityPlayerResponse MODA", entityPlayerResponse);
-          console.log("entityPlayer MODA", entityPlayer);
           if (!entityPlayer) {
             throw new Error(`No entity data found for player ${playerId}`);
           }
-          console.log("options.tournamentId MODA", options.tournamentId);
-          console.log("playerId MODA", playerId);
           // Fetch player tournament stats
           const playerStatsResponse =
             await this.korastatsService.getTournamentPlayerStats(
               options.tournamentId,
               playerId,
             );
-          console.log("playerStatsResponse MODA", playerStatsResponse);
           // Ensure playerStats is always an array
           const playerStatsData = playerStatsResponse.data;
           const playerStats = Array.isArray(playerStatsData)
@@ -176,7 +261,6 @@ export class PlayerDataService {
             : playerStatsData
               ? [playerStatsData]
               : [];
-          console.log("playerStats MODA", playerStats);
           // Fetch player info if available
           let playerInfo;
           try {
@@ -191,17 +275,6 @@ export class PlayerDataService {
           }
 
           // Map the player data
-          console.log("=== MAPPER INPUT DEBUG ===");
-          console.log("entityPlayer:", JSON.stringify(entityPlayer, null, 2));
-          console.log("playerStats:", JSON.stringify(playerStats, null, 2));
-          console.log("playerInfo:", JSON.stringify(playerInfo, null, 2));
-          console.log(
-            "topStats:",
-            JSON.stringify(topStatsMap.get(playerId) || [], null, 2),
-          );
-          console.log("tournamentId:", options.tournamentId);
-          console.log("=== END DEBUG ===");
-
           // Ensure all parameters are in correct format
           const safePlayerStats = Array.isArray(playerStats) ? playerStats : [];
           const safeTopStats = Array.isArray(topStatsMap.get(playerId))
@@ -212,23 +285,43 @@ export class PlayerDataService {
             const mappedPlayer = await this.playerMapper.mapToPlayer(
               entityPlayer,
               safePlayerStats,
-              playerInfo,
               safeTopStats,
               options.tournamentId,
             );
 
-            // Store in database
-            await Models.Player.findOneAndUpdate(
-              { korastats_id: playerId },
-              {
-                ...mappedPlayer,
-                last_synced: new Date(),
-                updated_at: new Date(),
-              },
-              { upsert: true, new: true },
-            );
+            // Check if player already exists for merging
+            const existingPlayer = await Models.Player.findOne({
+              korastats_id: playerId,
+            });
 
-            console.log(`✅ Successfully synced player ${playerId}`);
+            if (existingPlayer && !options.forceResync) {
+              // Merge data instead of replacing
+              await this.mergePlayerStats(
+                existingPlayer as PlayerInterface,
+                mappedPlayer,
+              );
+              await this.mergePlayerAchievements(
+                existingPlayer as PlayerInterface,
+                mappedPlayer,
+              );
+              await this.mergePlayerCareerSummary(
+                existingPlayer as PlayerInterface,
+                mappedPlayer,
+              );
+              console.log(`✅ Successfully merged player ${playerId}`);
+            } else {
+              // Store new player or force resync
+              await Models.Player.findOneAndUpdate(
+                { korastats_id: playerId },
+                {
+                  ...mappedPlayer,
+                  last_synced: new Date(),
+                  updated_at: new Date(),
+                },
+                { upsert: true, new: true },
+              );
+              console.log(`✅ Successfully synced player ${playerId}`);
+            }
           } catch (mapperError) {
             console.error(
               `❌ Mapper failed for player ${playerId}:`,
@@ -338,7 +431,6 @@ export class PlayerDataService {
       const playerData = await this.playerMapper.mapToPlayer(
         entityPlayer,
         tournamentStats,
-        playerInfo || { _type: "PLAYER INFO", matches: [] },
         [], // No top stats for career sync
         currentTournament || 0,
       );
@@ -412,7 +504,6 @@ export class PlayerDataService {
       const playerData = await this.playerMapper.mapToPlayer(
         entityPlayer,
         tournamentStats,
-        playerInfo || { _type: "PLAYER INFO", matches: [] },
         topStats,
         tournamentId,
       );
@@ -533,6 +624,135 @@ export class PlayerDataService {
   }
 
   /**
+   * Merge player stats arrays ensuring uniqueness by league.id + league.season
+   */
+  private async mergePlayerStats(
+    existingPlayer: PlayerInterface,
+    newPlayerData: PlayerInterface,
+  ): Promise<void> {
+    const existingStats = existingPlayer.stats || [];
+    const newStats = newPlayerData.stats || [];
+
+    // Create a map of existing stats by league.id + season (from stat level)
+    const existingStatsMap = new Map<string, any>();
+    existingStats.forEach((stat) => {
+      const key = `${stat.league.id}-${stat.league.season}`;
+      existingStatsMap.set(key, stat);
+    });
+
+    // Merge new stats, updating existing ones or adding new ones
+    const mergedStats = [...existingStats];
+    newStats.forEach((newStat) => {
+      const key = `${newStat.league.id}-${newStat.league.season}`;
+      if (existingStatsMap.has(key)) {
+        // Update existing stat
+        const existingIndex = mergedStats.findIndex((stat) => {
+          return `${stat.league.id}-${stat.league.season}` === key;
+        });
+        if (existingIndex !== -1) {
+          mergedStats[existingIndex] = newStat;
+        }
+      } else {
+        // Add new stat
+        mergedStats.push(newStat);
+      }
+    });
+
+    // Update the player with merged stats
+    await Models.Player.findOneAndUpdate(
+      { korastats_id: existingPlayer.korastats_id },
+      {
+        stats: mergedStats,
+        playerTraits: newPlayerData.playerTraits,
+        topScorers: newPlayerData.topScorers,
+        topAssists: newPlayerData.topAssists,
+        career_summary: newPlayerData.career_summary,
+        last_synced: new Date(),
+        updated_at: new Date(),
+      },
+    );
+  }
+
+  /**
+   * Merge player achievements (topScorers, topAssists) ensuring uniqueness by season + league
+   */
+  private async mergePlayerAchievements(
+    existingPlayer: PlayerInterface,
+    newPlayerData: PlayerInterface,
+  ): Promise<void> {
+    const existingTopScorers = existingPlayer.topScorers || [];
+    const existingTopAssists = existingPlayer.topAssists || [];
+    const newTopScorers = newPlayerData.topScorers || [];
+    const newTopAssists = newPlayerData.topAssists || [];
+
+    // Merge topScorers by season + league
+    const topScorersMap = new Map<string, any>();
+    [...existingTopScorers, ...newTopScorers].forEach((achievement) => {
+      const key = `${achievement.season}-${achievement.league}`;
+      topScorersMap.set(key, achievement);
+    });
+
+    // Merge topAssists by season + league
+    const topAssistsMap = new Map<string, any>();
+    [...existingTopAssists, ...newTopAssists].forEach((achievement) => {
+      const key = `${achievement.season}-${achievement.league}`;
+      topAssistsMap.set(key, achievement);
+    });
+
+    // Update the player with merged achievements
+    await Models.Player.findOneAndUpdate(
+      { korastats_id: existingPlayer.korastats_id },
+      {
+        topScorers: Array.from(topScorersMap.values()),
+        topAssists: Array.from(topAssistsMap.values()),
+        last_synced: new Date(),
+        updated_at: new Date(),
+      },
+    );
+  }
+
+  /**
+   * Merge player career summary ensuring uniqueness by season
+   */
+  private async mergePlayerCareerSummary(
+    existingPlayer: PlayerInterface,
+    newPlayerData: PlayerInterface,
+  ): Promise<void> {
+    const existingCareerData = existingPlayer.career_summary?.careerData || [];
+    const newCareerData = newPlayerData.career_summary?.careerData || [];
+
+    // Create a map of existing career data by season
+    const careerDataMap = new Map<number, any>();
+    existingCareerData.forEach((career) => {
+      careerDataMap.set(career.season, career);
+    });
+
+    // Merge new career data, updating existing ones or adding new ones
+    newCareerData.forEach((newCareer) => {
+      careerDataMap.set(newCareer.season, newCareer);
+    });
+
+    const mergedCareerData = Array.from(careerDataMap.values());
+    const totalMatches = mergedCareerData.reduce(
+      (total, career) => total + (career.matches || 0),
+      0,
+    );
+
+    // Update the player with merged career summary
+    await Models.Player.findOneAndUpdate(
+      { korastats_id: existingPlayer.korastats_id },
+      {
+        career_summary: {
+          total_matches: totalMatches,
+          careerData: mergedCareerData,
+        },
+        last_synced: new Date(),
+        updated_at: new Date(),
+      },
+    );
+  }
+
+  /**
    * Update player statistics for existing players
    */
   async updatePlayerStatistics(
@@ -588,7 +808,7 @@ export class PlayerDataService {
                 fullname: player.name,
                 nickname: player.name,
                 nationality: { id: 0, name: player.nationality },
-                dob: player.birth.date.toISOString(),
+                dob: player.birth.date,
                 age: player.age.toString(),
                 positions: player.positions,
                 retired: player.status === "retired",
@@ -598,7 +818,6 @@ export class PlayerDataService {
                 last_updated: new Date().toISOString(),
               },
               [newStats],
-              { _type: "PLAYER INFO", matches: [] },
               [],
               tournamentId,
             );
@@ -650,30 +869,46 @@ export class PlayerDataService {
     try {
       console.log(`🔍 Finding missing players for tournament ${tournamentId}...`);
 
-      // Get all tournament players
-      const playerStatsResponse = await this.korastatsService.getTournamentPlayerStats(
-        tournamentId,
-        0,
-      );
+      // Get all tournament teams first
+      const tournamentTeamListResponse =
+        await this.korastatsService.getTournamentTeamPlayerList(tournamentId);
+      const tournamentTeamList = tournamentTeamListResponse?.data;
 
-      if (!playerStatsResponse.data) {
-        throw new Error("Failed to fetch tournament player statistics");
+      if (!tournamentTeamList || !tournamentTeamList.teams?.length) {
+        throw new Error("Failed to fetch tournament team list");
       }
+
+      // Extract all player IDs from all teams
+      const allPlayerIds: number[] = [];
+      const playerTeamMap = new Map<number, number>();
+
+      for (const team of tournamentTeamList.teams) {
+        if (team.players && Array.isArray(team.players)) {
+          for (const player of team.players) {
+            if (player.id && !allPlayerIds.includes(player.id)) {
+              allPlayerIds.push(player.id);
+              playerTeamMap.set(player.id, team.id);
+            }
+          }
+        }
+      }
+
+      console.log(`📊 Found ${allPlayerIds.length} total players in tournament`);
 
       // Get existing player IDs
       const existingPlayerIds = await Models.Player.distinct("korastats_id");
       const existingSet = new Set(existingPlayerIds);
 
       // Find missing players
-      const missingPlayers = playerStatsResponse.data.filter(
-        (player) => !existingSet.has(player.id),
+      const missingPlayerIds = allPlayerIds.filter(
+        (playerId) => !existingSet.has(playerId),
       );
 
       console.log(
-        `📊 Found ${missingPlayers.length} missing players out of ${playerStatsResponse.data.length} total`,
+        `📊 Found ${missingPlayerIds.length} missing players out of ${allPlayerIds.length} total`,
       );
 
-      if (missingPlayers.length === 0) {
+      if (missingPlayerIds.length === 0) {
         return {
           total: 0,
           completed: 0,
@@ -688,7 +923,7 @@ export class PlayerDataService {
       // Sync missing players
       return this.syncTournamentPlayers({
         tournamentId,
-        playerIds: missingPlayers.map((p) => p.id),
+        playerIds: missingPlayerIds,
         forceResync: false,
         includeStats: true,
         includeAnalytics: true,

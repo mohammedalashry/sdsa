@@ -11,7 +11,7 @@ import {
   CoachPerformanceResponse,
   CoachData,
 } from "../../legacy-types/coach.types";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { FixtureData, FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
 export class CoachController {
   constructor(private readonly coachService: CoachService) {}
@@ -75,7 +75,7 @@ export class CoachController {
     const { coach, league } = req.query;
 
     const fixtures: FixtureDataResponse = await this.coachService.getCoachFixtures({
-      coach: Number(coach),
+      coachId: Number(coach),
       league: Number(league),
     });
 
@@ -103,9 +103,7 @@ export class CoachController {
   getCoachLastMatch = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { coach } = req.query;
 
-    const match: FixtureDataResponse = await this.coachService.getCoachLastMatch(
-      Number(coach),
-    );
+    const match: FixtureData = await this.coachService.getCoachLastMatch(Number(coach));
 
     res.json(match);
   });
