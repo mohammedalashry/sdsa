@@ -16,7 +16,7 @@ import { KorastatsMongoService } from "./db/mogodb/connection";
 // Route imports
 import teamsRoutes from "./modules/teams/routes";
 import leaguesRoutes from "./modules/leagues/routes";
-import playersRoutes from "./modules/players/routes"; // Future modules
+import playersRoutes from "./modules/players/routes";
 import fixturesRoutes from "./modules/fixtures/routes";
 import profileRoutes from "./modules/profile/routes";
 import standingsRoutes from "./modules/standings/routes";
@@ -97,7 +97,7 @@ app.use("/api", router);
 router.use("/auth", authRoutes); // Keep existing auth routes
 router.use("/team", teamsRoutes); // New teams module
 router.use("/league", leaguesRoutes);
-router.use("/players", playersRoutes); // Future modules
+router.use("/player", playersRoutes); // Future modules
 router.use("/fixture", fixturesRoutes);
 router.use("/profile", profileRoutes); // Profile module
 router.use("/standings", standingsRoutes); // Standings module
