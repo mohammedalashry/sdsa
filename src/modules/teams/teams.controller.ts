@@ -73,8 +73,14 @@ export class TeamsController {
    */
   followTeam = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { team_id } = req.body;
+    const userId = (req as any).user?.id;
 
-    const result = await this.teamsService.followTeam(Number(team_id));
+    if (!userId) {
+      res.status(401).json({ message: "Authentication required" });
+      return;
+    }
+
+    const result = await this.teamsService.followTeam(Number(team_id), userId);
 
     res.json(result);
   });
@@ -85,8 +91,17 @@ export class TeamsController {
    */
   isFollowingTeam = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { team_id } = req.query;
+    const userId = (req as any).user?.id;
 
-    const isFollowing: boolean = await this.teamsService.isFollowingTeam(Number(team_id));
+    if (!userId) {
+      res.status(401).json({ message: "Authentication required" });
+      return;
+    }
+
+    const isFollowing: boolean = await this.teamsService.isFollowingTeam(
+      Number(team_id),
+      userId,
+    );
 
     res.json({ isFollowing });
   });
@@ -97,8 +112,14 @@ export class TeamsController {
    */
   unfollowTeam = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { team_id } = req.body;
+    const userId = (req as any).user?.id;
 
-    const result = await this.teamsService.unfollowTeam(Number(team_id));
+    if (!userId) {
+      res.status(401).json({ message: "Authentication required" });
+      return;
+    }
+
+    const result = await this.teamsService.unfollowTeam(Number(team_id), userId);
 
     res.json(result);
   });

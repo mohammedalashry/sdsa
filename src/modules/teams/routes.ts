@@ -4,6 +4,7 @@ import { TeamsService } from "@/modules/teams/teams.service";
 import { TeamsRepository } from "./teams.repository";
 import { CacheService } from "@/integrations/korastats/services/cache.service";
 import { validateRequest } from "../../core/middleware/validation.middleware";
+import { authenticate } from "../../core/middleware/auth.middleware";
 import { teamsValidationSchemas } from "./teams.validator";
 
 const router = Router();
@@ -50,6 +51,7 @@ router.get(
 // POST /api/team/follow-team/ - Follow a team
 router.post(
   "/follow-team/",
+  authenticate,
   validateRequest(teamsValidationSchemas.followTeam, "body"),
   teamsController.followTeam,
 );
@@ -57,6 +59,7 @@ router.post(
 // GET /api/team/is-following/ - Check if following team
 router.get(
   "/is-following/",
+  authenticate,
   validateRequest(teamsValidationSchemas.isFollowingTeam, "query"),
   teamsController.isFollowingTeam,
 );
@@ -64,6 +67,7 @@ router.get(
 // POST /api/team/unfollow-team/ - Unfollow a team
 router.post(
   "/unfollow-team/",
+  authenticate,
   validateRequest(teamsValidationSchemas.unfollowTeam, "body"),
   teamsController.unfollowTeam,
 );

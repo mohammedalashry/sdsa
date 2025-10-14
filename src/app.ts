@@ -23,6 +23,10 @@ import standingsRoutes from "./modules/standings/routes";
 import countriesRoutes from "./modules/country/routes";
 import coachRoutes from "./modules/coach/routes";
 import refereeRoutes from "./modules/referee/routes";
+import contactRoutes from "./modules/contact/routes";
+import searchRoutes from "./modules/search/routes";
+import adminRoutes from "./modules/admin/routes";
+import exportRoutes from "./modules/export/routes";
 
 // Existing routes (keep your current auth)
 import authRoutes from "./modules/auth/auth.router";
@@ -104,6 +108,10 @@ router.use("/standings", standingsRoutes); // Standings module
 router.use("/country", countriesRoutes); // Countries module
 router.use("/coach", coachRoutes); // Coach module
 router.use("/referee", refereeRoutes); // Referee module
+router.use("/contact", contactRoutes); // Contact module
+router.use("/search", searchRoutes); // Search module
+router.use("/admin", adminRoutes); // Admin module
+router.use("/export", exportRoutes); // Export module
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({

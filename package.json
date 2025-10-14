@@ -58,6 +58,7 @@
   "dependencies": {
     "@prisma/client": "^6.13.0",
     "@types/mongoose": "^5.11.96",
+    "@types/multer": "^2.0.0",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
@@ -74,6 +75,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "nodemon": "^3.1.10",
     "tsconfig-paths": "^4.2.0"
   },
@@ -99,4 +101,3 @@
     "schema": "./src/db/prismadb/prisma/schema.prisma"
   }
 }
-

@@ -14,6 +14,7 @@ import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
 import { ApiError } from "@/core/middleware/error.middleware";
 import { Models } from "@/db/mogodb/models";
 import { TeamInterface } from "@/db/mogodb/schemas/team.schema";
+import prismaService from "@/db/prismadb/prisma.service";
 
 export class TeamsRepository {
   constructor(private readonly cacheService: CacheService) {}
@@ -663,37 +664,112 @@ export class TeamsRepository {
   }
 
   // ===================================================================
-  // TEAM FOLLOWING METHODS (User-specific, would integrate with auth)
+  // TEAM FOLLOWING METHODS (User-specific, integrates with auth)
   // ===================================================================
 
   async followTeam(
     teamId: number,
+    userId: number,
   ): Promise<{ success: boolean; message: string; team_id: number }> {
-    // This would typically interact with a user preferences database
-    // For now, return a success response
-    return {
-      success: true,
-      message: "Team followed successfully",
-      team_id: teamId,
-    };
+    try {
+      // First, verify the team exists in our MongoDB data
+      const team = await Models.Team.findOne({ korastats_id: teamId });
+      if (!team) {
+        throw new ApiError(404, "Team does not exist");
+      }
+
+      // Check if user is already following this team
+      const existingFollow = await prismaService.teamFollow.findUnique({
+        where: {
+          user_id_team_id: {
+            user_id: userId,
+            team_id: teamId,
+          },
+        },
+      });
+
+      if (existingFollow) {
+        throw new ApiError(400, "You are already following this team");
+      }
+
+      // Create the follow relationship
+      await prismaService.teamFollow.create({
+        data: {
+          user_id: userId,
+          team_id: teamId,
+          team: JSON.parse(JSON.stringify(team.toObject())), // Convert to plain object for Prisma JSON
+        },
+      });
+
+      return {
+        success: true,
+        message: "Team followed successfully",
+        team_id: teamId,
+      };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      console.error("Follow team error:", error);
+      throw new ApiError(500, "Failed to follow team");
+    }
   }
 
-  async isFollowingTeam(teamId: number): Promise<boolean> {
-    // This would typically check a user preferences database
-    // For now, return false
-    return false;
+  async isFollowingTeam(teamId: number, userId: number): Promise<boolean> {
+    try {
+      const follow = await prismaService.teamFollow.findUnique({
+        where: {
+          user_id_team_id: {
+            user_id: userId,
+            team_id: teamId,
+          },
+        },
+      });
+
+      return !!follow;
+    } catch (error) {
+      console.error("Is following team error:", error);
+      throw new ApiError(500, "Failed to check if following team");
+    }
   }
 
   async unfollowTeam(
     teamId: number,
+    userId: number,
   ): Promise<{ success: boolean; message: string; team_id: number }> {
-    // This would typically interact with a user preferences database
-    // For now, return a success response
-    return {
-      success: true,
-      message: "Team unfollowed successfully",
-      team_id: teamId,
-    };
+    try {
+      // Check if user is following this team
+      const existingFollow = await prismaService.teamFollow.findUnique({
+        where: {
+          user_id_team_id: {
+            user_id: userId,
+            team_id: teamId,
+          },
+        },
+      });
+
+      if (!existingFollow) {
+        throw new ApiError(400, "You are not following this team");
+      }
+
+      // Remove the follow relationship
+      await prismaService.teamFollow.delete({
+        where: {
+          user_id_team_id: {
+            user_id: userId,
+            team_id: teamId,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: "Team unfollowed successfully",
+        team_id: teamId,
+      };
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      console.error("Unfollow team error:", error);
+      throw new ApiError(500, "Failed to unfollow team");
+    }
   }
 
   // ===================================================================

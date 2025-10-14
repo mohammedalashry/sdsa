@@ -95,13 +95,17 @@ export class TeamsService {
     }
   }
 
-  async followTeam(teamId: number): Promise<any> {
+  async followTeam(teamId: number, userId: number): Promise<any> {
     try {
       if (!teamId || teamId <= 0) {
         throw new ApiError(400, "Valid team ID is required");
       }
 
-      return await this.repository.followTeam(teamId);
+      if (!userId || userId <= 0) {
+        throw new ApiError(400, "Valid user ID is required");
+      }
+
+      return await this.repository.followTeam(teamId, userId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
       console.error("Follow team service error:", error);
@@ -109,13 +113,17 @@ export class TeamsService {
     }
   }
 
-  async isFollowingTeam(teamId: number): Promise<boolean> {
+  async isFollowingTeam(teamId: number, userId: number): Promise<boolean> {
     try {
       if (!teamId || teamId <= 0) {
         throw new ApiError(400, "Valid team ID is required");
       }
 
-      return await this.repository.isFollowingTeam(teamId);
+      if (!userId || userId <= 0) {
+        throw new ApiError(400, "Valid user ID is required");
+      }
+
+      return await this.repository.isFollowingTeam(teamId, userId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
       console.error("Is following team service error:", error);
@@ -123,13 +131,17 @@ export class TeamsService {
     }
   }
 
-  async unfollowTeam(teamId: number): Promise<any> {
+  async unfollowTeam(teamId: number, userId: number): Promise<any> {
     try {
       if (!teamId || teamId <= 0) {
         throw new ApiError(400, "Valid team ID is required");
       }
 
-      return await this.repository.unfollowTeam(teamId);
+      if (!userId || userId <= 0) {
+        throw new ApiError(400, "Valid user ID is required");
+      }
+
+      return await this.repository.unfollowTeam(teamId, userId);
     } catch (error) {
       if (error instanceof ApiError) throw error;
       console.error("Unfollow team service error:", error);
