@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SearchService } from "./search.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { SearchResponse } from "./search.types";
+import { SearchItem } from "./search.types";
 
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
