@@ -1,13 +1,17 @@
 export interface SearchItem {
-  id: number;
-  name: string;
+  item: {
+    id: number;
+    name: string;
+    image?: string;
+    photo?: string;
+    logo?: string;
+    homeTeam?: string;
+    awayTeam?: string;
+  };
+  metaData?: {
+    seasons?: any[];
+  } | null;
   type: string;
-  logo?: string;
-  country?: string;
-  league?: string;
-  team?: string;
-  date?: string;
-  status?: string;
 }
 
 export interface SearchResponse {

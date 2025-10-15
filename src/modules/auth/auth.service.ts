@@ -349,7 +349,7 @@ export const loginWithGoogle = async (accessToken: string) => {
   try {
     // TODO: Replace with actual Google OAuth verification
     // const googleUserInfo = await verifyGoogleToken(accessToken);
-    
+
     // Placeholder implementation - replace with actual Google API call
     const googleUserInfo = {
       email: "user@example.com",
@@ -408,7 +408,7 @@ export const loginWithFacebook = async (accessToken: string) => {
   try {
     // TODO: Replace with actual Facebook OAuth verification
     // const facebookUserInfo = await verifyFacebookToken(accessToken);
-    
+
     // Placeholder implementation - replace with actual Facebook API call
     const facebookUserInfo = {
       email: "user@example.com",
@@ -471,7 +471,7 @@ export const loginWithX = async (oauthToken: string, oauthVerifier: string) => {
   try {
     // TODO: Replace with actual X (Twitter) OAuth verification
     // const xUserInfo = await verifyXToken(oauthToken, oauthVerifier);
-    
+
     // Placeholder implementation - replace with actual X API call
     const xUserInfo = {
       email: "user@example.com",
@@ -534,7 +534,7 @@ export const getXAuthUrl = async (redirectUri: string) => {
   try {
     // TODO: Replace with actual X (Twitter) OAuth URL generation
     // const authUrl = await generateXAuthUrl(redirectUri);
-    
+
     // Placeholder implementation - replace with actual X OAuth URL generation
     const authUrl = `https://api.twitter.com/oauth/authorize?oauth_token=placeholder_token&oauth_callback=${encodeURIComponent(redirectUri)}`;
 

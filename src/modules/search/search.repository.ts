@@ -22,11 +22,15 @@ export class SearchRepository {
         .lean();
 
       return teams.map((team) => ({
-        id: team.korastats_id,
-        name: team.name,
+        item: {
+          id: team.korastats_id,
+          name: team.name,
+          image: team.logo,
+        },
+        metaData: {
+          seasons: [], // TODO: Add seasons data if needed
+        },
         type: "team",
-        logo: team.logo,
-        country: team.country,
       }));
     } catch (error) {
       console.error("Search teams error:", error);
@@ -53,12 +57,15 @@ export class SearchRepository {
         .lean();
 
       return players.map((player) => ({
-        id: player.korastats_id,
-        name: player.name,
+        item: {
+          id: player.korastats_id,
+          name: player.name,
+          photo: player.photo,
+        },
+        metaData: {
+          seasons: [], // TODO: Add seasons data if needed
+        },
         type: "player",
-        logo: player.photo,
-        country: player.nationality,
-        team: player.current_team?.name,
       }));
     } catch (error) {
       console.error("Search players error:", error);
@@ -85,14 +92,13 @@ export class SearchRepository {
         .lean();
 
       return leagues.map((league) => ({
-        id: league.korastats_id,
-        name: league.name,
+        item: {
+          id: league.korastats_id,
+          name: league.name,
+          image: league.logo,
+        },
+        metaData: null,
         type: "league",
-        logo: league.logo,
-        country:
-          typeof league.country === "string"
-            ? league.country
-            : league.country?.name || "",
       }));
     } catch (error) {
       console.error("Search leagues error:", error);
@@ -119,11 +125,13 @@ export class SearchRepository {
         .lean();
 
       return cups.map((cup) => ({
-        id: cup.korastats_id,
-        name: cup.name,
+        item: {
+          id: cup.korastats_id,
+          name: cup.name,
+          image: cup.logo,
+        },
+        metaData: null,
         type: "cup",
-        logo: cup.logo,
-        country: typeof cup.country === "string" ? cup.country : cup.country?.name || "",
       }));
     } catch (error) {
       console.error("Search cups error:", error);
@@ -154,12 +162,14 @@ export class SearchRepository {
         .lean();
 
       return fixtures.map((fixture) => ({
-        id: fixture.korastats_id,
-        name: `${fixture.teams?.home?.name || "Unknown"} vs ${fixture.teams?.away?.name || "Unknown"}`,
+        item: {
+          id: fixture.korastats_id,
+          name: `${fixture.teams?.home?.name || "Unknown"} vs ${fixture.teams?.away?.name || "Unknown"}`,
+          homeTeam: fixture.teams?.home?.name || "Unknown",
+          awayTeam: fixture.teams?.away?.name || "Unknown",
+        },
+        metaData: null,
         type: "fixture",
-        date: fixture.fixture?.date,
-        status: fixture.fixture?.status?.short,
-        league: fixture.league?.name,
       }));
     } catch (error) {
       console.error("Search fixtures error:", error);
@@ -192,10 +202,13 @@ export class SearchRepository {
         const refereeName = fixture.fixture?.referee;
         if (refereeName && !refereeMap.has(refereeName)) {
           refereeMap.set(refereeName, {
-            id: fixture.korastats_id, // Using fixture ID as referee ID
-            name: refereeName,
+            item: {
+              id: fixture.korastats_id, // Using fixture ID as referee ID
+              name: refereeName,
+              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(refereeName)}&size=256`,
+            },
+            metaData: null,
             type: "referee",
-            league: fixture.league?.name,
           });
         }
       });
@@ -226,15 +239,13 @@ export class SearchRepository {
         .lean();
 
       return coaches.map((coach) => ({
-        id: coach.korastats_id,
-        name: coach.name,
+        item: {
+          id: coach.korastats_id,
+          name: coach.name,
+          image: coach.photo,
+        },
+        metaData: null,
         type: "coach",
-        logo: coach.photo,
-        country:
-          typeof coach.nationality === "string"
-            ? coach.nationality
-            : coach.nationality?.name || "",
-        team: coach.career_history?.find((career) => career.is_current)?.team_name,
       }));
     } catch (error) {
       console.error("Search coaches error:", error);

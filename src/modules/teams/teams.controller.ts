@@ -80,9 +80,9 @@ export class TeamsController {
       return;
     }
 
-    const result = await this.teamsService.followTeam(Number(team_id), userId);
+    await this.teamsService.followTeam(Number(team_id), userId);
 
-    res.json(result);
+    res.status(200).json({}); // Empty response like Python API
   });
 
   /**
@@ -103,7 +103,7 @@ export class TeamsController {
       userId,
     );
 
-    res.json({ isFollowing });
+    res.json({ is_following: isFollowing }); // Match Python API field name
   });
 
   /**
@@ -119,9 +119,9 @@ export class TeamsController {
       return;
     }
 
-    const result = await this.teamsService.unfollowTeam(Number(team_id), userId);
+    await this.teamsService.unfollowTeam(Number(team_id), userId);
 
-    res.json(result);
+    res.status(200).json({ message: "Successfully unfollowed the team." }); // Match Python API response
   });
 
   /**

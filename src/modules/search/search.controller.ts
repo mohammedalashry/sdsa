@@ -13,13 +13,13 @@ export class SearchController {
   search = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { keyword, searchType, lang } = req.query;
 
-    const result: SearchResponse = await this.searchService.search({
+    const result: SearchItem[] = await this.searchService.search({
       keyword: keyword as string,
       searchType: searchType as string,
       lang: lang as "en" | "ar",
     });
 
-    res.json(result);
+    res.json(result); // Return array directly like Python API
   });
 
   /**

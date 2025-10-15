@@ -18,7 +18,7 @@ export class SearchService {
   /**
    * Perform search across multiple entities
    */
-  async search(request: SearchRequest): Promise<SearchResponse> {
+  async search(request: SearchRequest): Promise<SearchItem[]> {
     try {
       const { keyword, searchType, lang = "en" } = request;
 
@@ -97,12 +97,7 @@ export class SearchService {
       // Limit total results
       const limitedResults = allResults.slice(0, MAX_RESULTS * finalSearchTypes.length);
 
-      return {
-        results: limitedResults,
-        total: limitedResults.length,
-        searchType: searchType,
-        keyword: keyword,
-      };
+      return limitedResults; // Return array directly like Python API
     } catch (error) {
       if (error instanceof ApiError) throw error;
       console.error("Search service error:", error);
