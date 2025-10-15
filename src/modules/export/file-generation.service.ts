@@ -22,54 +22,65 @@ export class FileGenerationService {
    * Generate Excel file from export data
    */
   async generateExcelFile(data: ExportData, filename: string): Promise<string> {
-    const workbook = new ExcelJS.Workbook();
+    try {
+      const workbook = new ExcelJS.Workbook();
 
-    // Add each sheet
-    for (const [sheetName, sheetData] of Object.entries(data)) {
-      const worksheet = workbook.addWorksheet(sheetName);
+      // Add each sheet
+      for (const [sheetName, sheetData] of Object.entries(data)) {
+        const worksheet = workbook.addWorksheet(sheetName);
 
-      if (sheetData.length === 0) {
-        worksheet.addRow(["No data available"]);
-        continue;
+        if (sheetData.length === 0) {
+          worksheet.addRow(["No data available"]);
+          continue;
+        }
+
+        // Add headers
+        const headers = Object.keys(sheetData[0]);
+        const headerRow = worksheet.addRow(headers);
+
+        // Style headers
+        headerRow.font = { bold: true };
+        headerRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0E0E0" },
+        };
+
+        // Add data rows
+        sheetData.forEach((row) => {
+          const values = headers.map((header) => {
+            const value = row[header];
+            // Handle null, undefined, and complex objects
+            if (value === null || value === undefined) return "";
+            if (typeof value === "object") return JSON.stringify(value);
+            return value;
+          });
+          worksheet.addRow(values);
+        });
+
+        // Auto-fit columns
+        worksheet.columns.forEach((column) => {
+          let maxLength = 0;
+          column.eachCell({ includeEmpty: true }, (cell) => {
+            const columnLength = cell.value ? cell.value.toString().length : 10;
+            if (columnLength > maxLength) {
+              maxLength = columnLength;
+            }
+          });
+          column.width = Math.min(maxLength + 2, 50);
+        });
       }
 
-      // Add headers
-      const headers = Object.keys(sheetData[0]);
-      worksheet.addRow(headers);
+      // Save file
+      const filePath = join(this.uploadsDir, `${filename}.xlsx`);
+      await workbook.xlsx.writeFile(filePath);
 
-      // Style headers
-      const headerRow = worksheet.getRow(1);
-      headerRow.font = { bold: true };
-      headerRow.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFE0E0E0" },
-      };
-
-      // Add data rows
-      sheetData.forEach((row) => {
-        const values = headers.map((header) => row[header] || "");
-        worksheet.addRow(values);
-      });
-
-      // Auto-fit columns
-      worksheet.columns.forEach((column) => {
-        let maxLength = 0;
-        column.eachCell({ includeEmpty: true }, (cell) => {
-          const columnLength = cell.value ? cell.value.toString().length : 10;
-          if (columnLength > maxLength) {
-            maxLength = columnLength;
-          }
-        });
-        column.width = Math.min(maxLength + 2, 50);
-      });
+      console.log(`✅ Excel file generated successfully: ${filePath}`);
+      return filePath;
+    } catch (error) {
+      console.error("❌ Failed to generate Excel file:", error);
+      throw new Error(`Failed to generate Excel file: ${error.message}`);
     }
-
-    // Save file
-    const filePath = join(this.uploadsDir, `${filename}.xlsx`);
-    await workbook.xlsx.writeFile(filePath);
-
-    return filePath;
   }
 
   /**
@@ -131,7 +142,7 @@ export class FileGenerationService {
       process.env.PRODUCTION_URL ||
       process.env.APP_URL ||
       process.env.API_BASE_URL ||
-      "http://localhost:4000";
+      "https://sdsa.ventiodemo.shop";
     return `${baseUrl}/api/export/download/${filename}.${fileType}`;
   }
 
