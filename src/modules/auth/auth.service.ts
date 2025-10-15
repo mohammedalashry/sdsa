@@ -129,41 +129,53 @@ export const changePassword = async (
   currentPassword: string,
   newPassword: string,
 ) => {
-  const user = await prismaService.user.findUnique({
-    where: { id: userId },
-    select: { id: true, password: true },
-  });
+  try {
+    const user = await prismaService.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
 
-  if (!user) {
-    throw new AppError("User not found", 404);
+    if (!user) {
+      throw new AppError("User not found", 404);
+    }
+
+    if (!user.password) {
+      throw new AppError("User has no password set", 400);
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = verifyDjangoPBKDF2(
+      currentPassword,
+      user.password as string,
+    );
+    if (!isCurrentPasswordValid) {
+      throw new AppError("Current password is incorrect", 400);
+    }
+
+    // Check if new password is different
+    const isSamePassword = verifyDjangoPBKDF2(newPassword, user.password as string);
+    if (isSamePassword) {
+      throw new AppError("New password can't be the same as the old password", 400);
+    }
+
+    // Update password
+    const hashedNewPassword = encodeDjangoPBKDF2(newPassword);
+    await prismaService.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+        change_password: false,
+      },
+    });
+
+    return { success: true, message: "Password changed successfully" };
+  } catch (error) {
+    console.error("Change password error:", error);
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError("Failed to change password", 500);
   }
-
-  // Verify current password
-  const isCurrentPasswordValid = verifyDjangoPBKDF2(
-    currentPassword,
-    user.password as string,
-  );
-  if (!isCurrentPasswordValid) {
-    throw new AppError("Current password is incorrect", 400);
-  }
-
-  // Check if new password is different
-  const isSamePassword = verifyDjangoPBKDF2(newPassword, user.password as string);
-  if (isSamePassword) {
-    throw new AppError("New password can't be the same as the old password", 400);
-  }
-
-  // Update password
-  const hashedNewPassword = encodeDjangoPBKDF2(newPassword);
-  await prismaService.user.update({
-    where: { id: userId },
-    data: {
-      password: hashedNewPassword,
-      change_password: false,
-    },
-  });
-
-  return { success: true, message: "Password changed successfully" };
 };
 
 /**

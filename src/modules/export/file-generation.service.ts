@@ -127,7 +127,11 @@ export class FileGenerationService {
     }
 
     // Return relative URL for download
-    const baseUrl = process.env.API_BASE_URL || "http://localhost:3000";
+    const baseUrl =
+      process.env.PRODUCTION_URL ||
+      process.env.APP_URL ||
+      process.env.API_BASE_URL ||
+      "http://localhost:4000";
     return `${baseUrl}/api/export/download/${filename}.${fileType}`;
   }
 

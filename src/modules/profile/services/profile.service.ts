@@ -183,14 +183,17 @@ export class ProfileService {
   /**
    * Get user's followed teams
    */
-  async getFollowedTeams(userId: number): Promise<number[]> {
+  async getFollowedTeams(userId: number): Promise<string[]> {
     try {
       const teamFollows = await prismaService.teamFollow.findMany({
         where: { user_id: userId },
-        select: { team_id: true },
+        select: { team: true },
       });
 
-      return teamFollows.map((follow) => follow.team_id);
+      return teamFollows.map((follow) => {
+        const teamData = follow.team as any;
+        return teamData?.name || "Unknown Team";
+      });
     } catch (error) {
       console.error("❌ Failed to get followed teams:", error);
       throw new ApiError(500, "Failed to retrieve followed teams");
