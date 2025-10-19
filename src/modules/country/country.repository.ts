@@ -14,24 +14,36 @@ export class CountryRepository {
   /**
    * GET /api/country/ - Get countries
    */
-  async getCountries(options: { name?: string }): Promise<CountryData[]> {
+  async getCountries(options: { name?: string }): Promise<CountryData[] | CountryData> {
     try {
       const cacheKey = `countries_${options.name || "all"}`;
 
-      const cached = this.cacheService.get<CountryData[]>(cacheKey);
+      const cached = this.cacheService.get<CountryData[] | CountryData>(cacheKey);
       if (cached) {
         return cached;
       }
-      const countries = await this.korastatsService.getEntityCountries(options.name);
-      if (!countries.root.object) {
-        return [];
+      if (options.name && options.name !== "all") {
+        const countries = await this.korastatsService.getEntityCountries(options.name);
+        if (!countries.root.object) {
+          return [];
+        }
+        const country: CountryData = countries.root.object.map((country) => ({
+          id: country.id,
+          name: country.name,
+          code: this.generateCountryCode(country.name),
+          flag: country.flag,
+        }))[0];
+        return country;
       }
-      return countries.root.object.map((country) => ({
-        id: country.id,
+      const countries = await Models.Country.find();
+      const countryData: CountryData[] = countries.map((country) => ({
+        id: country.korastats_id,
         name: country.name,
-        code: this.generateCountryCode(country.name),
+        code: country.code,
         flag: country.flag,
       }));
+      this.cacheService.set(cacheKey, countryData, 30 * 60 * 1000);
+      return countryData;
     } catch (error) {
       console.error("Failed to fetch countries:", error);
       return [];

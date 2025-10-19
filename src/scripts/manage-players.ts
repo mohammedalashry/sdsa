@@ -72,7 +72,7 @@ async function syncAllTournamentsPlayers(service: PlayerDataService) {
   console.log("⚽ Syncing players for ALL tournaments...");
 
   // Get all tournaments and sync players for each
-  const tournaments = [840, 1441]; // Pro League tournaments
+  const tournaments = [1441, 840, 600, 934]; // Pro League tournaments
   let totalCompleted = 0;
   let totalFailed = 0;
 

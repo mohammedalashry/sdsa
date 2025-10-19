@@ -11,6 +11,7 @@ import {
   PlayerCareerResponse,
   PlayerTraitsResponse,
   PlayerInfoResponse,
+  FixturePlayer,
 } from "../../legacy-types/players.types";
 import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
 
@@ -37,18 +38,14 @@ export class PlayersService {
   async getPlayerFixtures(options: {
     id: number;
     league: number;
-  }): Promise<FixtureDataResponse> {
+  }): Promise<FixturePlayer[]> {
     return await this.playersRepository.getPlayerFixtures(options.id);
   }
 
   /**
    * GET /api/player/heatmap/ - Get player heatmap
    */
-  async getPlayerHeatmap(options: {
-    league: number;
-    player: number;
-    season: number;
-  }): Promise<PlayerHeatMapResponse> {
+  async getPlayerHeatmap(options: { player: number }): Promise<PlayerHeatMapResponse> {
     return await this.playersRepository.getPlayerHeatmap(options);
   }
 

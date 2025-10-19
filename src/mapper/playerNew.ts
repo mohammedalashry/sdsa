@@ -338,7 +338,7 @@ export class PlayerNew {
       tournamentStats.map(async (stat) => {
         // Get team logo with fallback
         const teamLogo = await this.korastatsService
-          .getImageUrl("club", stat.team?.id || 0)
+          .getImageUrl("club", entityPlayer.current_team?.id || 0)
           .catch(() => "https://via.placeholder.com/100x100/cccccc/666666?text=TEAM");
 
         // Helper function to get stat value by ID
@@ -358,7 +358,7 @@ export class PlayerNew {
             logo: teamLogo,
           },
           league: {
-            id: tournamentId,
+            id: leagueInfo?.id || 0,
             name: leagueInfo?.name || "Unknown League",
             type: leagueInfo?.type || "League",
             country: countryData?.root?.object?.[0]?.name || "Saudi Arabia",
@@ -375,7 +375,10 @@ export class PlayerNew {
             lineups: getStatValue(27), // Matches Played as Lineup
             minutes: getStatValue(20), // Minutes Played
             number: stat.shirtnumber || 0,
-            position: stat.position?.name || "Unknown",
+            position:
+              entityPlayer.positions?.primary?.name ||
+              entityPlayer.positions?.secondary?.name ||
+              "Unknown",
             rating: this.calculatePlayerRating(stat.stats),
             captain: false, // Not available in Korastats
           },
@@ -569,8 +572,9 @@ export class PlayerNew {
       if (topStat.arrData?.length > 0) {
         const playerData = topStat.arrData.find((data) => data.intStatTypeID > 0);
         if (playerData && playerData.decStatValue > 0) {
-          const season = parseInt(topStat.strSeasonName) || new Date().getFullYear();
-          const league = topStat.intTournamentID || 840;
+          const leagueInfo = LeagueLogoService.getLeagueLogo(topStat.intTournamentID);
+          const season = leagueInfo?.season || new Date().getFullYear();
+          const league = leagueInfo?.id || 0;
 
           // Use correct stat type IDs from ListStatTypes
           // Goals Scored = intID: 21, Assists = intID: 22
@@ -647,8 +651,8 @@ export class PlayerNew {
     for (let i = 0; i < 10; i++) {
       for (let j = 0; j < 10; j++) {
         if (Math.random() > 0.7) {
-          // 30% coverage
-          defaultPoints.push([i / 10, j / 10, Math.random() * 10]);
+          // 30% coverage - format: [[x,y],[x,y]...] (no intensity value)
+          defaultPoints.push([i / 10, j / 10]);
         }
       }
     }

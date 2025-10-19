@@ -15,7 +15,7 @@ export const exportValidationSchemas = {
     fileType: Joi.string().valid("xlsx", "csv").default("xlsx"),
     league: Joi.number().integer().required(),
     season: Joi.number().integer().required(),
-    round: Joi.number().integer().optional(),
+    round: Joi.string().optional(),
   }),
 
   matchDetailPage: Joi.object({

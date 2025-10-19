@@ -15,7 +15,7 @@ export class CountryService {
   /**
    * GET /api/country/ - Get countries
    */
-  async getCountries(options: { name?: string }): Promise<CountryData[]> {
+  async getCountries(options: { name?: string }): Promise<CountryData[] | CountryData> {
     return await this.countryRepository.getCountries(options);
   }
 }

@@ -234,115 +234,14 @@ export class PlayerDataService {
         }
       }
 
-      // Step 3: Process each player individually
-      for (const [index, playerId] of playerIdsToSync.entries()) {
-        try {
-          const teamId = playerTeamMap.get(playerId);
-          progress.current = `Processing player ${index + 1}/${playerIdsToSync.length}: ID ${playerId}`;
-          console.log(progress.current);
-
-          // Fetch individual player data
-          const entityPlayerResponse =
-            await this.korastatsService.getEntityPlayer(playerId);
-          const entityPlayer = (entityPlayerResponse as any).root?.object;
-          if (!entityPlayer) {
-            throw new Error(`No entity data found for player ${playerId}`);
-          }
-          // Fetch player tournament stats
-          const playerStatsResponse =
-            await this.korastatsService.getTournamentPlayerStats(
-              options.tournamentId,
-              playerId,
-            );
-          // Ensure playerStats is always an array
-          const playerStatsData = playerStatsResponse.data;
-          const playerStats = Array.isArray(playerStatsData)
-            ? playerStatsData
-            : playerStatsData
-              ? [playerStatsData]
-              : [];
-          // Fetch player info if available
-          let playerInfo;
-          try {
-            const playerInfoResponse =
-              await this.korastatsService.getPlayerInfo(playerId);
-            playerInfo = playerInfoResponse.data;
-          } catch (error) {
-            console.warn(
-              `⚠️ Could not fetch player info for ${playerId}: ${error.message}`,
-            );
-            playerInfo = { _type: "PLAYER INFO", matches: [] };
-          }
-
-          // Map the player data
-          // Ensure all parameters are in correct format
-          const safePlayerStats = Array.isArray(playerStats) ? playerStats : [];
-          const safeTopStats = Array.isArray(topStatsMap.get(playerId))
-            ? topStatsMap.get(playerId)
-            : [];
-
-          try {
-            const mappedPlayer = await this.playerMapper.mapToPlayer(
-              entityPlayer,
-              safePlayerStats,
-              safeTopStats,
-              options.tournamentId,
-            );
-
-            // Check if player already exists for merging
-            const existingPlayer = await Models.Player.findOne({
-              korastats_id: playerId,
-            });
-
-            if (existingPlayer && !options.forceResync) {
-              // Merge data instead of replacing
-              await this.mergePlayerStats(
-                existingPlayer as PlayerInterface,
-                mappedPlayer,
-              );
-              await this.mergePlayerAchievements(
-                existingPlayer as PlayerInterface,
-                mappedPlayer,
-              );
-              await this.mergePlayerCareerSummary(
-                existingPlayer as PlayerInterface,
-                mappedPlayer,
-              );
-              console.log(`✅ Successfully merged player ${playerId}`);
-            } else {
-              // Store new player or force resync
-              await Models.Player.findOneAndUpdate(
-                { korastats_id: playerId },
-                {
-                  ...mappedPlayer,
-                  last_synced: new Date(),
-                  updated_at: new Date(),
-                },
-                { upsert: true, new: true },
-              );
-              console.log(`✅ Successfully synced player ${playerId}`);
-            }
-          } catch (mapperError) {
-            console.error(
-              `❌ Mapper failed for player ${playerId}:`,
-              mapperError.message,
-            );
-            throw new Error(`Mapper failed: ${mapperError.message}`);
-          }
-
-          progress.completed++;
-        } catch (error) {
-          progress.failed++;
-          progress.errors.push(`Player ${playerId}: ${error.message}`);
-          console.error(`❌ Failed to sync player ${playerId}:`, error.message);
-        }
-
-        // Add small delay to respect API limits
-        if (index < playerIdsToSync.length - 1 && index % 10 === 9) {
-          console.log("⏱️ Pausing for API rate limiting...");
-          await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay every 10 players
-        }
-      }
+      // Step 3: Process players in batches to prevent socket hang up errors
+      await this.syncPlayersBatch(
+        playerIdsToSync,
+        playerTeamMap,
+        topStatsMap,
+        options,
+        progress,
+      );
 
       progress.current = `Player sync completed: ${progress.completed}/${progress.total} players processed`;
       progress.endTime = new Date();
@@ -522,6 +421,187 @@ export class PlayerDataService {
   }
 
   // ===================================================================
+  // BATCH PROCESSING METHODS
+  // ===================================================================
+
+  /**
+   * Sync players in batches with retry logic to prevent socket hang up errors
+   */
+  private async syncPlayersBatch(
+    playerIds: number[],
+    playerTeamMap: Map<number, number>,
+    topStatsMap: Map<number, any[]>,
+    options: PlayerSyncOptions,
+    progress: PlayerSyncProgress,
+  ): Promise<void> {
+    const batchSize = 3; // Process 3 players at a time
+    const delayBetweenBatches = 2000; // 2 second delay between batches
+    const delayBetweenRequests = 1000; // 1 second delay between individual requests
+
+    for (let i = 0; i < playerIds.length; i += batchSize) {
+      const batch = playerIds.slice(i, i + batchSize);
+
+      console.log(
+        `📦 Processing players batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(playerIds.length / batchSize)}`,
+      );
+
+      const batchPromises = batch.map(async (playerId) => {
+        const maxRetries = 3;
+        let retryCount = 0;
+
+        while (retryCount < maxRetries) {
+          try {
+            progress.current = `Processing player ${playerId} (attempt ${retryCount + 1}/${maxRetries})...`;
+
+            // Add delay before API call
+            if (retryCount > 0) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, delayBetweenRequests * retryCount),
+              );
+            }
+
+            await this.syncSinglePlayerInBatch(
+              playerId,
+              playerTeamMap.get(playerId),
+              topStatsMap.get(playerId) || [],
+              options,
+            );
+
+            progress.completed++;
+            console.log(`✅ Successfully synced player ${playerId}`);
+            break; // Success, exit retry loop
+          } catch (error) {
+            retryCount++;
+            console.warn(
+              `⚠️ Attempt ${retryCount}/${maxRetries} failed for player ${playerId}: ${error.message}`,
+            );
+
+            if (retryCount >= maxRetries) {
+              console.error(
+                `❌ Failed to sync player ${playerId} after ${maxRetries} attempts:`,
+                error.message,
+              );
+              progress.failed++;
+              progress.errors.push(`Player ${playerId}: ${error.message}`);
+
+              // If it's a network error, add extra delay before next player
+              if (
+                error.message.includes("socket hang up") ||
+                error.message.includes("timeout") ||
+                error.message.includes("ECONNRESET")
+              ) {
+                console.log(`⏳ Adding extra delay due to network error...`);
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+              }
+            } else {
+              // Wait before retry with exponential backoff
+              const retryDelay = delayBetweenRequests * Math.pow(2, retryCount - 1);
+              console.log(`⏳ Retrying in ${retryDelay}ms...`);
+              await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            }
+          }
+        }
+      });
+
+      await Promise.allSettled(batchPromises);
+
+      // Add delay between batches
+      if (i + batchSize < playerIds.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
+  }
+
+  /**
+   * Sync a single player within a batch
+   */
+  private async syncSinglePlayerInBatch(
+    playerId: number,
+    teamId: number | undefined,
+    topStats: any[],
+    options: PlayerSyncOptions,
+  ): Promise<void> {
+    // Fetch individual player data
+    const entityPlayerResponse = await this.korastatsService.getEntityPlayer(playerId);
+    const entityPlayer = (entityPlayerResponse as any).root?.object;
+    if (!entityPlayer) {
+      throw new Error(`No entity data found for player ${playerId}`);
+    }
+
+    // Fetch player tournament stats
+    const playerStatsResponse = await this.korastatsService.getTournamentPlayerStats(
+      options.tournamentId,
+      playerId,
+    );
+
+    // Ensure playerStats is always an array
+    const playerStatsData = playerStatsResponse.data;
+    const playerStats = Array.isArray(playerStatsData)
+      ? playerStatsData
+      : playerStatsData
+        ? [playerStatsData]
+        : [];
+
+    // Fetch player info if available
+    let playerInfo;
+    try {
+      const playerInfoResponse = await this.korastatsService.getPlayerInfo(playerId);
+      playerInfo = playerInfoResponse.data;
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch player info for ${playerId}: ${error.message}`);
+      playerInfo = { _type: "PLAYER INFO", matches: [] };
+    }
+
+    // Map the player data
+    // Ensure all parameters are in correct format
+    const safePlayerStats = Array.isArray(playerStats) ? playerStats : [];
+    const safeTopStats = Array.isArray(topStats) ? topStats : [];
+
+    try {
+      const mappedPlayer = await this.playerMapper.mapToPlayer(
+        entityPlayer,
+        safePlayerStats,
+        safeTopStats,
+        options.tournamentId,
+      );
+
+      // Check if player already exists for merging
+      const existingPlayer = await Models.Player.findOne({
+        korastats_id: playerId,
+      });
+
+      if (existingPlayer && !options.forceResync) {
+        // Merge data instead of replacing
+        await this.mergePlayerStats(existingPlayer as PlayerInterface, mappedPlayer);
+        await this.mergePlayerAchievements(
+          existingPlayer as PlayerInterface,
+          mappedPlayer,
+        );
+        await this.mergePlayerCareerSummary(
+          existingPlayer as PlayerInterface,
+          mappedPlayer,
+        );
+        console.log(`✅ Successfully merged player ${playerId}`);
+      } else {
+        // Store new player or force resync
+        await Models.Player.findOneAndUpdate(
+          { korastats_id: playerId },
+          {
+            ...mappedPlayer,
+            last_synced: new Date(),
+            updated_at: new Date(),
+          },
+          { upsert: true, new: true },
+        );
+        console.log(`✅ Successfully synced player ${playerId}`);
+      }
+    } catch (mapperError) {
+      console.error(`❌ Mapper failed for player ${playerId}:`, mapperError.message);
+      throw new Error(`Mapper failed: ${mapperError.message}`);
+    }
+  }
+
+  // ===================================================================
   // UTILITY METHODS
   // ===================================================================
 
@@ -663,10 +743,6 @@ export class PlayerDataService {
       { korastats_id: existingPlayer.korastats_id },
       {
         stats: mergedStats,
-        playerTraits: newPlayerData.playerTraits,
-        topScorers: newPlayerData.topScorers,
-        topAssists: newPlayerData.topAssists,
-        career_summary: newPlayerData.career_summary,
         last_synced: new Date(),
         updated_at: new Date(),
       },
@@ -684,27 +760,36 @@ export class PlayerDataService {
     const existingTopAssists = existingPlayer.topAssists || [];
     const newTopScorers = newPlayerData.topScorers || [];
     const newTopAssists = newPlayerData.topAssists || [];
-
     // Merge topScorers by season + league
-    const topScorersMap = new Map<string, any>();
-    [...existingTopScorers, ...newTopScorers].forEach((achievement) => {
+    const existingTopScorersMap = new Map<string, any>();
+    existingTopScorers.forEach((achievement) => {
       const key = `${achievement.season}-${achievement.league}`;
-      topScorersMap.set(key, achievement);
+      existingTopScorersMap.set(key, achievement);
     });
-
-    // Merge topAssists by season + league
-    const topAssistsMap = new Map<string, any>();
-    [...existingTopAssists, ...newTopAssists].forEach((achievement) => {
+    const existingTopAssistsMap = new Map<string, any>();
+    existingTopAssists.forEach((achievement) => {
       const key = `${achievement.season}-${achievement.league}`;
-      topAssistsMap.set(key, achievement);
+      existingTopAssistsMap.set(key, achievement);
     });
-
-    // Update the player with merged achievements
+    const mergedTopScorers = [...existingTopScorers];
+    newTopScorers.forEach((achievement) => {
+      const key = `${achievement.season}-${achievement.league}`;
+      if (existingTopScorersMap.has(key)) {
+        mergedTopScorers.push(achievement);
+      }
+    });
+    const mergedTopAssists = [...existingTopAssists];
+    newTopAssists.forEach((achievement) => {
+      const key = `${achievement.season}-${achievement.league}`;
+      if (existingTopAssistsMap.has(key)) {
+        mergedTopAssists.push(achievement);
+      }
+    });
     await Models.Player.findOneAndUpdate(
       { korastats_id: existingPlayer.korastats_id },
       {
-        topScorers: Array.from(topScorersMap.values()),
-        topAssists: Array.from(topAssistsMap.values()),
+        topScorers: mergedTopScorers,
+        topAssists: mergedTopAssists,
         last_synced: new Date(),
         updated_at: new Date(),
       },

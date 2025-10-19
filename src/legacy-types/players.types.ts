@@ -101,6 +101,19 @@ export interface PlayerStatistics {
   cards: PlayerCard;
   penalty: PlayerPenalty;
 }
+export interface PlayerFixtureStatistics {
+  games: PlayerGames;
+  substitutes: PlayerSubstitutes;
+  shots: PlayerShots;
+  goals: PlayerGoals;
+  passes: PlayerPasses;
+  tackles: PlayerTackles;
+  duels: PlayerDuels;
+  dribbles: PlayerDribbles;
+  fouls: PlayerFouls;
+  cards: PlayerCard;
+  penalty: PlayerPenalty;
+}
 export interface PlayerData {
   player: PlayerInfo;
   statistics: PlayerStatistics[];
@@ -129,6 +142,12 @@ export interface TrophiesTeamData {
 export interface CareerData {
   team: Team;
   season: number;
+  goals: {
+    total: number;
+    assists: number;
+    conceded: number;
+    saves: number;
+  };
 }
 export interface PlayerBaseInfo {
   player: PlayerInfo;
@@ -153,7 +172,7 @@ export interface PlayerStatisticsItem {
 export interface FixturePlayer {
   fixture: FixtureData;
   team: { id: number; name: string; logo: string };
-  statistics: PlayerStatistics;
+  statistics: PlayerFixtureStatistics;
 }
 export interface PlayerTraits {
   att: number;
@@ -176,8 +195,18 @@ export interface PlayerShotMap {
   shots: ShotPlayer[];
   accuracy: number;
 }
-
-export type PlayerInfoResponse = PlayerInfo;
+export interface NewPlayerInfo {
+  player: PlayerInfo;
+  team: {
+    id: number;
+    name: string;
+    logo: string;
+  };
+  transfer: string;
+  position: string;
+  shirtNumber: number;
+}
+export type PlayerInfoResponse = NewPlayerInfo;
 export type TopScorersResponse = PlayerData[];
 export type TopAssistsResponse = PlayerData[];
 export type PlayerCareerResponse = CareerData[];

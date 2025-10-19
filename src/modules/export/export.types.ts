@@ -16,6 +16,11 @@ export interface ExportRequest {
   coach2?: number;
   referee1?: number;
   referee2?: number;
+  // For comparison pages
+  players?: number[];
+  teams?: number[];
+  coaches?: number[];
+  referees?: number[];
 }
 
 export interface ExportResponse {
@@ -26,7 +31,7 @@ export interface ExportResponse {
 }
 
 export interface ExportData {
-  [sheetName: string]: any[];
+  [sheetName: string]: any[] | any;
 }
 
 export const SUPPORTED_FILE_TYPES = ["xlsx", "csv"] as const;

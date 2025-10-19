@@ -6,8 +6,6 @@ import { CacheService } from "@/integrations/korastats/services/cache.service";
 import { ApiError } from "@/core/middleware/error.middleware";
 import { PlayerInterface } from "@/db/mogodb/schemas/player.schema";
 import {
-  PlayerInfo,
-  PlayerStatistics,
   PlayerData,
   PlayerInfoResponse,
   TopScorersResponse,
@@ -21,7 +19,6 @@ import {
   PlayerHeatMapResponse,
   PlayerShotMapResponse,
 } from "@/legacy-types/players.types";
-import { FixtureDataResponse } from "@/legacy-types/fixtures.types";
 import { Team } from "@/legacy-types";
 
 export class PlayersRepository {
@@ -52,7 +49,7 @@ export class PlayersRepository {
         console.log(`📦 No player found for ID ${playerId}`);
         return [];
       }
-
+      const stats = player.stats.find((stat) => stat.team.id === team.korastats_id);
       // Map career data to proper format
       const career = player.career_summary.careerData.map((careerItem) => ({
         team: {
@@ -65,6 +62,12 @@ export class PlayersRepository {
           logo: team.logo,
         },
         season: careerItem.season,
+        goals: {
+          total: stats?.goals.total || 0,
+          assists: stats?.goals.assists || 0,
+          conceded: stats?.goals.conceded || 0,
+          saves: stats?.goals.saves || 0,
+        },
       }));
 
       this.cacheService.set(cacheKey, career, 30 * 60 * 1000); // Cache for 30 minutes
@@ -128,11 +131,11 @@ export class PlayersRepository {
   /**
    * Get player fixtures
    */
-  async getPlayerFixtures(playerId: number): Promise<FixtureDataResponse> {
+  async getPlayerFixtures(playerId: number): Promise<PlayerFixturesResponse> {
     try {
       const cacheKey = `player_fixtures_${playerId}`;
 
-      const cached = this.cacheService.get<FixtureDataResponse>(cacheKey);
+      const cached = this.cacheService.get<PlayerFixturesResponse>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -141,12 +144,12 @@ export class PlayersRepository {
       const player = await Models.Player.findOne({ korastats_id: playerId }).lean();
 
       if (!player) {
-        return [];
+        throw new ApiError(404, "Player not found");
       }
 
       // Get team IDs from player's statistics
-      const teamIds = player.stats.map((stat) => stat.team.id);
-
+      const teamIds = Array.from(new Set(player.stats.map((stat) => stat.team.id)));
+      console.log("teamIds", teamIds);
       // Get matches where player's teams participated
       const matches = await Models.Match.find({
         $or: [
@@ -157,19 +160,106 @@ export class PlayersRepository {
         .sort({ "fixture.date": -1 })
         .limit(10)
         .lean();
-
-      const fixtures = matches.map((match) => {
-        return {
-          fixture: match.fixture,
-          league: match.league,
-          teams: match.teams,
-          goals: match.goals,
-          score: match.score,
-          tablePosition: match.tablePosition, // Will be calculated from standings
-          averageTeamRating: match.averageTeamRating, // Will be calculated from team ratings
-        };
-      });
-
+      console.log("matches", matches.length);
+      const matchDetails = await Models.MatchDetails.find({
+        korastats_id: { $in: matches.map((match) => match.korastats_id) },
+      }).lean();
+      console.log("matchDetails", matchDetails.length);
+      const fixtures = await Promise.all(
+        matches.map(async (match) => {
+          const matchDetail = matchDetails.find(
+            (detail) => detail.korastats_id === match.korastats_id,
+          );
+          const team = teamIds.find(
+            (id) => id === match.teams.home.id || id === match.teams.away.id,
+          );
+          console.log("teamIds", teamIds);
+          console.log("match.teams.home.id", match.teams.home.id);
+          console.log("match.teams.away.id", match.teams.away.id);
+          console.log("team", team);
+          const teamData = await this.mapTeam(team);
+          const statistics = matchDetail?.playerStatsData
+            .find((stats) => stats.team.id === teamData?.id)
+            ?.players.find((player) => player.player.id === playerId)?.statistics[0];
+          return {
+            team: {
+              id: teamData?.id || 0,
+              name: teamData?.name || "",
+              logo: teamData?.logo || "",
+            },
+            fixture: {
+              fixture: match.fixture,
+              league: match.league,
+              teams: match.teams,
+              goals: match.goals,
+              score: match.score,
+              tablePosition: match.tablePosition,
+              averageTeamRating: match.averageTeamRating,
+            },
+            statistics: {
+              games: {
+                appearences: statistics?.games.number || 0,
+                lineups: statistics?.games.number || 0,
+                minutes: statistics?.games.minutes || 0,
+                number: statistics?.games.number || 0,
+                position: statistics?.games.position || "",
+                rating: statistics?.games.rating || "0.0",
+                captain: false,
+              },
+              substitutes: {
+                in: statistics?.games.substitute ? 1 : 0,
+                out: statistics?.games.substitute ? 0 : 1,
+                bench: statistics?.games.substitute ? 0 : 1,
+              },
+              shots: {
+                total: statistics?.shots.total || 0,
+                on: statistics?.shots.on || 0,
+              },
+              goals: {
+                total: statistics?.goals.total || 0,
+                assists: statistics?.goals.assists || 0,
+                conceded: statistics?.goals.conceded || 0,
+                saves: statistics?.goals.saves || 0,
+              },
+              passes: {
+                total: statistics?.passes.total || 0,
+                key: statistics?.passes.key || 0,
+                accuracy: parseInt(statistics?.passes.accuracy || "0"),
+              },
+              tackles: {
+                total: statistics?.tackles.total || 0,
+                blocks: statistics?.tackles.blocks || 0,
+                interceptions: statistics?.tackles.interceptions || 0,
+              },
+              duels: {
+                total: statistics?.duels.total || 0,
+                won: statistics?.duels.won || 0,
+              },
+              dribbles: {
+                attempts: statistics?.dribbles.attempts || 0,
+                success: statistics?.dribbles.success || 0,
+                past: statistics?.dribbles.past || 0,
+              },
+              fouls: {
+                drawn: statistics?.fouls.drawn || 0,
+                committed: statistics?.fouls.committed || 0,
+              },
+              cards: {
+                yellow: statistics?.cards.yellow || 0,
+                red: statistics?.cards.red || 0,
+                yellowred: statistics?.cards.yellowred || 0,
+              },
+              penalty: {
+                won: statistics?.penalty.won || 0,
+                commited: statistics?.penalty.committed || 0,
+                scored: statistics?.penalty.scored || 0,
+                missed: statistics?.penalty.missed || 0,
+                saved: statistics?.penalty.saved || 0,
+              },
+            },
+          };
+        }),
+      );
       this.cacheService.set(cacheKey, fixtures, 15 * 60 * 1000);
       return fixtures;
     } catch (error) {
@@ -199,21 +289,27 @@ export class PlayersRepository {
 
       // Map PlayerInterface to PlayerInfo response
       const playerInfo: PlayerInfoResponse = {
-        id: player.korastats_id,
-        name: player.name,
-        firstname: player.firstname || null,
-        lastname: player.lastname || null,
-        age: player.age,
-        birth: {
-          date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
-          place: player.birth.place || null,
-          country: player.birth.country || null,
+        player: {
+          id: player.korastats_id,
+          name: player.name,
+          firstname: player.firstname || null,
+          lastname: player.lastname || null,
+          age: player.age,
+          birth: {
+            date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
+            place: player.birth.place || null,
+            country: player.birth.country || null,
+          },
+          nationality: player.nationality || null,
+          height: player.height?.toString() || null,
+          weight: player.weight?.toString() || null,
+          injured: player.injured,
+          photo: player.photo,
         },
-        nationality: player.nationality || null,
-        height: player.height?.toString() || null,
-        weight: player.weight?.toString() || null,
-        injured: player.injured,
-        photo: player.photo,
+        team: await this.mapTeam(player.stats[0].team.id),
+        transfer: "",
+        position: player.positions?.primary?.name || "",
+        shirtNumber: player.shirtNumber || 0,
       };
 
       this.cacheService.set(cacheKey, playerInfo, 30 * 60 * 1000);
@@ -230,13 +326,9 @@ export class PlayersRepository {
   /**
    * Get player heatmap from new Player schema
    */
-  async getPlayerHeatmap(options: {
-    league: number;
-    player: number;
-    season: number;
-  }): Promise<PlayerHeatMapResponse> {
+  async getPlayerHeatmap(options: { player: number }): Promise<PlayerHeatMapResponse> {
     try {
-      const cacheKey = `player_heatmap_${options.player}_${options.league}_${options.season}`;
+      const cacheKey = `player_heatmap_${options.player}`;
 
       const cached = this.cacheService.get<PlayerHeatMapResponse>(cacheKey);
       if (cached) {
@@ -375,7 +467,7 @@ export class PlayersRepository {
           age: player.age,
           birth: {
             date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
-            place: player.birth.place || null,
+            place: player.birth.place || player.birth.country || null,
             country: player.birth.country || null,
           },
           nationality: player.nationality || null,

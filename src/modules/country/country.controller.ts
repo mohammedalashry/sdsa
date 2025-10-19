@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { CountryService } from "./country.service";
+import { CountryData, CountryService } from "./country.service";
 import { catchAsync } from "../../core/utils/catch-async";
 
 export class CountryController {
@@ -12,9 +12,11 @@ export class CountryController {
   getAllCountries = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { name } = req.query;
 
-    const countries = await this.countryService.getCountries({
-      name: name as string,
-    });
+    const countries: CountryData[] | CountryData = await this.countryService.getCountries(
+      {
+        name: name as string,
+      },
+    );
 
     res.json(countries);
   });

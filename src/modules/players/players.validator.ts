@@ -20,13 +20,7 @@ export const playersValidationSchemas = {
 
   // GET /api/player/heatmap/ - league (query), player (query), season (query)
   getPlayerHeatmap: Joi.object({
-    league: Joi.number().integer().positive().required(),
     player: Joi.number().integer().positive().required(),
-    season: Joi.number()
-      .integer()
-      .min(2000)
-      .max(new Date().getFullYear() + 2)
-      .required(),
   }),
 
   // GET /api/player/info/ - id (query)

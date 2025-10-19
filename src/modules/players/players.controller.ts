@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
 import { PlayersService } from "./players.service";
 import { catchAsync } from "../../core/utils/catch-async";
-import { PlayerInfo, PlayerStatistics } from "../../legacy-types/players.types";
-import { FixtureDataResponse } from "../../legacy-types/fixtures.types";
+import { FixturePlayer, PlayerInfoResponse } from "../../legacy-types/players.types";
 
 export class PlayersController {
   constructor(private readonly playersService: PlayersService) {}
@@ -40,7 +39,7 @@ export class PlayersController {
   getPlayerFixtures = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { id, league } = req.query;
 
-    const fixtures: FixtureDataResponse = await this.playersService.getPlayerFixtures({
+    const fixtures: FixturePlayer[] = await this.playersService.getPlayerFixtures({
       id: Number(id),
       league: Number(league),
     });
@@ -53,12 +52,10 @@ export class PlayersController {
    * Get player heatmap
    */
   getPlayerHeatmap = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { league, player, season } = req.query;
+    const { player } = req.query;
 
     const heatmap = await this.playersService.getPlayerHeatmap({
-      league: Number(league),
       player: Number(player),
-      season: Number(season),
     });
 
     res.json(heatmap);
@@ -71,7 +68,9 @@ export class PlayersController {
   getPlayerInfo = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.query;
 
-    const playerInfo: PlayerInfo = await this.playersService.getPlayerInfo(Number(id));
+    const playerInfo: PlayerInfoResponse = await this.playersService.getPlayerInfo(
+      Number(id),
+    );
 
     res.json(playerInfo);
   });

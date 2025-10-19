@@ -103,8 +103,5 @@ router.get(
   exportController.exportRefereeComparisonPage,
 );
 
-// GET /api/export/download/:filename - Download exported file
-router.get("/download/:filename", exportController.downloadFile);
-
 export default router;
 
