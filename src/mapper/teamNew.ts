@@ -1040,6 +1040,7 @@ export class TeamNew {
         (t: KorastatsTeamWithPlayers) => t.id === teamId,
       )?.players;
       if (players && players.length > 0) {
+        console.log("players", players);
         return Math.round(
           players.reduce(
             (sum, player) => sum + (player.dob ? this.calculateAge(player.dob) : 0),
@@ -1047,6 +1048,7 @@ export class TeamNew {
           ) / players.length,
         );
       }
+      console.log("finished calculating average player age");
       return 0;
     } catch (error) {
       console.warn(
@@ -1060,10 +1062,11 @@ export class TeamNew {
     teamId: number,
     tournamentTeamPlayers: KorastatsTournamentTeamPlayerList,
   ): Promise<number> {
+    console.log("calculating foreign players");
     return (
       tournamentTeamPlayers.teams
         .find((t: KorastatsTeamWithPlayers) => t.id === teamId)
-        ?.players.filter((p) => p.nationality.id !== SA_COUNTRY_ID).length || 0
+        ?.players.filter((p) => p.nationality?.id !== SA_COUNTRY_ID).length || 0
     );
   }
 

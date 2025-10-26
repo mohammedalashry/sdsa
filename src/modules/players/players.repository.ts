@@ -458,27 +458,31 @@ export class PlayersRepository {
         .lean();
 
       // Map to PlayerData format
-      const topScorers = players.map((player) => ({
-        player: {
-          id: player.korastats_id,
-          name: player.name,
-          firstname: player.firstname || null,
-          lastname: player.lastname || null,
-          age: player.age,
-          birth: {
-            date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
-            place: player.birth.place || player.birth.country || null,
-            country: player.birth.country || null,
+      const topScorers = players.map((player) => {
+        //const stats = player.stats.find((stat) => stat.league.season === options.season);
+        console.log("player", player);
+        //console.log("stats", stats);
+        return {
+          player: {
+            id: player.korastats_id,
+            name: player.name,
+            firstname: player.firstname || null,
+            lastname: player.lastname || null,
+            age: player.age,
+            birth: {
+              date: player.birth.date ? player.birth.date.toString().split("T")[0] : null,
+              place: player.birth.place || player.birth.country || null,
+              country: player.birth.country || null,
+            },
+            nationality: player.nationality || null,
+            height: player.height?.toString() || null,
+            weight: player.weight?.toString() || null,
+            injured: player.injured,
+            photo: player.photo,
           },
-          nationality: player.nationality || null,
-          height: player.height?.toString() || null,
-          weight: player.weight?.toString() || null,
-          injured: player.injured,
-          photo: player.photo,
-        },
-        statistics: player.stats,
-      }));
-
+          statistics: player.stats,
+        };
+      });
       this.cacheService.set(cacheKey, topScorers, 30 * 60 * 1000);
       return topScorers;
     } catch (error) {

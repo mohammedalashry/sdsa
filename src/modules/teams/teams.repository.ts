@@ -97,6 +97,22 @@ export class TeamsRepository {
     try {
       // Get team from new Team schema
       const mongoTeam = await Models.Team.findOne({ korastats_id: teamId });
+      const currentYear = new Date().getFullYear();
+      const currentTournament = await Models.Standings.findOne({
+        seasons: { $elemMatch: { year: currentYear } } as any,
+      });
+      let currentTournamentId = null;
+      if (currentTournament) {
+        const seasonData = currentTournament.seasons.find(
+          (s: any) => s.year === currentYear,
+        );
+        seasonData?.standings.forEach((s) => {
+          if (s.team.id === teamId) {
+            currentTournamentId = currentTournament.korastats_id;
+          }
+        });
+        console.log("Current tournament id", currentTournamentId);
+      }
       const coaches = await Models.Coach.find({ team_id: teamId });
       if (mongoTeam) {
         console.log(`📦 Found team ${teamId} in MongoDB`);
@@ -161,15 +177,16 @@ export class TeamsRepository {
           foreignPlayers: mongoTeam.foreignPlayers || 0,
           averagePlayerAge: mongoTeam.averagePlayerAge || 0,
           clubMarketValue: mongoTeam.clubMarketValue || null,
-          currentLeagues:
-            mongoTeam.tournaments
-              .filter((tournament) => tournament.current)
-              .map((tournament) => ({
-                id: tournament.id,
-                name: tournament.name,
-                type: "league",
-                logo: tournament.logo,
-              })) || [], // Would be populated from tournament data
+          currentLeagues: currentTournamentId
+            ? [
+                {
+                  id: currentTournamentId,
+                  name: currentTournament.name,
+                  type: "league",
+                  logo: currentTournament.logo,
+                },
+              ]
+            : [],
           trophies: [],
         };
 

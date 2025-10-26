@@ -570,31 +570,28 @@ export class PlayerDataService {
         korastats_id: playerId,
       });
 
-      if (existingPlayer && !options.forceResync) {
+      if (existingPlayer) {
         // Merge data instead of replacing
-        await this.mergePlayerStats(existingPlayer as PlayerInterface, mappedPlayer);
-        await this.mergePlayerAchievements(
-          existingPlayer as PlayerInterface,
+        const mergedStats = await this.mergePlayerStats(existingPlayer, mappedPlayer);
+        const mergedAchievements = await this.mergePlayerAchievements(
+          existingPlayer,
           mappedPlayer,
         );
-        await this.mergePlayerCareerSummary(
-          existingPlayer as PlayerInterface,
+        const mergedCareerSummary = await this.mergePlayerCareerSummary(
+          existingPlayer,
           mappedPlayer,
         );
-        console.log(`✅ Successfully merged player ${playerId}`);
-      } else {
-        // Store new player or force resync
-        await Models.Player.findOneAndUpdate(
-          { korastats_id: playerId },
-          {
-            ...mappedPlayer,
-            last_synced: new Date(),
-            updated_at: new Date(),
-          },
-          { upsert: true, new: true },
-        );
-        console.log(`✅ Successfully synced player ${playerId}`);
+        mappedPlayer.stats = mergedStats;
+        mappedPlayer.topAssists = mergedAchievements.topAssists;
+        mappedPlayer.topScorers = mergedAchievements.topScorers;
+        mappedPlayer.career_summary = mergedCareerSummary;
       }
+      // Store new player or force resync
+      await Models.Player.findOneAndUpdate({ korastats_id: playerId }, mappedPlayer, {
+        upsert: true,
+        new: true,
+      });
+      console.log(`✅ Successfully synced player ${playerId}`);
     } catch (mapperError) {
       console.error(`❌ Mapper failed for player ${playerId}:`, mapperError.message);
       throw new Error(`Mapper failed: ${mapperError.message}`);
@@ -709,26 +706,28 @@ export class PlayerDataService {
   private async mergePlayerStats(
     existingPlayer: PlayerInterface,
     newPlayerData: PlayerInterface,
-  ): Promise<void> {
+  ): Promise<PlayerInterface["stats"]> {
     const existingStats = existingPlayer.stats || [];
     const newStats = newPlayerData.stats || [];
 
     // Create a map of existing stats by league.id + season (from stat level)
-    const existingStatsMap = new Map<string, any>();
+    const existingStatsMap = new Map<string, PlayerInterface["stats"][number]>();
     existingStats.forEach((stat) => {
       const key = `${stat.league.id}-${stat.league.season}`;
       existingStatsMap.set(key, stat);
     });
 
     // Merge new stats, updating existing ones or adding new ones
-    const mergedStats = [...existingStats];
+    const mergedStats = [...existingStatsMap.values()];
     newStats.forEach((newStat) => {
       const key = `${newStat.league.id}-${newStat.league.season}`;
       if (existingStatsMap.has(key)) {
         // Update existing stat
-        const existingIndex = mergedStats.findIndex((stat) => {
-          return `${stat.league.id}-${stat.league.season}` === key;
-        });
+        const existingIndex = mergedStats.findIndex(
+          (stat) =>
+            stat.league?.id === newStat.league?.id &&
+            stat.league?.season === newStat.league?.season,
+        );
         if (existingIndex !== -1) {
           mergedStats[existingIndex] = newStat;
         }
@@ -739,14 +738,7 @@ export class PlayerDataService {
     });
 
     // Update the player with merged stats
-    await Models.Player.findOneAndUpdate(
-      { korastats_id: existingPlayer.korastats_id },
-      {
-        stats: mergedStats,
-        last_synced: new Date(),
-        updated_at: new Date(),
-      },
-    );
+    return mergedStats;
   }
 
   /**
@@ -755,7 +747,7 @@ export class PlayerDataService {
   private async mergePlayerAchievements(
     existingPlayer: PlayerInterface,
     newPlayerData: PlayerInterface,
-  ): Promise<void> {
+  ): Promise<{ topScorers: any[]; topAssists: any[] }> {
     const existingTopScorers = existingPlayer.topScorers || [];
     const existingTopAssists = existingPlayer.topAssists || [];
     const newTopScorers = newPlayerData.topScorers || [];
@@ -785,15 +777,7 @@ export class PlayerDataService {
         mergedTopAssists.push(achievement);
       }
     });
-    await Models.Player.findOneAndUpdate(
-      { korastats_id: existingPlayer.korastats_id },
-      {
-        topScorers: mergedTopScorers,
-        topAssists: mergedTopAssists,
-        last_synced: new Date(),
-        updated_at: new Date(),
-      },
-    );
+    return { topScorers: mergedTopScorers, topAssists: mergedTopAssists };
   }
 
   /**
@@ -802,7 +786,7 @@ export class PlayerDataService {
   private async mergePlayerCareerSummary(
     existingPlayer: PlayerInterface,
     newPlayerData: PlayerInterface,
-  ): Promise<void> {
+  ): Promise<PlayerInterface["career_summary"]> {
     const existingCareerData = existingPlayer.career_summary?.careerData || [];
     const newCareerData = newPlayerData.career_summary?.careerData || [];
 
@@ -823,18 +807,7 @@ export class PlayerDataService {
       0,
     );
 
-    // Update the player with merged career summary
-    await Models.Player.findOneAndUpdate(
-      { korastats_id: existingPlayer.korastats_id },
-      {
-        career_summary: {
-          total_matches: totalMatches,
-          careerData: mergedCareerData,
-        },
-        last_synced: new Date(),
-        updated_at: new Date(),
-      },
-    );
+    return { total_matches: totalMatches, careerData: mergedCareerData };
   }
 
   /**

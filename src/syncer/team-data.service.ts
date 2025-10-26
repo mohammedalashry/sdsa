@@ -724,16 +724,22 @@ export class TeamDataService {
       });
       if (existingTeam) {
         // Team exists - merge tournament stats instead of replacing
-        await this.mergeTeamTournamentStats(existingTeam, teamData);
-        await this.mergeTournamentsArray(existingTeam.tournaments, teamData.tournaments);
-      } else {
-        // New team - create normally
-        await Models.Team.findOneAndUpdate(
-          { korastats_id: teamData.korastats_id },
+        const mergedTeamTournamentStats = await this.mergeTeamTournamentStats(
+          existingTeam,
           teamData,
-          { upsert: true, new: true },
         );
+        teamData.tournament_stats = mergedTeamTournamentStats;
+        const mergedTournaments = this.mergeTournamentsArray(
+          existingTeam.tournaments,
+          teamData.tournaments,
+        );
+        teamData.tournaments = mergedTournaments;
       }
+      await Models.Team.findOneAndUpdate(
+        { korastats_id: teamData.korastats_id },
+        teamData,
+        { upsert: true, new: true },
+      );
 
       this.logger.debug(
         `Successfully synced team: ${teamListItem.team} (ID: ${teamListItem.id})`,
@@ -752,16 +758,14 @@ export class TeamDataService {
   private async mergeTeamTournamentStats(
     existingTeam: TeamInterface,
     newTeamData: TeamInterface,
-  ): Promise<void> {
+  ): Promise<TeamStats[]> {
     try {
       // Get existing tournament stats
       const existingTournamentStats = existingTeam.tournament_stats || [];
-
       // Get new tournament stats from the mapper
       const newTournamentStats = newTeamData.tournament_stats || [];
-
       // Create a map of existing tournament stats by league ID + season for quick lookup
-      const existingStatsMap = new Map();
+      const existingStatsMap = new Map<string, TeamStats>();
       existingTournamentStats.forEach((stats: any) => {
         const leagueId = stats.league?.id;
         const season = stats.league?.season;
@@ -770,31 +774,21 @@ export class TeamDataService {
           existingStatsMap.set(key, stats);
         }
       });
-
       // Merge new tournament stats
-      const mergedTournamentStats = [...existingTournamentStats];
-
+      const mergedTournamentStats = [...existingStatsMap.values()];
       for (const newStats of newTournamentStats) {
         const leagueId = newStats.league?.id;
         const season = newStats.league?.season;
 
         if (leagueId && season) {
-          // Map 1441 to 840 for consistency (as per user requirement)
           const key = `${leagueId}-${season}`;
-
           if (existingStatsMap.has(key)) {
             // Update existing tournament stats
             const existingIndex = mergedTournamentStats.findIndex(
               (stats) => stats.league?.id === leagueId && stats.league?.season === season,
             );
             if (existingIndex !== -1) {
-              mergedTournamentStats[existingIndex] = {
-                ...newStats,
-                league: {
-                  ...newStats.league,
-                  id: leagueId, // Ensure we use the mapped ID
-                },
-              };
+              mergedTournamentStats[existingIndex] = newStats;
             }
           } else {
             // Add new tournament stats
@@ -803,65 +797,10 @@ export class TeamDataService {
         }
       }
 
-      // Update other fields that might have changed (but preserve existing data)
-      const updateData = {
-        // Update basic info if it has changed
-        name: newTeamData.name || existingTeam.name,
-        code: newTeamData.code || existingTeam.code,
-        logo: newTeamData.logo || existingTeam.logo,
-        founded: newTeamData.founded || existingTeam.founded,
-        national:
-          newTeamData.national !== undefined
-            ? newTeamData.national
-            : existingTeam.national,
-        country: newTeamData.country || existingTeam.country,
-
-        // Update metrics
-        clubMarketValue: newTeamData.clubMarketValue || existingTeam.clubMarketValue,
-        totalPlayers: newTeamData.totalPlayers || existingTeam.totalPlayers,
-        foreignPlayers: newTeamData.foreignPlayers || existingTeam.foreignPlayers,
-        averagePlayerAge: newTeamData.averagePlayerAge || existingTeam.averagePlayerAge,
-
-        // Update venue info
-        venue: newTeamData.venue || existingTeam.venue,
-
-        // Update coaching staff
-        coaches: newTeamData.coaches || existingTeam.coaches,
-
-        // Use merged tournament stats
-        tournament_stats: mergedTournamentStats,
-
-        // Recalculate stats summary from merged tournament stats
-        stats_summary:
-          this.calculateStatsSummaryFromTournamentStats(mergedTournamentStats),
-
-        // Update lineup
-        lineup: newTeamData.lineup || existingTeam.lineup,
-
-        // Update players
-        players: newTeamData.players || existingTeam.players,
-
-        // Update tournaments (merge with uniqueness by id + season)
-        tournaments: this.mergeTournamentsArray(
-          existingTeam.tournaments || [],
-          newTeamData.tournaments || [],
-        ),
-
-        // Update sync tracking
-        last_synced: new Date(),
-        sync_version: (existingTeam.sync_version || 0) + 1,
-        updated_at: new Date(),
-      };
-
-      await Models.Team.findOneAndUpdate(
-        { korastats_id: existingTeam.korastats_id },
-        updateData,
-        { new: true },
-      );
-
       this.logger.debug(
         `Merged tournament stats for team: ${existingTeam.name} (ID: ${existingTeam.korastats_id})`,
       );
+      return mergedTournamentStats;
     } catch (error) {
       this.logger.error(
         `Failed to merge tournament stats for team ${existingTeam.name}: ${error.message}`,
@@ -888,17 +827,13 @@ export class TeamDataService {
         existingTournamentsMap.set(key, tournament);
       }
     });
-
     // Merge new tournaments
-    const mergedTournaments = [...existingTournaments];
-
+    const mergedTournaments = [...existingTournamentsMap.values()];
     for (const newTournament of newTournaments) {
       const id = newTournament.id;
       const season = newTournament.season;
-
       if (id && season) {
         const key = `${id}-${season}`;
-
         if (existingTournamentsMap.has(key)) {
           // Update existing tournament
           const existingIndex = mergedTournaments.findIndex(
@@ -913,7 +848,6 @@ export class TeamDataService {
         }
       }
     }
-
     return mergedTournaments;
   }
 
