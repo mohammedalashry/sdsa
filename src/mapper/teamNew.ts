@@ -105,7 +105,8 @@ export class TeamNew {
 
     // Get venue information from teamInfo match history
     const venueInfo = await this.getVenueInformation(teamInfo);
-
+    const statsSummary = await this.calculateStatsSummary(teamStats);
+    console.log("statsSummary", statsSummary);
     // Calculate team ranking and market value
     console.log("MODA tournamentId", tournamentId);
 
@@ -149,16 +150,7 @@ export class TeamNew {
 
       // === STATISTICS ===
       tournament_stats: [statsAnalysis],
-      stats_summary: {
-        gamesPlayed: { home: 0, away: 0 },
-        wins: { home: 0, away: 0 },
-        draws: { home: 0, away: 0 },
-        loses: { home: 0, away: 0 },
-        goalsScored: { home: 0, away: 0 },
-        goalsConceded: { home: 0, away: 0 },
-        goalDifference: 0,
-        cleanSheetGames: 0,
-      },
+      stats_summary: statsSummary,
 
       // === TACTICAL DATA ===
       lineup: lineupData,
@@ -1144,6 +1136,35 @@ export class TeamNew {
       "4:2", // FWD
     ];
     return positions[index] || "3:3";
+  }
+  private calculateStatsSummary(teamStats: KorastatsTournamentTeamStats): any {
+    const stats = teamStats.stats;
+    return {
+      gamesPlayed: {
+        home: stats.find((s) => s.stat === "Matches Played as Lineup")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Matches Played as Lineup")?.value / 2 || 0,
+      },
+      wins: {
+        home: stats.find((s) => s.stat === "Win")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Win")?.value / 2 || 0,
+      },
+      draws: {
+        home: stats.find((s) => s.stat === "Draw")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Draw")?.value / 2 || 0,
+      },
+      loses: {
+        home: stats.find((s) => s.stat === "Lost")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Lost")?.value / 2 || 0,
+      },
+      goalsScored: {
+        home: stats.find((s) => s.stat === "Goals Scored")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Goals Scored")?.value / 2 || 0,
+      },
+      goalsConceded: {
+        home: stats.find((s) => s.stat === "Goals Conceded")?.value / 2 || 0,
+        away: stats.find((s) => s.stat === "Goals Conceded")?.value / 2 || 0,
+      },
+    };
   }
 }
 
