@@ -44,5 +44,4 @@ jobs:
             npx prisma migrate deploy --schema=src/db/prismadb/prisma/schema.prisma
             npm run build
             pm2 restart sdsa-backend
-            npm run sync:all
 
