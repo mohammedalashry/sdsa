@@ -6,6 +6,7 @@ import { validateRequest } from "../../core/middleware/validation.middleware";
 import { authenticate } from "../../core/middleware/auth.middleware";
 import { adminValidationSchemas } from "./admin.validator";
 import multer from "multer";
+import syncRoutes from "./sync.routes";
 
 const router = Router();
 
@@ -133,6 +134,10 @@ router.get(
   requireAdmin,
   adminController.getUserReports,
 );
+
+// ===== SYNC MANAGEMENT (admin/sync) =====
+// Mount sync routes
+router.use("/sync", syncRoutes);
 
 export default router;
 

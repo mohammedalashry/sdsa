@@ -13,6 +13,11 @@ import { errorHandler } from "./core/middleware/error.middleware";
 // Database connections
 import { KorastatsMongoService } from "./db/mogodb/connection";
 
+// Sync service
+import { ScheduledSyncService } from "./syncer/scheduled-sync.service";
+import { SyncLockService } from "./syncer/sync-lock.service";
+import { setScheduledSyncService, setLockService } from "./modules/admin/sync.controller";
+
 // Route imports
 import teamsRoutes from "./modules/teams/routes";
 import leaguesRoutes from "./modules/leagues/routes";
@@ -121,6 +126,34 @@ app.use((req, res) => {
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
+
+// Initialize sync service
+let scheduledSyncService: ScheduledSyncService | null = null;
+let syncLockService: SyncLockService | null = null;
+
+// Initialize sync services on app start
+if (process.env.ENABLE_SYNC !== "false") {
+  try {
+    syncLockService = new SyncLockService();
+    scheduledSyncService = new ScheduledSyncService({
+      runOnDeployment: true,
+      weeklyIntervalHours: 168, // 1 week
+      matchesSyncIntervalHours: 48, // 2 days
+      newMatchesCheckIntervalHours: 3, // 3 hours
+    });
+
+    // Set services for sync controller
+    setScheduledSyncService(scheduledSyncService);
+    setLockService(syncLockService);
+
+    // Start scheduled syncs
+    scheduledSyncService.startScheduledSyncs();
+
+    console.log("✅ Sync services initialized");
+  } catch (error) {
+    console.error("❌ Failed to initialize sync services:", error);
+  }
+}
 
 export default app;
 
